@@ -70,9 +70,22 @@ document.addEventListener('DOMContentLoaded', function() {
     function init() {
         loadFromLocalStorage();
         
+        // --- FIX START ---
+        // Sanitize waitingQueues to prevent potential shared array references from corrupted data.
+        // This ensures each service always has its own separate queue.
+        const loadedQueues = waitingQueues || {};
+        waitingQueues = {};
+        // --- FIX END ---
+
         services.forEach(service => {
             if (!serviceTicketCounters[service.id]) serviceTicketCounters[service.id] = service.start;
-            if (!waitingQueues[service.id]) waitingQueues[service.id] = [];
+            
+            // --- FIX START ---
+            // Reconstruct the waitingQueues object safely.
+            // If a queue existed in the loaded data, copy its contents; otherwise, create a new empty array.
+            waitingQueues[service.id] = loadedQueues[service.id] ? [...loadedQueues[service.id]] : [];
+            // --- FIX END ---
+
             if (!activeTickets[service.id]) activeTickets[service.id] = null;
         });
         
@@ -299,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateHistoryTable() {
         ticketHistoryTable.innerHTML = '';
-        ticketHistory.sort((a, b) => new Date(b.callTime || b.registrationTime) - new Date(a.registrationTime));
+        ticketHistory.sort((a, b) => new Date(b.callTime || b.registrationTime) - new Date(a.callTime || a.registrationTime));
         ticketHistory.slice(0, 50).forEach(ticket => {
             const row = document.createElement('tr');
             row.innerHTML = `<td>${ticket.generalTicket || 'پاس'}</td><td>${ticket.specificTicket || 'پاس'}</td>
