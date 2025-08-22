@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP ---
-    // IMPORTANT: Replace with your actual Appwrite Project ID and Endpoint
-    const APPWRITE_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
-    const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3'; // <-- project ID شما
-    const DATABASE_ID = '68a8d24b003cd6609e37'; // <-- شناسه دیتابیسی که ساختید
+    // Your project credentials have been added here.
+    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Standard Appwrite Cloud Endpoint
+    const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
+    const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = 'services';
     const TICKETS_COLLECTION_ID = 'tickets';
 
