@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP ---
-    // Your project credentials have been added here.
-    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Standard Appwrite Cloud Endpoint
+    // All IDs have been corrected based on your screenshots.
+    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
-    const SERVICES_COLLECTION_ID = 'services';
-    const TICKETS_COLLECTION_ID = 'tickets';
+    const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae'; // Correct ID
+    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6faF24'; // Correct ID
 
     const { Client, Account, Databases, ID, Query } = Appwrite;
 
@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const serviceButtonsContainer = document.querySelector('.service-buttons');
     const ticketForm = document.getElementById('ticket-form');
     const callNextBtn = document.getElementById('call-next-btn');
+    const passTicketBtn = document.getElementById('pass-ticket-btn');
     const serviceCheckboxes = document.getElementById('service-checkboxes');
     const currentTicketDisplay = document.getElementById('current-ticket');
     const popupNotification = document.getElementById('popup-notification');
@@ -39,11 +40,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitTicketBtn = document.getElementById('submit-ticket');
     const cancelTicketBtn = document.getElementById('cancel-ticket');
     const ticketFormTitle = document.getElementById('ticket-form-title');
+    const adminPanel = document.getElementById('admin-panel');
+    const serviceList = document.getElementById('service-list');
+    const addServiceBtn = document.getElementById('add-service-btn');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const closeSettingsBtn = document.getElementById('close-settings');
+    const passServiceModalOverlay = document.getElementById('pass-service-modal-overlay');
+    const passServiceList = document.getElementById('pass-service-list');
+    const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
+    const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
+
 
     // --- Application State ---
     let currentUser = null;
     let services = [];
     let tickets = [];
+    let tempSelectedServicesForPass = [];
 
     // --- INITIALIZATION ---
     async function initializeApp() {
@@ -87,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUI() {
         if (!currentUser) return;
         renderServiceButtons();
-        updateServiceCheckboxes();
+        // updateServiceCheckboxes(); // This can be implemented later
         updateHistoryTable();
         updateCurrentTicketDisplay();
         updateTotalWaitingCount();
@@ -107,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await account.deleteSession('current');
             currentUser = null;
-            showLoggedOutUI();
+            window.location.reload(); // Reload the page to reset state
         } catch (error) {
             console.error('Logout failed:', error);
         }
@@ -139,7 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
         client.subscribe(ticketChannel, response => {
             console.log('Realtime update received:', response.payload);
-            // A simple refetch is easiest for now
             fetchData();
         });
     }
@@ -168,12 +179,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    async function updateServiceCheckboxes() {
-        // This part needs a way to store user preferences (service selections)
-        // For simplicity, this is omitted for now but can be added to user.prefs
-        serviceCheckboxes.innerHTML = 'قابلیت انتخاب خدمات به زودی اضافه می‌شود.';
-    }
-
     function updateHistoryTable() {
         ticketHistoryTable.innerHTML = '';
         tickets.forEach(ticket => {
@@ -185,9 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${ticket.first_name} ${ticket.last_name}</td>
                 <td>${ticket.national_id || '---'}</td>
                 <td>${service ? service.name : '---'}</td>
-                <td>${ticket.registered_by.substring(0, 8)}...</td>
+                <td>${ticket.registered_by ? 'کاربر' : '---'}</td>
                 <td>${formatDate(ticket.$createdAt)}</td>
-                <td>${ticket.called_by ? ticket.called_by.substring(0, 8) + '...' : '---'}</td>
+                <td>${ticket.called_by ? 'کاربر' : '---'}</td>
                 <td>${formatDate(ticket.call_time)}</td>
                 <td>${ticket.status}</td>
             `;
@@ -224,19 +229,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
+        // Simplified ticket number logic
+        const specificNumber = (tickets.filter(t => t.service_id === serviceId).length) + service.start_number;
+
         const newTicketData = {
             service_id: serviceId,
+            specific_ticket: specificNumber,
             first_name: firstName,
             last_name: lastName,
             national_id: nationalId,
             registered_by: currentUser.$id,
             status: 'در حال انتظار',
-            // You'll need to add logic for general/specific ticket numbers
+            ticket_type: 'regular'
         };
 
         try {
             await databases.createDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData);
-            showPopupNotification(`<p>نوبت برای خدمت «${service.name}» ثبت شد.</p>`);
+            showPopupNotification(`<p>نوبت ${specificNumber} برای «${service.name}» ثبت شد.</p>`);
             closeTicketForm();
         } catch (error) {
             console.error('Error creating ticket:', error);
@@ -245,7 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function callNextTicket() {
-        // Simplified: find the oldest waiting ticket
         try {
             const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
                 Query.equal('status', ['در حال انتظار']),
@@ -272,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- HELPERS ---
+    // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId) {
         ticketForm.dataset.mode = mode;
         ticketForm.dataset.serviceId = serviceId;
@@ -282,9 +290,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeTicketForm() {
         ticketForm.style.display = 'none';
-        // Clear form fields
+        document.getElementById('first-name').value = '';
+        document.getElementById('last-name').value = '';
+        document.getElementById('national-id').value = '';
     }
 
+    function openPassServiceModal() {
+        passServiceList.innerHTML = '';
+        services.forEach(service => {
+            const div = document.createElement('div');
+            div.className = 'service-checkbox';
+            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}">
+                             <label for="pass-check-${service.$id}">${service.name}</label>`;
+            passServiceList.appendChild(div);
+        });
+        passServiceModalOverlay.style.display = 'flex';
+    }
+
+    // --- ADMIN PANEL LOGIC ---
+    function openAdminPanel() {
+        renderServiceSettings();
+        adminPanel.style.display = 'block';
+    }
+
+    function renderServiceSettings() {
+        serviceList.innerHTML = '';
+        services.forEach(service => {
+            const row = document.createElement('tr');
+            row.dataset.id = service.$id;
+            row.innerHTML = `
+                <td><input type="text" value="${service.name}" class="setting-name"></td>
+                <td><input type="number" value="${service.start_number}" class="setting-start"></td>
+                <td><input type="number" value="${service.end_number}" class="setting-end"></td>
+                <td><input type="text" value="${service.estimation_mode}" class="setting-estimation-mode"></td>
+                <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
+                <td><input type="text" value="${service.work_hours_start}" class="setting-work-start"></td>
+                <td><input type="text" value="${service.work_hours_end}" class="setting-work-end"></td>
+                <td><button class="remove-service-btn">حذف</button></td>`;
+            serviceList.appendChild(row);
+        });
+    }
+
+    async function saveSettings() {
+        // This is a complex operation. For now, we'll just show a success message.
+        // A full implementation would loop through rows and update/create/delete documents.
+        alert('ذخیره تنظیمات در حال حاضر پشتیبانی نمی‌شود.');
+    }
+
+    // --- HELPERS ---
     function showPopupNotification(htmlContent) {
         popupText.innerHTML = htmlContent;
         popupNotification.style.display = 'flex';
@@ -305,7 +358,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
+    settingsBtn.addEventListener('click', openAdminPanel);
+    closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
+    saveSettingsBtn.addEventListener('click', saveSettings);
     callNextBtn.addEventListener('click', callNextTicket);
+    passTicketBtn.addEventListener('click', openPassServiceModal);
+    cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
+    confirmPassServiceBtn.addEventListener('click', () => {
+        alert('قابلیت پاس نوبت به زودی اضافه می‌شود.');
+        passServiceModalOverlay.style.display = 'none';
+    });
     submitTicketBtn.addEventListener('click', () => {
         const serviceId = ticketForm.dataset.serviceId;
         const firstName = document.getElementById('first-name').value;
