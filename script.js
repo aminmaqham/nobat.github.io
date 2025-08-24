@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6faF24';
 
-    const { Client, Account, Databases, ID, Query } = Appwrite;
+    const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
     const client = new Client();
     client
@@ -82,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
             services = response.documents;
         } catch (error) {
             console.error('Error fetching services:', error);
-            alert('خطا در خواندن اطلاعات خدمات. لطفا تنظیمات دسترسی را در Appwrite چک کنید.');
         }
     }
 
@@ -250,7 +249,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            await databases.createDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData);
+            // *** FIX: Add document-level read permission for all users ***
+            await databases.createDocument(
+                DATABASE_ID,
+                TICKETS_COLLECTION_ID,
+                ID.unique(),
+                newTicketData,
+                [
+                    Permission.read(Role.users()) // Allow any logged-in user to read this ticket
+                ]
+            );
             showPopupNotification(`<p>نوبت ${specificNumber} برای «${service.name}» ثبت شد.</p>`);
             closeTicketForm();
         } catch (error) {
@@ -272,7 +280,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: 'پاس شده',
                 ticket_type: 'pass'
             };
-            return databases.createDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData);
+            // *** FIX: Add document-level read permission for all users ***
+            return databases.createDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                ID.unique(), 
+                newTicketData,
+                [
+                    Permission.read(Role.users())
+                ]
+            );
         });
 
         try {
