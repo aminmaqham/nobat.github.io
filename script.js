@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP ---
-    // All IDs are correctly set based on your screenshots.
     const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
@@ -352,26 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderServiceSettings() {
-        serviceList.innerHTML = '';
-        // Add table headers
-        const thead = document.createElement('thead');
-        thead.innerHTML = `
-            <tr>
-                <th>نام خدمت</th>
-                <th>شماره شروع</th>
-                <th>شماره پایان</th>
-                <th>حالت تخمین</th>
-                <th>زمان دستی</th>
-                <th>زمان هوشمند</th>
-                <th>ساعت شروع</th>
-                <th>ساعت پایان</th>
-                <th>حذف</th>
-            </tr>
-        `;
-        // This is a quick fix, ideally you would check if thead exists
-        // and not add it inside the table in the HTML directly.
-        // For now, let's assume the table in HTML is empty.
-        // A better approach is to have this thead in the HTML file.
+        serviceList.innerHTML = ''; // Clear previous rows
         
         services.forEach(service => {
             const row = document.createElement('tr');
@@ -404,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td><input type="number" value="199" class="setting-end"></td>
             <td><input type="text" value="manual" class="setting-estimation-mode"></td>
             <td><input type="number" value="10" class="setting-manual-time"></td>
-            <td><input type="number" value="10" class="setting-smart-time"></td>
+            <td><input type="number" value="10.0" class="setting-smart-time"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
             <td><button class="remove-service-btn">حذف</button></td>`;
