@@ -353,15 +353,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderServiceSettings() {
         serviceList.innerHTML = '';
+        // Add table headers
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th>نام خدمت</th>
+                <th>شماره شروع</th>
+                <th>شماره پایان</th>
+                <th>حالت تخمین</th>
+                <th>زمان دستی</th>
+                <th>زمان هوشمند</th>
+                <th>ساعت شروع</th>
+                <th>ساعت پایان</th>
+                <th>حذف</th>
+            </tr>
+        `;
+        // This is a quick fix, ideally you would check if thead exists
+        // and not add it inside the table in the HTML directly.
+        // For now, let's assume the table in HTML is empty.
+        // A better approach is to have this thead in the HTML file.
+        
         services.forEach(service => {
             const row = document.createElement('tr');
-            row.dataset.id = service.$id; // Keep track of existing services
+            row.dataset.id = service.$id;
             row.innerHTML = `
                 <td><input type="text" value="${service.name}" class="setting-name"></td>
                 <td><input type="number" value="${service.start_number}" class="setting-start"></td>
                 <td><input type="number" value="${service.end_number}" class="setting-end"></td>
                 <td><input type="text" value="${service.estimation_mode}" class="setting-estimation-mode"></td>
                 <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
+                <td><input type="number" value="${service.smart_time}" class="setting-smart-time"></td>
                 <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
                 <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
                 <td><button class="remove-service-btn">حذف</button></td>`;
@@ -377,13 +398,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function addNewServiceRow() {
         const row = document.createElement('tr');
-        // No data-id for new services
         row.innerHTML = `
             <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
             <td><input type="number" value="100" class="setting-start"></td>
             <td><input type="number" value="199" class="setting-end"></td>
             <td><input type="text" value="manual" class="setting-estimation-mode"></td>
             <td><input type="number" value="10" class="setting-manual-time"></td>
+            <td><input type="number" value="10" class="setting-smart-time"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
             <td><button class="remove-service-btn">حذف</button></td>`;
@@ -398,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         serviceList.querySelectorAll('tr').forEach(row => {
             const id = row.dataset.id;
-            uiServiceIds.push(id);
+            if(id) uiServiceIds.push(id);
 
             const data = {
                 name: row.querySelector('.setting-name').value,
@@ -406,18 +427,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 end_number: parseInt(row.querySelector('.setting-end').value),
                 estimation_mode: row.querySelector('.setting-estimation-mode').value,
                 manual_time: parseInt(row.querySelector('.setting-manual-time').value),
+                smart_time: parseFloat(row.querySelector('.setting-smart-time').value), // FIX: Read and send smart_time
                 work_hours_start: row.querySelector('.setting-work-start').value,
                 work_hours_end: row.querySelector('.setting-work-end').value
             };
 
-            if (id) { // It's an existing service, so update it
+            if (id) {
                 promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
-            } else { // It's a new service, so create it
+            } else {
                 promises.push(databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), data));
             }
         });
 
-        // Find services to delete
         const servicesToDelete = existingServiceIds.filter(id => !uiServiceIds.includes(id));
         servicesToDelete.forEach(id => {
             promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
@@ -427,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await Promise.all(promises);
             showPopupNotification('<p>تنظیمات با موفقیت ذخیره شد.</p>');
             adminPanel.style.display = 'none';
-            fetchData(); // Refresh data
+            fetchData();
         } catch (error) {
             console.error('Error saving settings:', error);
             showPopupNotification('<p>خطا در ذخیره تنظیمات!</p>');
