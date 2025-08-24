@@ -1,11 +1,12 @@
+[file name]: script.js
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP ---
-    // All IDs are correctly set based on your screenshots.
+    // لطفاً این مقادیر را با اطلاعات پروژه Appwrite خود جایگزین کنید
     const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
-    const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
-    const DATABASE_ID = '68a8d24b003cd6609e37';
-    const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
-    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6faF24';
+    const APPWRITE_PROJECT_ID = 'your-project-id-here'; // جایگزین کنید
+    const DATABASE_ID = 'your-database-id-here'; // جایگزین کنید
+    const SERVICES_COLLECTION_ID = 'your-services-collection-id'; // جایگزین کنید
+    const TICKETS_COLLECTION_ID = 'your-tickets-collection-id'; // جایگزین کنید
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
@@ -71,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchData() {
-        if (!currentUser) return; // Do not fetch if not logged in
+        if (!currentUser) return;
         await Promise.all([fetchServices(), fetchTickets()]);
         renderUI();
     }
@@ -82,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
             services = response.documents;
         } catch (error) {
             console.error('Error fetching services:', error);
+            showPopupNotification('<p>خطا در دریافت خدمات!</p>');
         }
     }
 
@@ -94,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tickets = response.documents;
         } catch (error) {
             console.error('Error fetching tickets:', error);
+            showPopupNotification('<p>خطا در دریافت نوبت‌ها!</p>');
         }
     }
 
@@ -153,7 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Realtime update received for tickets.');
             fetchData();
         });
-         const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
+        
+        const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
         client.subscribe(serviceChannel, () => {
             console.log('Realtime update received for services.');
             fetchData();
@@ -249,14 +253,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // *** FIX: Add document-level read permission for all users ***
             await databases.createDocument(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
                 ID.unique(),
                 newTicketData,
                 [
-                    Permission.read(Role.users()) // Allow any logged-in user to read this ticket
+                    Permission.read(Role.users())
                 ]
             );
             showPopupNotification(`<p>نوبت ${specificNumber} برای «${service.name}» ثبت شد.</p>`);
@@ -280,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: 'پاس شده',
                 ticket_type: 'pass'
             };
-            // *** FIX: Add document-level read permission for all users ***
+            
             return databases.createDocument(
                 DATABASE_ID, 
                 TICKETS_COLLECTION_ID, 
@@ -301,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showPopupNotification('<p>خطا در ثبت نوبت پاس شده!</p>');
         }
     }
-
 
     async function callNextTicket() {
         try {
@@ -327,20 +329,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Error calling next ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
         }
     }
 
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
         ticketForm.dataset.mode = mode;
-        const passDelayGroup = document.getElementById('pass-delay-group');
         if (mode === 'regular') {
             ticketForm.dataset.serviceId = serviceId;
             ticketFormTitle.textContent = 'ثبت نوبت جدید';
-            passDelayGroup.style.display = 'none';
         } else if (mode === 'pass') {
             ticketFormTitle.textContent = 'ثبت اطلاعات شخص پاس داده شده';
-            passDelayGroup.style.display = 'block';
         }
         ticketForm.style.display = 'block';
     }
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderServiceSettings() {
-        serviceList.innerHTML = ''; // Clear previous rows
+        serviceList.innerHTML = '';
         
         services.forEach(service => {
             const row = document.createElement('tr');
