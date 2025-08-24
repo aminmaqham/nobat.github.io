@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP ---
+    // All IDs are correctly set based on your screenshots.
     const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
@@ -70,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchData() {
+        if (!currentUser) return; // Do not fetch if not logged in
         await Promise.all([fetchServices(), fetchTickets()]);
         renderUI();
     }
@@ -80,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
             services = response.documents;
         } catch (error) {
             console.error('Error fetching services:', error);
+            alert('خطا در خواندن اطلاعات خدمات. لطفا تنظیمات دسترسی را در Appwrite چک کنید.');
         }
     }
 
@@ -407,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 end_number: parseInt(row.querySelector('.setting-end').value),
                 estimation_mode: row.querySelector('.setting-estimation-mode').value,
                 manual_time: parseInt(row.querySelector('.setting-manual-time').value),
-                smart_time: parseFloat(row.querySelector('.setting-smart-time').value), // FIX: Read and send smart_time
+                smart_time: parseFloat(row.querySelector('.setting-smart-time').value), 
                 work_hours_start: row.querySelector('.setting-work-start').value,
                 work_hours_end: row.querySelector('.setting-work-end').value
             };
