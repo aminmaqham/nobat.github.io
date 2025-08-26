@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
-    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6faF24';
+    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6fa24';
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
@@ -249,14 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // *** FIX: Add document-level read permission for all users ***
             await databases.createDocument(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
                 ID.unique(),
                 newTicketData,
                 [
-                    Permission.read(Role.users()) // Allow any logged-in user to read this ticket
+                    Permission.read(Role.users()), 
+                    Permission.update(Role.users()),
+                    Permission.delete(Role.users())
                 ]
             );
             showPopupNotification(`<p>نوبت ${specificNumber} برای «${service.name}» ثبت شد.</p>`);
@@ -280,14 +281,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: 'پاس شده',
                 ticket_type: 'pass'
             };
-            // *** FIX: Add document-level read permission for all users ***
             return databases.createDocument(
                 DATABASE_ID, 
                 TICKETS_COLLECTION_ID, 
                 ID.unique(), 
                 newTicketData,
                 [
-                    Permission.read(Role.users())
+                    Permission.read(Role.users()),
+                    Permission.update(Role.users()),
+                    Permission.delete(Role.users())
                 ]
             );
         });
