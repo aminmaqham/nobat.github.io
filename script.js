@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
-    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
+    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6fa24';
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let services = [];
     let tickets = [];
     let tempSelectedServicesForPass = [];
+    let lastCalledTicket = {}; // To track the last ticket called by each user for smart time
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
@@ -183,14 +184,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const button = document.createElement('button');
             button.className = 'service-btn';
             const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+            const timeToShow = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
             button.innerHTML = `
                 <div>
                     <div class="service-name">${service.name}</div>
                     <div class="waiting-count">منتظران: ${waitingCount}</div>
                 </div>
-                <div class="estimation-time">${service.estimation_mode}: ${service.manual_time} دقیقه</div>
+                <div class="estimation-time">${service.estimation_mode}: ${Math.round(timeToShow)} دقیقه</div>
             `;
-            button.addEventListener('click', () => openTicketForm('regular', service.$id));
+            button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
             serviceButtonsContainer.appendChild(button);
         });
     }
@@ -265,6 +267,40 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTicketDisplay.innerHTML = '<p>هیچ نوبتی در حال سرویس نیست</p>';
         }
     }
+    
+    // --- Estimation Logic ---
+    function calculateEstimatedWaitTime(serviceId) {
+        const service = services.find(s => s.$id === serviceId);
+        if (!service) return 0;
+        
+        const timePerTicket = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
+        const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+        
+        return queueLength * timePerTicket;
+    }
+
+    async function checkAvailabilityAndOpenForm(serviceId) {
+        const service = services.find(s => s.$id === serviceId);
+        if (!service) return;
+
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const now = new Date();
+        const endTimeParts = service.work_hours_end.split(':');
+        const endTime = new Date();
+        endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
+
+        const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
+
+        if (estimatedFinishTime > endTime) {
+            const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
+            if (confirm(warning)) {
+                openTicketForm('regular', service.$id);
+            }
+        } else {
+            openTicketForm('regular', service.$id);
+        }
+    }
+
 
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
@@ -279,8 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const serviceTickets = tickets.filter(t => t.service_id === serviceId);
         const specificNumber = (serviceTickets.length) + service.start_number;
         const generalNumber = tickets.length + 1;
-        const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-        const estimatedWait = waitingCount * service.manual_time;
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
 
         const newTicketData = {
             service_id: serviceId,
@@ -348,7 +383,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function updateSmartTime(serviceId, callTime) {
+        const service = services.find(s => s.$id === serviceId);
+        if (!service || service.estimation_mode !== 'smart') return;
+
+        const durationMinutes = (new Date() - new Date(callTime)) / 60000;
+        if (durationMinutes < 0.1 || durationMinutes > 120) return; // Ignore very short or long times
+
+        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2); // Weighted average
+        try {
+            await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { smart_time: newSmartTime });
+        } catch (error) {
+            console.error("Failed to update smart time:", error);
+        }
+    }
+
     async function callNextTicket() {
+        // First, update smart time for the previously called ticket by this user
+        if (lastCalledTicket[currentUser.$id]) {
+            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+            if (lastTicket && lastTicket.status === 'در حال سرویس') {
+                await updateSmartTime(lastTicket.service_id, lastTicket.call_time);
+            }
+        }
+
         const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
         const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
 
@@ -359,46 +417,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let ticketToCall = null;
 
-        // 1. Check for passed tickets with delay_count 0
-        const passedResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-            Query.equal('ticket_type', 'pass'),
-            Query.equal('status', 'در حال انتظار'),
-            Query.equal('delay_count', 0),
-            Query.equal('service_id', selectedServiceIds),
-            Query.orderAsc('$createdAt'),
-            Query.limit(1)
-        ]);
-        if (passedResponse.documents.length > 0) {
-            ticketToCall = passedResponse.documents[0];
-        }
-
-        // 2. If no passed ticket, get a regular one
-        if (!ticketToCall) {
-            const regularResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.equal('ticket_type', 'regular'),
-                Query.equal('status', 'در حال انتظار'),
-                Query.equal('service_id', selectedServiceIds),
-                Query.orderAsc('$createdAt'),
-                Query.limit(1)
-            ]);
-            if (regularResponse.documents.length > 0) {
-                ticketToCall = regularResponse.documents[0];
+        const waitingTickets = tickets.filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id));
+        const passedTickets = waitingTickets
+            .filter(t => t.ticket_type === 'pass' && t.delay_count === 0)
+            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+        
+        if (passedTickets.length > 0) {
+            ticketToCall = passedTickets[0];
+        } else {
+            const regularTickets = waitingTickets
+                .filter(t => t.ticket_type === 'regular')
+                .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+            if (regularTickets.length > 0) {
+                ticketToCall = regularTickets[0];
                 
                 // Decrement delay_count for passed tickets of the same service
-                const passedTicketsToUpdate = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                    Query.equal('ticket_type', 'pass'),
-                    Query.equal('status', 'در حال انتظار'),
-                    Query.greater('delay_count', 0),
-                    Query.equal('service_id', [ticketToCall.service_id])
-                ]);
-                const updatePromises = passedTicketsToUpdate.documents.map(t => 
+                const passedToUpdate = tickets.filter(t => 
+                    t.ticket_type === 'pass' && 
+                    t.status === 'در حال انتظار' && 
+                    t.delay_count > 0 &&
+                    t.service_id === ticketToCall.service_id
+                );
+                const updatePromises = passedToUpdate.map(t => 
                     databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
                 );
                 await Promise.all(updatePromises);
             }
         }
 
-        // 3. If a ticket was found, call it
         if (ticketToCall) {
             try {
                 const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
@@ -406,6 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     called_by: currentUser.$id,
                     call_time: new Date().toISOString()
                 });
+                lastCalledTicket[currentUser.$id] = updatedTicket.$id; // Store this call
                 const popupMessage = `
                     <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
                     <p>نام: ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
@@ -436,7 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
         }
     }
-
 
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
