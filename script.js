@@ -1,12 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP ---
-    // All IDs are correctly set based on your screenshots.
     const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
-    // *** FIX: Corrected the TICKETS_COLLECTION_ID based on your screenshot ***
-    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
+    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6fa24';
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
@@ -22,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const settingsBtn = document.getElementById('settings-btn');
+    const resetAllBtn = document.getElementById('reset-all-btn');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
     const userGreeting = document.getElementById('user-greeting');
@@ -58,6 +57,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let tickets = [];
     let tempSelectedServicesForPass = [];
 
+    // --- UTILITY FUNCTIONS ---
+    function checkCodeMeli(code) {
+        if (!code) return true; // Optional
+        code = code.toString().replace(/\D/g, '');
+        if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
+        let sum = 0;
+        for (let i = 0; i < 9; i++) {
+            sum += parseInt(code.charAt(i)) * (10 - i);
+        }
+        const lastDigit = parseInt(code.charAt(9));
+        const remainder = sum % 11;
+        return (remainder < 2) ? (lastDigit === remainder) : (lastDigit === (11 - remainder));
+    }
+
     // --- INITIALIZATION ---
     async function initializeApp() {
         try {
@@ -72,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchData() {
-        if (!currentUser) return; // Do not fetch if not logged in
+        if (!currentUser) return;
         await Promise.all([fetchServices(), fetchTickets()]);
         renderUI();
     }
@@ -101,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUI() {
         if (!currentUser) return;
         renderServiceButtons();
+        updateServiceCheckboxes();
         updateHistoryTable();
         updateCurrentTicketDisplay();
         updateTotalWaitingCount();
@@ -135,8 +149,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentUser.prefs && currentUser.prefs.role === 'admin') {
             settingsBtn.style.display = 'inline-block';
+            resetAllBtn.style.display = 'inline-block';
         } else {
             settingsBtn.style.display = 'none';
+            resetAllBtn.style.display = 'none';
         }
     }
 
@@ -150,15 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- REALTIME ---
     function setupRealtimeSubscriptions() {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        client.subscribe(ticketChannel, () => {
-            console.log('Realtime update received for tickets.');
-            fetchData();
-        });
-         const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
-        client.subscribe(serviceChannel, () => {
-            console.log('Realtime update received for services.');
-            fetchData();
-        });
+        client.subscribe(ticketChannel, () => fetchData());
+        const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
+        client.subscribe(serviceChannel, () => fetchData());
     }
 
     // --- UI RENDERING ---
@@ -182,6 +192,32 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             button.addEventListener('click', () => openTicketForm('regular', service.$id));
             serviceButtonsContainer.appendChild(button);
+        });
+    }
+
+    async function updateServiceCheckboxes() {
+        if (!currentUser) return;
+        serviceCheckboxes.innerHTML = '';
+        const userPrefs = currentUser.prefs || {};
+        const selections = userPrefs.service_selections || {};
+
+        services.forEach(service => {
+            const div = document.createElement('div');
+            div.className = 'service-checkbox';
+            div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}">
+                             <label for="service-check-${service.$id}">${service.name}</label>`;
+            const checkbox = div.querySelector('input');
+            checkbox.checked = selections[service.$id] || false;
+            checkbox.addEventListener('change', async () => {
+                selections[service.$id] = checkbox.checked;
+                try {
+                    await account.updatePrefs({ ...userPrefs, service_selections: selections });
+                    currentUser.prefs = await account.getPrefs(); // Refresh prefs locally
+                } catch (e) {
+                    console.error("Failed to save preferences", e);
+                }
+            });
+            serviceCheckboxes.appendChild(div);
         });
     }
 
@@ -232,36 +268,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
+        if (nationalId && !checkCodeMeli(nationalId)) {
+            alert('کد ملی وارد شده معتبر نیست.');
+            return;
+        }
+
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
         const serviceTickets = tickets.filter(t => t.service_id === serviceId);
         const specificNumber = (serviceTickets.length) + service.start_number;
+        const generalNumber = tickets.length + 1;
+        const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+        const estimatedWait = waitingCount * service.manual_time;
 
         const newTicketData = {
             service_id: serviceId,
             specific_ticket: specificNumber,
-            first_name: firstName,
-            last_name: lastName,
-            national_id: nationalId,
+            general_ticket: generalNumber,
+            first_name: firstName || '---',
+            last_name: lastName || '---',
+            national_id: nationalId || '---',
             registered_by: currentUser.$id,
             status: 'در حال انتظار',
             ticket_type: 'regular'
         };
 
         try {
-            await databases.createDocument(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                ID.unique(),
-                newTicketData,
-                [
-                    Permission.read(Role.users()), 
-                    Permission.update(Role.users()),
-                    Permission.delete(Role.users())
-                ]
+            const createdTicket = await databases.createDocument(
+                DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
+                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
-            showPopupNotification(`<p>نوبت ${specificNumber} برای «${service.name}» ثبت شد.</p>`);
+            const popupMessage = `
+                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
+                <p>نوبت کلی: ${createdTicket.general_ticket}</p>
+                <p>نام: ${createdTicket.first_name} ${createdTicket.last_name}</p>
+                <p>کد ملی: ${createdTicket.national_id}</p>
+                <span class="wait-time">زمان تخمینی انتظار: ${Math.round(estimatedWait)} دقیقه</span>
+            `;
+            showPopupNotification(popupMessage);
             closeTicketForm();
         } catch (error) {
             console.error('Error creating ticket:', error);
@@ -269,29 +314,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    async function generatePassTicket(firstName, lastName, nationalId) {
+    async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
+        if (nationalId && !checkCodeMeli(nationalId)) {
+            alert('کد ملی وارد شده معتبر نیست.');
+            return;
+        }
         if (tempSelectedServicesForPass.length === 0) return;
 
         const creationPromises = tempSelectedServicesForPass.map(serviceId => {
             const newTicketData = {
                 service_id: serviceId,
-                first_name: firstName,
-                last_name: lastName,
-                national_id: nationalId,
+                first_name: firstName || '---',
+                last_name: lastName || '---',
+                national_id: nationalId || '---',
                 registered_by: currentUser.$id,
-                status: 'پاس شده',
-                ticket_type: 'pass'
+                status: 'در حال انتظار',
+                ticket_type: 'pass',
+                delay_count: delayCount
             };
             return databases.createDocument(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, 
-                ID.unique(), 
-                newTicketData,
-                [
-                    Permission.read(Role.users()),
-                    Permission.update(Role.users()),
-                    Permission.delete(Role.users())
-                ]
+                DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
+                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
         });
 
@@ -305,33 +348,95 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     async function callNextTicket() {
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.equal('status', ['در حال انتظار']),
+        const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+            return;
+        }
+
+        let ticketToCall = null;
+
+        // 1. Check for passed tickets with delay_count 0
+        const passedResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.equal('ticket_type', 'pass'),
+            Query.equal('status', 'در حال انتظار'),
+            Query.equal('delay_count', 0),
+            Query.equal('service_id', selectedServiceIds),
+            Query.orderAsc('$createdAt'),
+            Query.limit(1)
+        ]);
+        if (passedResponse.documents.length > 0) {
+            ticketToCall = passedResponse.documents[0];
+        }
+
+        // 2. If no passed ticket, get a regular one
+        if (!ticketToCall) {
+            const regularResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+                Query.equal('ticket_type', 'regular'),
+                Query.equal('status', 'در حال انتظار'),
+                Query.equal('service_id', selectedServiceIds),
                 Query.orderAsc('$createdAt'),
                 Query.limit(1)
             ]);
-
-            if (response.documents.length === 0) {
-                showPopupNotification('<p>هیچ نوبتی در صف انتظار نیست.</p>');
-                return;
+            if (regularResponse.documents.length > 0) {
+                ticketToCall = regularResponse.documents[0];
+                
+                // Decrement delay_count for passed tickets of the same service
+                const passedTicketsToUpdate = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+                    Query.equal('ticket_type', 'pass'),
+                    Query.equal('status', 'در حال انتظار'),
+                    Query.greater('delay_count', 0),
+                    Query.equal('service_id', [ticketToCall.service_id])
+                ]);
+                const updatePromises = passedTicketsToUpdate.documents.map(t => 
+                    databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+                );
+                await Promise.all(updatePromises);
             }
+        }
 
-            const ticketToCall = response.documents[0];
-            await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                call_time: new Date().toISOString()
-            });
-
-            showPopupNotification(`<p>نوبت ${ticketToCall.specific_ticket || ''} فراخوانی شد.</p>`);
-
-        } catch (error) {
-            console.error('Error calling next ticket:', error);
+        // 3. If a ticket was found, call it
+        if (ticketToCall) {
+            try {
+                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    call_time: new Date().toISOString()
+                });
+                const popupMessage = `
+                    <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                    <p>نام: ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p>کد ملی: ${updatedTicket.national_id}</p>
+                `;
+                showPopupNotification(popupMessage);
+            } catch (error) {
+                console.error('Error calling next ticket:', error);
+            }
+        } else {
+            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
         }
     }
+    
+    async function resetAllTickets() {
+        if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
+        
+        try {
+            let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            while (response.documents.length > 0) {
+                const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
+                await Promise.all(deletePromises);
+                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            }
+            showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
+        } catch (error) {
+            console.error('Error resetting tickets:', error);
+            showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
+        }
+    }
+
 
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
@@ -353,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('first-name').value = '';
         document.getElementById('last-name').value = '';
         document.getElementById('national-id').value = '';
+        document.getElementById('pass-delay-count').value = 0;
     }
 
     function openPassServiceModal() {
@@ -374,8 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderServiceSettings() {
-        serviceList.innerHTML = ''; // Clear previous rows
-        
+        serviceList.innerHTML = '';
         services.forEach(service => {
             const row = document.createElement('tr');
             row.dataset.id = service.$id;
@@ -480,6 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
+    resetAllBtn.addEventListener('click', resetAllTickets);
     closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
     cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
     addServiceBtn.addEventListener('click', addNewServiceRow);
@@ -509,7 +615,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const serviceId = ticketForm.dataset.serviceId;
             generateTicket(serviceId, firstName, lastName, nationalId);
         } else if (mode === 'pass') {
-            generatePassTicket(firstName, lastName, nationalId);
+            const delayCount = parseInt(document.getElementById('pass-delay-count').value) || 0;
+            generatePassTicket(firstName, lastName, nationalId, delayCount);
         }
     });
     cancelTicketBtn.addEventListener('click', closeTicketForm);
