@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
-        if (!code) return true; // Optional
+        if (!code) return true; // Optional, so empty is valid
         code = code.toString().replace(/\D/g, '');
         if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
         let sum = 0;
