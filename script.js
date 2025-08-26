@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     // *** FIX: Corrected the TICKETS_COLLECTION_ID based on your screenshot ***
-    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6fa24';
+    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
