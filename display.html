@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نمایشگر نوبت</title>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="display.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>آخرین نوبت فراخوانده شده</h1>
+        </header>
+        <main id="call-display">
+            <div class="ticket-card placeholder">
+                <div class="ticket-number">---</div>
+                <div class="counter-name">منتظر فراخوان...</div>
+            </div>
+        </main>
+        <footer>
+            <div id="history-header">نوبت‌های قبلی</div>
+            <div id="history-list">
+                <!-- Previous tickets will be shown here -->
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
+    <script src="display.js"></script>
+</body>
+</html>
