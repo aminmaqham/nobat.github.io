@@ -114,5 +114,3 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDisplay();
     setupRealtime();
 });
-
-
