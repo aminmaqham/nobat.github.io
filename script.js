@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- APPWRITE SETUP ---
+    // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
     const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
@@ -56,11 +56,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let services = [];
     let tickets = [];
     let tempSelectedServicesForPass = [];
-    let lastCalledTicket = {}; // To track the last ticket called by each user for smart time
+    let lastCalledTicket = {};
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
-        if (!code) return true; // Optional, so empty is valid
+        if (!code) return true;
         code = code.toString().replace(/\D/g, '');
         if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
         let sum = 0;
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTotalWaitingCount();
     }
 
-    // --- AUTHENTICATION ---
+    // --- AUTHENTICATION & UI TOGGLES ---
     async function login() {
         try {
             await account.createEmailSession(emailInput.value, passwordInput.value);
@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selections[service.$id] = checkbox.checked;
                 try {
                     await account.updatePrefs({ ...userPrefs, service_selections: selections });
-                    currentUser.prefs = await account.getPrefs(); // Refresh prefs locally
+                    currentUser.prefs = await account.getPrefs();
                 } catch (e) {
                     console.error("Failed to save preferences", e);
                 }
@@ -234,9 +234,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${ticket.first_name} ${ticket.last_name}</td>
                 <td>${ticket.national_id || '---'}</td>
                 <td>${service ? service.name : '---'}</td>
-                <td>${ticket.registered_by ? 'کاربر' : '---'}</td>
+                <td>${ticket.registered_by_name || '---'}</td>
                 <td>${formatDate(ticket.$createdAt)}</td>
-                <td>${ticket.called_by ? 'کاربر' : '---'}</td>
+                <td>${ticket.called_by_name || '---'}</td>
                 <td>${formatDate(ticket.call_time)}</td>
                 <td>${ticket.status}</td>
             `;
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const estimatedWait = calculateEstimatedWaitTime(serviceId);
         const now = new Date();
-        const endTimeParts = service.work_hours_end.split(':');
+        const endTimeParts = (service.work_hours_end || "17:00").split(':');
         const endTime = new Date();
         endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
 
@@ -301,7 +301,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
         if (nationalId && !checkCodeMeli(nationalId)) {
@@ -312,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        const serviceTickets = tickets.filter(t => t.service_id === serviceId);
+        const serviceTickets = tickets.filter(t => t.service_id === serviceId && t.ticket_type === 'regular');
         const specificNumber = (serviceTickets.length) + service.start_number;
         const generalNumber = tickets.length + 1;
         const estimatedWait = calculateEstimatedWaitTime(serviceId);
@@ -325,6 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             last_name: lastName || '---',
             national_id: nationalId || '---',
             registered_by: currentUser.$id,
+            registered_by_name: currentUser.name,
             status: 'در حال انتظار',
             ticket_type: 'regular'
         };
@@ -356,13 +356,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (tempSelectedServicesForPass.length === 0) return;
 
-        const creationPromises = tempSelectedServicesForPass.map(serviceId => {
+        const generalNumber = tickets.length + 1;
+        const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
             const newTicketData = {
                 service_id: serviceId,
+                general_ticket: generalNumber + index,
                 first_name: firstName || '---',
                 last_name: lastName || '---',
                 national_id: nationalId || '---',
                 registered_by: currentUser.$id,
+                registered_by_name: currentUser.name,
                 status: 'در حال انتظار',
                 ticket_type: 'pass',
                 delay_count: delayCount
@@ -388,9 +391,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!service || service.estimation_mode !== 'smart') return;
 
         const durationMinutes = (new Date() - new Date(callTime)) / 60000;
-        if (durationMinutes < 0.1 || durationMinutes > 120) return; // Ignore very short or long times
+        if (durationMinutes < 0.1 || durationMinutes > 120) return;
 
-        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2); // Weighted average
+        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2);
         try {
             await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { smart_time: newSmartTime });
         } catch (error) {
@@ -399,7 +402,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function callNextTicket() {
-        // First, update smart time for the previously called ticket by this user
         if (lastCalledTicket[currentUser.$id]) {
             const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
             if (lastTicket && lastTicket.status === 'در حال سرویس') {
@@ -416,43 +418,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let ticketToCall = null;
-
-        const waitingTickets = tickets.filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id));
-        const passedTickets = waitingTickets
-            .filter(t => t.ticket_type === 'pass' && t.delay_count === 0)
+        
+        const waitingTickets = tickets
+            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
             .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+
+        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
         
         if (passedTickets.length > 0) {
             ticketToCall = passedTickets[0];
         } else {
-            const regularTickets = waitingTickets
-                .filter(t => t.ticket_type === 'regular')
-                .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
             if (regularTickets.length > 0) {
                 ticketToCall = regularTickets[0];
                 
-                // Decrement delay_count for passed tickets of the same service
                 const passedToUpdate = tickets.filter(t => 
-                    t.ticket_type === 'pass' && 
-                    t.status === 'در حال انتظار' && 
-                    t.delay_count > 0 &&
+                    t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
                     t.service_id === ticketToCall.service_id
                 );
                 const updatePromises = passedToUpdate.map(t => 
                     databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
                 );
-                await Promise.all(updatePromises);
+                if (updatePromises.length > 0) await Promise.all(updatePromises);
             }
         }
 
         if (ticketToCall) {
             try {
+                const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
                 const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
+                    called_by_name: currentUser.name,
+                    called_by_counter_name: counterName, // *** ADDED THIS LINE ***
                     call_time: new Date().toISOString()
                 });
-                lastCalledTicket[currentUser.$id] = updatedTicket.$id; // Store this call
+                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
                 const popupMessage = `
                     <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
                     <p>نام: ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
@@ -536,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><input type="number" value="${service.end_number}" class="setting-end"></td>
                 <td><input type="text" value="${service.estimation_mode}" class="setting-estimation-mode"></td>
                 <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
-                <td><input type="number" value="${service.smart_time}" class="setting-smart-time"></td>
+                <td><input type="number" value="${service.smart_time}" class="setting-smart-time" step="0.1"></td>
                 <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
                 <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
                 <td><button class="remove-service-btn">حذف</button></td>`;
@@ -544,9 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         serviceList.querySelectorAll('.remove-service-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.target.closest('tr').remove();
-            });
+            btn.addEventListener('click', (e) => e.target.closest('tr').remove());
         });
     }
     
@@ -558,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td><input type="number" value="199" class="setting-end"></td>
             <td><input type="text" value="manual" class="setting-estimation-mode"></td>
             <td><input type="number" value="10" class="setting-manual-time"></td>
-            <td><input type="number" value="10.0" class="setting-smart-time"></td>
+            <td><input type="number" value="10.0" class="setting-smart-time" step="0.1"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
             <td><button class="remove-service-btn">حذف</button></td>`;
@@ -624,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatDate(dateString) {
         if (!dateString) return '---';
         const d = new Date(dateString);
-        return d.toLocaleTimeString('fa-IR');
+        return d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
     }
 
     // --- EVENT LISTENERS ---
