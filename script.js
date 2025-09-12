@@ -147,7 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function login() {
         try {
             await account.createEmailSession(emailInput.value, passwordInput.value);
-            initializeApp();
+            // After successful login, reload the app to get user data
+            window.location.reload(); 
         } catch (error) {
             showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
         }
