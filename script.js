@@ -168,9 +168,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (userIsKiosk) {
+            // Remove existing event listeners to prevent duplication
+            serviceButtonsContainer.querySelectorAll('.service-btn').forEach(btn => {
+                const oldBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(oldBtn, btn);
+            });
             serviceButtonsContainer.querySelectorAll('.service-btn').forEach(btn => {
                 const serviceId = btn.dataset.serviceId;
-                btn.removeEventListener('click', checkAvailabilityAndOpenForm);
                 btn.addEventListener('click', () => generateKioskTicket(serviceId));
             });
         }
@@ -212,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="estimation-time">${service.estimation_mode}: ${Math.round(timeToShow)} دقیقه</div>
             `;
+            // Attach the regular event listener for non-kiosk users
             button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
             serviceButtonsContainer.appendChild(button);
         });
@@ -296,10 +301,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const timePerTicket = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
         const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
         
-        return queueLength * timePerTicket;
+        // Calculate the effective wait time based on active counters. Defaults to 1 if not set.
+        const activeCounters = service.active_counters > 0 ? service.active_counters : 1;
+        
+        return (queueLength * timePerTicket) / activeCounters;
     }
 
     async function checkAvailabilityAndOpenForm(serviceId) {
+        const userIsKiosk = currentUser.name === 'کیوسک';
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
@@ -312,23 +321,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
 
         if (estimatedFinishTime > endTime) {
-            const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-            if (confirm(warning)) {
-                openTicketForm('regular', service.$id);
+            if (userIsKiosk) {
+                // Kiosk should not issue a ticket if it exceeds the end time, no warning needed.
+                showPopupNotification('<p>ساعت کاری این خدمت به پایان رسیده است. امکان صدور نوبت وجود ندارد.</p>');
+                return;
+            } else {
+                const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
+                // Regular user gets a warning but can proceed
+                if (!confirm(warning)) {
+                    return;
+                }
             }
-        } else {
-            openTicketForm('regular', service.$id);
         }
+        openTicketForm('regular', service.$id);
     }
-
+    
     async function generateKioskTicket(serviceId) {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
+        // Kiosk generates ticket directly without a form
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const now = new Date();
+        const endTimeParts = (service.work_hours_end || "17:00").split(':');
+        const endTime = new Date();
+        endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
+        const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
+        
+        // Kiosk cannot issue a ticket if it goes past the end time
+        if (estimatedFinishTime > endTime) {
+            showPopupNotification('<p>ساعت کاری این خدمت به پایان رسیده است. امکان صدور نوبت از طریق کیوسک وجود ندارد.</p>');
+            return;
+        }
+
         const serviceTickets = tickets.filter(t => t.service_id === serviceId && t.ticket_type === 'regular');
         const specificNumber = (serviceTickets.length) + service.start_number;
         const generalNumber = tickets.length + 1;
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
 
         const newTicketData = {
             service_id: serviceId,
@@ -602,6 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><input type="text" value="${service.estimation_mode}" class="setting-estimation-mode"></td>
                 <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
                 <td><input type="number" value="${service.smart_time}" class="setting-smart-time" step="0.1"></td>
+                <td><input type="number" value="${service.active_counters || 1}" class="setting-active-counters" min="1"></td>
                 <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
                 <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
                 <td><button class="remove-service-btn">حذف</button></td>`;
@@ -622,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td><input type="text" value="manual" class="setting-estimation-mode"></td>
             <td><input type="number" value="10" class="setting-manual-time"></td>
             <td><input type="number" value="10.0" class="setting-smart-time" step="0.1"></td>
+            <td><input type="number" value="1" class="setting-active-counters" min="1"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
             <td><button class="remove-service-btn">حذف</button></td>`;
@@ -645,6 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 estimation_mode: row.querySelector('.setting-estimation-mode').value,
                 manual_time: parseInt(row.querySelector('.setting-manual-time').value),
                 smart_time: parseFloat(row.querySelector('.setting-smart-time').value), 
+                active_counters: parseInt(row.querySelector('.setting-active-counters').value),
                 work_hours_start: row.querySelector('.setting-work-start').value,
                 work_hours_end: row.querySelector('.setting-work-end').value
             };
