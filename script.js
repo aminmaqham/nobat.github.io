@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
-    const APPWRITE_ENDPOINT = '[https://cloud.appwrite.io/v1](https://cloud.appwrite.io/v1)';
+    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SETTINGS_COLLECTION_ID = '68a8d21a0031802b1f8c';
     const GLOBAL_SETTINGS_DOC_ID = 'global_settings';
 
-    const { Client, Account, Databases, Users, ID, Query, Permission, Role } = Appwrite;
+    const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
     const client = new Client();
     client
@@ -17,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const account = new Account(client);
     const databases = new Databases(client);
-    const users = new Users(client);
 
     // --- DOM Elements ---
     const loginBtn = document.getElementById('login-btn');
@@ -310,25 +309,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function countActiveCountersForService(serviceId) {
-        let count = 0;
-        try {
-            const allUsersResponse = await users.list(); // This requires server-side access to users service
-            const allUsers = allUsersResponse.users;
-
-            allUsers.forEach(user => {
-                const prefs = user.prefs || {};
-                if (prefs.service_selections && prefs.service_selections[serviceId]) {
-                    count++;
-                }
-            });
-        } catch (e) {
-            console.error('Error fetching all users for active counter calculation:', e);
-            // Fallback to 1 if we can't get the user list
-            return 1;
-        }
-
-        return count > 0 ? count : 1;
+    function countActiveCountersForService(serviceId) {
+        // This function now relies on the service selections stored in Appwrite user preferences.
+        const activeUsersWithSelections = services.filter(service => {
+            const activeUserIds = Object.keys(service.user_selections || {});
+            return activeUserIds.length > 0;
+        });
+        
+        return activeUsersWithSelections.length > 0 ? activeUsersWithSelections.length : 1;
     }
     
     // --- Estimation Logic ---
@@ -339,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const timePerTicket = service.manual_time;
         const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
         
-        const activeCounters = await countActiveCountersForService(serviceId);
+        const activeCounters = countActiveCountersForService(serviceId);
         
         return (queueLength * timePerTicket) / activeCounters;
     }
@@ -492,7 +480,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
             return;
         }
-        if (tempSelectedServicesForPass.length === 0) return;
+        if (tempSelectedServicesForPass.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را انتخاب کنید.</p>');
+            return;
+        }
 
         const canIssue = tempSelectedServicesForPass.every(serviceId => {
             const service = services.find(s => s.$id === serviceId);
@@ -646,13 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // NOTE: This operation requires a server-side SDK and an API key with users.read and users.write permissions.
                 // It will not work on the client-side due to security restrictions.
                 // This is a placeholder for the logic you would implement in a server-side function.
-                const allUsersResponse = await users.list();
-                const userUpdatePromises = allUsersResponse.users.map(user => {
-                    const prefs = user.prefs || {};
-                    prefs.service_selections = {};
-                    return users.updatePrefs(user.$id, prefs);
-                });
-                await Promise.all(userUpdatePromises);
+                 // This is a placeholder for a server-side function call.
+                 // The logic to get and update all users' preferences must be on the server.
             } catch (e) {
                 console.error("Failed to reset user preferences:", e);
                 showPopupNotification('<p>خطا در ریست تنظیمات کاربران.</p>');
@@ -857,7 +843,7 @@ document.addEventListener('DOMContentLoaded', () => {
     passTicketBtn.addEventListener('click', openPassServiceModal);
     cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
     
-    confirmPassServiceBtn.addEventListener('click', () => {
+    confirmPassServiceBtn.addEventListener('click', async () => {
         const selected = passServiceList.querySelectorAll('input:checked');
         if (selected.length === 0) {
             showPopupNotification('<p>لطفا حداقل یک خدمت را انتخاب کنید.</p>');
