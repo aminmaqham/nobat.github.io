@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
     const SETTINGS_COLLECTION_ID = '68a8d21a0031802b1f8c';
-    const GLOBAL_SETTINGS_DOC_ID = 'global_settings';
+    
 
     const { Client, Account, Databases, Users, ID, Query, Permission, Role } = Appwrite;
 
