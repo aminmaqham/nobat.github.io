@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
     const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
     const kioskHideableElements = document.querySelectorAll('.js-kiosk-hide');
+    const issuingEnabledCheckbox = document.getElementById('issuing-enabled');
 
     // --- Application State ---
     let currentUser = null;
@@ -149,12 +150,20 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
 
-        // Check user role for UI permissions
+        // Check user role and settings for UI permissions
         const userIsAdmin = currentUser.prefs && currentUser.prefs.role === 'admin';
         const userIsKiosk = currentUser.name === 'کیوسک';
+        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
 
         settingsBtn.style.display = userIsAdmin ? 'inline-block' : 'none';
         resetAllBtn.style.display = userIsAdmin ? 'inline-block' : 'none';
+        
+        // Hide/show main content based on user type and issuing status
+        if (!isIssuingEnabled && !userIsAdmin) {
+            serviceButtonsContainer.style.display = 'none';
+        } else {
+            serviceButtonsContainer.style.display = 'grid';
+        }
 
         // Hide pass ticket button and history for kiosk
         passTicketBtn.style.display = userIsKiosk ? 'none' : 'inline-block';
@@ -312,6 +321,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
+        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
+        if (!isIssuingEnabled) {
+             showPopupNotification('<p>صدور نوبت در حال حاضر غیرفعال است.</p>');
+             return;
+        }
+
         const estimatedWait = calculateEstimatedWaitTime(serviceId);
         const now = new Date();
         const endTimeParts = (service.work_hours_end || "17:00").split(':');
@@ -339,6 +354,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function generateKioskTicket(serviceId) {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
+
+        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
+        if (!isIssuingEnabled) {
+             showPopupNotification('<p>صدور نوبت در حال حاضر غیرفعال است.</p>');
+             return;
+        }
 
         // Kiosk generates ticket directly without a form
         const estimatedWait = calculateEstimatedWaitTime(serviceId);
@@ -444,6 +465,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (tempSelectedServicesForPass.length === 0) return;
+
+        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
+        if (!isIssuingEnabled) {
+             showPopupNotification('<p>صدور نوبت در حال حاضر غیرفعال است.</p>');
+             return;
+        }
 
         const generalNumber = tickets.length + 1;
         const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
@@ -614,6 +641,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
+        // Set the state of the new checkbox
+        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
+        issuingEnabledCheckbox.checked = isIssuingEnabled;
+
         renderServiceSettings();
         adminPanel.style.display = 'block';
     }
@@ -691,6 +722,11 @@ document.addEventListener('DOMContentLoaded', () => {
         servicesToDelete.forEach(id => {
             promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
         });
+
+        // Save the new global setting
+        const userPrefs = currentUser.prefs || {};
+        userPrefs.is_issuing_enabled = issuingEnabledCheckbox.checked;
+        promises.push(account.updatePrefs(userPrefs));
 
         try {
             await Promise.all(promises);
