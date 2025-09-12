@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
-    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
+    const APPWRITE_ENDPOINT = '[https://cloud.appwrite.io/v1](https://cloud.appwrite.io/v1)';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
@@ -368,7 +368,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             } else {
                 const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-                if (!showCustomConfirm(warning)) {
+                const confirmResult = await showCustomConfirm(warning);
+                if (!confirmResult) {
                     return;
                 }
             }
