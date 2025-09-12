@@ -5,8 +5,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
+    const SETTINGS_COLLECTION_ID = '68a8d21a0031802b1f8c'; // New
+    const GLOBAL_SETTINGS_DOC_ID = 'global_settings'; // New
 
-    const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
+    const { Client, Account, Databases, Users, ID, Query, Permission, Role } = Appwrite; // Added Users
 
     const client = new Client();
     client
@@ -15,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const account = new Account(client);
     const databases = new Databases(client);
+    const users = new Users(client); // Initialized Users service
 
     // --- DOM Elements ---
     const loginBtn = document.getElementById('login-btn');
@@ -51,7 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
     const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
     const kioskHideableElements = document.querySelectorAll('.js-kiosk-hide');
-    const issuingEnabledCheckbox = document.getElementById('issuing-enabled');
+    const dailyResetEnabledCheckbox = document.getElementById('daily-reset-enabled');
+
 
     // --- Application State ---
     let currentUser = null;
@@ -59,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tickets = [];
     let tempSelectedServicesForPass = [];
     let lastCalledTicket = {};
+    let globalSettings = {};
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
@@ -78,12 +83,29 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         try {
             currentUser = await account.get();
+            await checkAndPerformDailyReset();
+            await fetchGlobalSettings();
             showLoggedInUI();
             await fetchData();
             setupRealtimeSubscriptions();
         } catch (error) {
             console.log('User not logged in');
             showLoggedOutUI();
+        }
+    }
+
+    async function fetchGlobalSettings() {
+        try {
+            globalSettings = await databases.getDocument(DATABASE_ID, SETTINGS_COLLECTION_ID, GLOBAL_SETTINGS_DOC_ID);
+        } catch (error) {
+            console.error('Error fetching global settings, creating default...');
+            globalSettings = await databases.createDocument(
+                DATABASE_ID, SETTINGS_COLLECTION_ID, GLOBAL_SETTINGS_DOC_ID, {
+                    last_reset_date: '',
+                    is_daily_reset_enabled: true
+                },
+                [Permission.read(Role.users()), Permission.update(Role.users())]
+            );
         }
     }
 
@@ -104,9 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchTickets() {
         try {
-            // Updated to remove the limit, fetching all documents to correctly calculate the total waiting count.
             const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.orderDesc('$createdAt')
+                Query.orderAsc('general_ticket') // Sort by general_ticket number
             ]);
             tickets = response.documents;
         } catch (error) {
@@ -129,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await account.createEmailSession(emailInput.value, passwordInput.value);
             initializeApp();
         } catch (error) {
-            alert('خطا در ورود: ' + error.message);
+            showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
         }
     }
 
@@ -150,34 +171,18 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
 
-        // Check user role and settings for UI permissions
         const userIsAdmin = currentUser.prefs && currentUser.prefs.role === 'admin';
         const userIsKiosk = currentUser.name === 'کیوسک';
-        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
 
         settingsBtn.style.display = userIsAdmin ? 'inline-block' : 'none';
         resetAllBtn.style.display = userIsAdmin ? 'inline-block' : 'none';
-        
-        // Hide/show main content based on user type and issuing status
-        if (!isIssuingEnabled && !userIsAdmin) {
-            serviceButtonsContainer.style.display = 'none';
-        } else {
-            serviceButtonsContainer.style.display = 'grid';
-        }
-
-        // Hide pass ticket button and history for kiosk
         passTicketBtn.style.display = userIsKiosk ? 'none' : 'inline-block';
-        document.querySelector('.ticket-actions').style.display = userIsKiosk ? 'none' : 'flex';
-        document.querySelector('.call-panel').style.display = userIsKiosk ? 'none' : 'block';
-        document.querySelector('.history').style.display = userIsKiosk ? 'none' : 'block';
 
-        // Hide form fields for kiosk and make service buttons behave differently
         kioskHideableElements.forEach(el => {
             el.style.display = userIsKiosk ? 'none' : 'block';
         });
 
         if (userIsKiosk) {
-            // Remove existing event listeners to prevent duplication
             serviceButtonsContainer.querySelectorAll('.service-btn').forEach(btn => {
                 const oldBtn = btn.cloneNode(true);
                 btn.parentNode.replaceChild(oldBtn, btn);
@@ -213,26 +218,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderServiceButtons() {
         serviceButtonsContainer.innerHTML = '';
         services.forEach(service => {
-            const button = document.createElement('button');
-            button.className = 'service-btn';
-            button.dataset.serviceId = service.$id; // Add this line to store service ID on the button
-            const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-            const timeToShow = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
-            button.innerHTML = `
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <div class="waiting-count">منتظران: ${waitingCount}</div>
-                </div>
-                <div class="estimation-time">${service.estimation_mode}: ${Math.round(timeToShow)} دقیقه</div>
-            `;
-            // Attach the regular event listener for non-kiosk users
-            button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
-            serviceButtonsContainer.appendChild(button);
+            if (service.is_issuing_enabled) {
+                const button = document.createElement('button');
+                button.className = 'service-btn';
+                button.dataset.serviceId = service.$id;
+                const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+                const timePerTicket = service.manual_time;
+                button.innerHTML = `
+                    <div>
+                        <div class="service-name">${service.name}</div>
+                        <div class="waiting-count">منتظران: ${waitingCount}</div>
+                    </div>
+                    <div class="estimation-time">زمان تخمینی: ${Math.round(calculateEstimatedWaitTime(service.$id))} دقیقه</div>
+                `;
+                button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
+                serviceButtonsContainer.appendChild(button);
+            }
         });
     }
 
     async function updateServiceCheckboxes() {
-        if (!currentUser) return;
+        if (!currentUser || currentUser.name === 'کیوسک') return;
         serviceCheckboxes.innerHTML = '';
         const userPrefs = currentUser.prefs || {};
         const selections = userPrefs.service_selections || {};
@@ -248,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selections[service.$id] = checkbox.checked;
                 try {
                     await account.updatePrefs({ ...userPrefs, service_selections: selections });
+                    // Refresh user prefs to ensure the local state is in sync
                     currentUser.prefs = await account.getPrefs();
                 } catch (e) {
                     console.error("Failed to save preferences", e);
@@ -259,11 +266,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateHistoryTable() {
         ticketHistoryTable.innerHTML = '';
-        tickets.forEach(ticket => {
+        const sortedTickets = [...tickets].sort((a, b) => a.general_ticket - b.general_ticket);
+        sortedTickets.forEach(ticket => {
             const service = services.find(s => s.$id === ticket.service_id);
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${ticket.general_ticket || 'پاس'}</td>
+                <td>${ticket.general_ticket || '---'}</td>
                 <td>${ticket.specific_ticket || 'پاس'}</td>
                 <td>${ticket.first_name} ${ticket.last_name}</td>
                 <td>${ticket.national_id || '---'}</td>
@@ -301,17 +309,37 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTicketDisplay.innerHTML = '<p>هیچ نوبتی در حال سرویس نیست</p>';
         }
     }
+
+    async function countActiveCountersForService(serviceId) {
+        let count = 0;
+        try {
+            const allUsersResponse = await users.list(); // This requires server-side access to users service
+            const allUsers = allUsersResponse.users;
+
+            allUsers.forEach(user => {
+                const prefs = user.prefs || {};
+                if (prefs.service_selections && prefs.service_selections[serviceId]) {
+                    count++;
+                }
+            });
+        } catch (e) {
+            console.error('Error fetching all users for active counter calculation:', e);
+            // Fallback to 1 if we can't get the user list
+            return 1;
+        }
+
+        return count > 0 ? count : 1;
+    }
     
     // --- Estimation Logic ---
-    function calculateEstimatedWaitTime(serviceId) {
+    async function calculateEstimatedWaitTime(serviceId) {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return 0;
         
-        const timePerTicket = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
+        const timePerTicket = service.manual_time;
         const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
         
-        // Calculate the effective wait time based on active counters. Defaults to 1 if not set.
-        const activeCounters = service.active_counters > 0 ? service.active_counters : 1;
+        const activeCounters = await countActiveCountersForService(serviceId);
         
         return (queueLength * timePerTicket) / activeCounters;
     }
@@ -321,13 +349,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
-        if (!isIssuingEnabled) {
-             showPopupNotification('<p>صدور نوبت در حال حاضر غیرفعال است.</p>');
-             return;
+        if (!service.is_issuing_enabled) {
+            showPopupNotification('<p>صدور نوبت برای این خدمت در حال حاضر غیرفعال است.</p>');
+            return;
         }
 
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const estimatedWait = await calculateEstimatedWaitTime(serviceId);
         const now = new Date();
         const endTimeParts = (service.work_hours_end || "17:00").split(':');
         const endTime = new Date();
@@ -337,12 +364,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (estimatedFinishTime > endTime) {
             if (userIsKiosk) {
-                // Kiosk should not issue a ticket if it exceeds the end time, no warning needed.
                 showPopupNotification('<p>ساعت کاری این خدمت به پایان رسیده است. امکان صدور نوبت وجود ندارد.</p>');
                 return;
             } else {
                 const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-                // Regular user gets a warning but can proceed
                 if (!confirm(warning)) {
                     return;
                 }
@@ -355,21 +380,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
-        if (!isIssuingEnabled) {
-             showPopupNotification('<p>صدور نوبت در حال حاضر غیرفعال است.</p>');
+        if (!service.is_issuing_enabled) {
+             showPopupNotification('<p>صدور نوبت برای این خدمت در حال حاضر غیرفعال است.</p>');
              return;
         }
 
-        // Kiosk generates ticket directly without a form
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const estimatedWait = await calculateEstimatedWaitTime(serviceId);
         const now = new Date();
         const endTimeParts = (service.work_hours_end || "17:00").split(':');
         const endTime = new Date();
         endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
         const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
         
-        // Kiosk cannot issue a ticket if it goes past the end time
         if (estimatedFinishTime > endTime) {
             showPopupNotification('<p>ساعت کاری این خدمت به پایان رسیده است. امکان صدور نوبت از طریق کیوسک وجود ندارد.</p>');
             return;
@@ -414,17 +436,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
         if (nationalId && !checkCodeMeli(nationalId)) {
-            alert('کد ملی وارد شده معتبر نیست.');
+            showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
             return;
         }
 
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
+        if (!service.is_issuing_enabled) {
+             showPopupNotification('<p>صدور نوبت برای این خدمت در حال حاضر غیرفعال است.</p>');
+             return;
+        }
+        
         const serviceTickets = tickets.filter(t => t.service_id === serviceId && t.ticket_type === 'regular');
         const specificNumber = (serviceTickets.length) + service.start_number;
         const generalNumber = tickets.length + 1;
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const estimatedWait = await calculateEstimatedWaitTime(serviceId);
 
         const newTicketData = {
             service_id: serviceId,
@@ -461,14 +488,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
         if (nationalId && !checkCodeMeli(nationalId)) {
-            alert('کد ملی وارد شده معتبر نیست.');
+            showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
             return;
         }
         if (tempSelectedServicesForPass.length === 0) return;
 
-        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
-        if (!isIssuingEnabled) {
-             showPopupNotification('<p>صدور نوبت در حال حاضر غیرفعال است.</p>');
+        const canIssue = tempSelectedServicesForPass.every(serviceId => {
+            const service = services.find(s => s.$id === serviceId);
+            return service && service.is_issuing_enabled;
+        });
+        if (!canIssue) {
+             showPopupNotification('<p>صدور نوبت برای یکی از خدمات انتخاب شده در حال حاضر غیرفعال است.</p>');
              return;
         }
 
@@ -503,28 +533,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function updateSmartTime(serviceId, callTime) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service || service.estimation_mode !== 'smart') return;
-
-        const durationMinutes = (new Date() - new Date(callTime)) / 60000;
-        if (durationMinutes < 0.1 || durationMinutes > 120) return;
-
-        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2);
-        try {
-            await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { smart_time: newSmartTime });
-        } catch (error) {
-            console.error("Failed to update smart time:", error);
-        }
+        // This function is no longer used since estimation mode is removed
     }
 
     async function callNextTicket() {
-        if (lastCalledTicket[currentUser.$id]) {
-            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
-            if (lastTicket && lastTicket.status === 'در حال سرویس') {
-                await updateSmartTime(lastTicket.service_id, lastTicket.call_time);
-            }
-        }
-
         const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
         const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
 
@@ -537,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const waitingTickets = tickets
             .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+            .sort((a, b) => a.general_ticket - b.general_ticket); // Sort by general ticket number
 
         const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
         
@@ -566,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
                     called_by_name: currentUser.name,
-                    called_by_counter_name: counterName, // *** ADDED THIS LINE ***
+                    called_by_counter_name: counterName,
                     call_time: new Date().toISOString()
                 });
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
@@ -589,7 +601,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             let response;
-            // Removed the limit to ensure all tickets are deleted.
             let hasMore = true;
             while(hasMore) {
                 response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID);
@@ -603,6 +614,54 @@ document.addEventListener('DOMContentLoaded', () => {
             showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
         }
     }
+
+    async function checkAndPerformDailyReset() {
+        // Fetch the global settings first
+        try {
+            globalSettings = await databases.getDocument(DATABASE_ID, SETTINGS_COLLECTION_ID, GLOBAL_SETTINGS_DOC_ID);
+        } catch (e) {
+            // Document doesn't exist, create it with default enabled value
+            globalSettings = await databases.createDocument(
+                DATABASE_ID, SETTINGS_COLLECTION_ID, GLOBAL_SETTINGS_DOC_ID, {
+                    last_reset_date: '',
+                    is_daily_reset_enabled: true
+                },
+                [Permission.read(Role.users()), Permission.update(Role.users())]
+            );
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        
+        // Only perform reset if it's a new day AND daily reset is enabled
+        if (globalSettings.last_reset_date !== today && globalSettings.is_daily_reset_enabled) {
+            console.log("Performing daily reset...");
+            
+            // 1. Delete all tickets
+            await resetAllTickets();
+
+            // 2. Reset user service selections by fetching all users and updating their prefs
+            try {
+                // NOTE: This operation requires a server-side SDK and an API key with users.read and users.write permissions.
+                // It will not work on the client-side due to security restrictions.
+                // This is a placeholder for the logic you would implement in a server-side function.
+                const allUsersResponse = await users.list();
+                const userUpdatePromises = allUsersResponse.users.map(user => {
+                    const prefs = user.prefs || {};
+                    prefs.service_selections = {};
+                    return users.updatePrefs(user.$id, prefs);
+                });
+                await Promise.all(userUpdatePromises);
+            } catch (e) {
+                console.error("Failed to reset user preferences:", e);
+                showPopupNotification('<p>خطا در ریست تنظیمات کاربران.</p>');
+            }
+            
+            // 3. Update last reset date
+            await databases.updateDocument(DATABASE_ID, SETTINGS_COLLECTION_ID, GLOBAL_SETTINGS_DOC_ID, { last_reset_date: today });
+            console.log("Daily reset completed.");
+        }
+    }
+
 
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
@@ -640,11 +699,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- ADMIN PANEL LOGIC ---
-    function openAdminPanel() {
-        // Set the state of the new checkbox
-        const isIssuingEnabled = currentUser.prefs && typeof currentUser.prefs.is_issuing_enabled !== 'undefined' ? currentUser.prefs.is_issuing_enabled : true;
-        issuingEnabledCheckbox.checked = isIssuingEnabled;
-
+    async function openAdminPanel() {
+        await fetchGlobalSettings();
+        dailyResetEnabledCheckbox.checked = globalSettings.is_daily_reset_enabled;
         renderServiceSettings();
         adminPanel.style.display = 'block';
     }
@@ -658,10 +715,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><input type="text" value="${service.name}" class="setting-name"></td>
                 <td><input type="number" value="${service.start_number}" class="setting-start"></td>
                 <td><input type="number" value="${service.end_number}" class="setting-end"></td>
-                <td><input type="text" value="${service.estimation_mode}" class="setting-estimation-mode"></td>
                 <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
-                <td><input type="number" value="${service.smart_time}" class="setting-smart-time" step="0.1"></td>
-                <td><input type="number" value="${service.active_counters || 1}" class="setting-active-counters" min="1"></td>
+                <td><input type="checkbox" ${service.is_issuing_enabled ? 'checked' : ''} class="setting-is-enabled"></td>
                 <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
                 <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
                 <td><button class="remove-service-btn">حذف</button></td>`;
@@ -679,10 +734,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
             <td><input type="number" value="100" class="setting-start"></td>
             <td><input type="number" value="199" class="setting-end"></td>
-            <td><input type="text" value="manual" class="setting-estimation-mode"></td>
             <td><input type="number" value="10" class="setting-manual-time"></td>
-            <td><input type="number" value="10.0" class="setting-smart-time" step="0.1"></td>
-            <td><input type="number" value="1" class="setting-active-counters" min="1"></td>
+            <td><input type="checkbox" checked class="setting-is-enabled"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
             <td><button class="remove-service-btn">حذف</button></td>`;
@@ -703,10 +756,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: row.querySelector('.setting-name').value,
                 start_number: parseInt(row.querySelector('.setting-start').value),
                 end_number: parseInt(row.querySelector('.setting-end').value),
-                estimation_mode: row.querySelector('.setting-estimation-mode').value,
                 manual_time: parseInt(row.querySelector('.setting-manual-time').value),
-                smart_time: parseFloat(row.querySelector('.setting-smart-time').value), 
-                active_counters: parseInt(row.querySelector('.setting-active-counters').value),
+                is_issuing_enabled: row.querySelector('.setting-is-enabled').checked,
                 work_hours_start: row.querySelector('.setting-work-start').value,
                 work_hours_end: row.querySelector('.setting-work-end').value
             };
@@ -723,10 +774,9 @@ document.addEventListener('DOMContentLoaded', () => {
             promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
         });
 
-        // Save the new global setting
-        const userPrefs = currentUser.prefs || {};
-        userPrefs.is_issuing_enabled = issuingEnabledCheckbox.checked;
-        promises.push(account.updatePrefs(userPrefs));
+        // Save the new global settings
+        const newGlobalSettings = { is_daily_reset_enabled: dailyResetEnabledCheckbox.checked };
+        promises.push(databases.updateDocument(DATABASE_ID, SETTINGS_COLLECTION_ID, GLOBAL_SETTINGS_DOC_ID, newGlobalSettings));
 
         try {
             await Promise.all(promises);
@@ -773,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmPassServiceBtn.addEventListener('click', () => {
         const selected = passServiceList.querySelectorAll('input:checked');
         if (selected.length === 0) {
-            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
+            showPopupNotification('<p>لطفا حداقل یک خدمت را انتخاب کنید.</p>');
             return;
         }
         tempSelectedServicesForPass = Array.from(selected).map(cb => cb.value);
