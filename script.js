@@ -472,11 +472,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
         
         try {
-            let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-            while (response.documents.length > 0) {
+            let response;
+            // Removed the limit to ensure all tickets are deleted.
+            let hasMore = true;
+            while(hasMore) {
+                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID);
                 const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
                 await Promise.all(deletePromises);
-                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+                hasMore = response.documents.length > 0;
             }
             showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
         } catch (error) {
