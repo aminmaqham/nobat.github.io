@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
-    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
+    const APPWRITE_ENDPOINT = '[https://cloud.appwrite.io/v1](https://cloud.appwrite.io/v1)';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
-    const SETTINGS_COLLECTION_ID = '68a8d21a0031802b1f8c'; // New
-    const GLOBAL_SETTINGS_DOC_ID = 'global_settings'; // New
+    const SETTINGS_COLLECTION_ID = '68a8d21a0031802b1f8c';
+    const GLOBAL_SETTINGS_DOC_ID = 'global_settings';
 
-    const { Client, Account, Databases, Users, ID, Query, Permission, Role } = Appwrite; // Added Users
+    const { Client, Account, Databases, Users, ID, Query, Permission, Role } = Appwrite;
 
     const client = new Client();
     client
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const account = new Account(client);
     const databases = new Databases(client);
-    const users = new Users(client); // Initialized Users service
+    const users = new Users(client);
 
     // --- DOM Elements ---
     const loginBtn = document.getElementById('login-btn');
