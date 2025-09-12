@@ -147,8 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function login() {
         try {
             await account.createEmailSession(emailInput.value, passwordInput.value);
-            // After successful login, reload the app to get user data
-            window.location.reload(); 
+            // After successful login, we re-initialize the app to fetch the user and data.
+            // This avoids trying to create a new session when one is already active.
+            initializeApp(); 
         } catch (error) {
             showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
         }
