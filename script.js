@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
-    const APPWRITE_ENDPOINT = '[https://cloud.appwrite.io/v1](https://cloud.appwrite.io/v1)';
+    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             } else {
                 const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-                if (!confirm(warning)) {
+                if (!showCustomConfirm(warning)) {
                     return;
                 }
             }
@@ -597,7 +597,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function resetAllTickets() {
-        if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
+         const confirmReset = await showCustomConfirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.');
+        if (!confirmReset) return;
         
         try {
             let response;
@@ -661,7 +662,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Daily reset completed.");
         }
     }
-
 
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
@@ -801,6 +801,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function showCustomConfirm(message) {
+        return new Promise(resolve => {
+            const confirmPopup = document.createElement('div');
+            confirmPopup.className = 'modal-overlay';
+            confirmPopup.innerHTML = `
+                <div class="modal">
+                    <h2>تایید</h2>
+                    <p>${message}</p>
+                    <div class="form-actions" style="margin-top: 20px;">
+                        <button class="primary-btn" id="confirm-ok-btn">بله</button>
+                        <button class="secondary-btn" id="confirm-cancel-btn">خیر</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(confirmPopup);
+
+            const confirmOkBtn = document.getElementById('confirm-ok-btn');
+            const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+
+            confirmOkBtn.addEventListener('click', () => {
+                confirmPopup.remove();
+                resolve(true);
+            });
+
+            confirmCancelBtn.addEventListener('click', () => {
+                confirmPopup.remove();
+                resolve(false);
+            });
+        });
+    }
+
     function formatDate(dateString) {
         if (!dateString) return '---';
         const d = new Date(dateString);
@@ -811,7 +842,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
-    resetAllBtn.addEventListener('click', resetAllTickets);
+    resetAllBtn.addEventListener('click', async () => {
+        const confirmReset = await showCustomConfirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.');
+        if (confirmReset) {
+            await resetAllTickets();
+        }
+    });
     closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
     cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
     addServiceBtn.addEventListener('click', addNewServiceRow);
