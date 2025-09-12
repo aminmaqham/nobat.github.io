@@ -102,9 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchTickets() {
         try {
+            // Updated to remove the limit, fetching all documents to correctly calculate the total waiting count.
             const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.orderDesc('$createdAt'),
-                Query.limit(100)
+                Query.orderDesc('$createdAt')
             ]);
             tickets = response.documents;
         } catch (error) {
