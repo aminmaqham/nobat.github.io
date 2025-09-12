@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const passServiceList = document.getElementById('pass-service-list');
     const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
     const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
+    const kioskHideableElements = document.querySelectorAll('.js-kiosk-hide');
 
     // --- Application State ---
     let currentUser = null;
@@ -148,12 +149,30 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
 
-        if (currentUser.prefs && currentUser.prefs.role === 'admin') {
-            settingsBtn.style.display = 'inline-block';
-            resetAllBtn.style.display = 'inline-block';
-        } else {
-            settingsBtn.style.display = 'none';
-            resetAllBtn.style.display = 'none';
+        // Check user role for UI permissions
+        const userIsAdmin = currentUser.prefs && currentUser.prefs.role === 'admin';
+        const userIsKiosk = currentUser.name === 'کیوسک';
+
+        settingsBtn.style.display = userIsAdmin ? 'inline-block' : 'none';
+        resetAllBtn.style.display = userIsAdmin ? 'inline-block' : 'none';
+
+        // Hide pass ticket button and history for kiosk
+        passTicketBtn.style.display = userIsKiosk ? 'none' : 'inline-block';
+        document.querySelector('.ticket-actions').style.display = userIsKiosk ? 'none' : 'flex';
+        document.querySelector('.call-panel').style.display = userIsKiosk ? 'none' : 'block';
+        document.querySelector('.history').style.display = userIsKiosk ? 'none' : 'block';
+
+        // Hide form fields for kiosk and make service buttons behave differently
+        kioskHideableElements.forEach(el => {
+            el.style.display = userIsKiosk ? 'none' : 'block';
+        });
+
+        if (userIsKiosk) {
+            serviceButtonsContainer.querySelectorAll('.service-btn').forEach(btn => {
+                const serviceId = btn.dataset.serviceId;
+                btn.removeEventListener('click', checkAvailabilityAndOpenForm);
+                btn.addEventListener('click', () => generateKioskTicket(serviceId));
+            });
         }
     }
 
@@ -183,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         services.forEach(service => {
             const button = document.createElement('button');
             button.className = 'service-btn';
+            button.dataset.serviceId = service.$id; // Add this line to store service ID on the button
             const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
             const timeToShow = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
             button.innerHTML = `
@@ -301,6 +321,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function generateKioskTicket(serviceId) {
+        const service = services.find(s => s.$id === serviceId);
+        if (!service) return;
+
+        const serviceTickets = tickets.filter(t => t.service_id === serviceId && t.ticket_type === 'regular');
+        const specificNumber = (serviceTickets.length) + service.start_number;
+        const generalNumber = tickets.length + 1;
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+
+        const newTicketData = {
+            service_id: serviceId,
+            specific_ticket: specificNumber,
+            general_ticket: generalNumber,
+            first_name: '---',
+            last_name: '---',
+            national_id: '---',
+            registered_by: currentUser.$id,
+            registered_by_name: 'کیوسک',
+            status: 'در حال انتظار',
+            ticket_type: 'regular'
+        };
+
+        try {
+            const createdTicket = await databases.createDocument(
+                DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
+                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
+            );
+            const popupMessage = `
+                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
+                <p>نوبت کلی: ${createdTicket.general_ticket}</p>
+                <p>نام: ---</p>
+                <p>کد ملی: ---</p>
+                <span class="wait-time">زمان تخمینی انتظار: ${Math.round(estimatedWait)} دقیقه</span>
+            `;
+            showPopupNotification(popupMessage);
+        } catch (error) {
+            console.error('Error creating ticket:', error);
+            showPopupNotification('<p>خطا در ثبت نوبت!</p>');
+        }
+    }
+
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
         if (nationalId && !checkCodeMeli(nationalId)) {
@@ -335,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
             const popupMessage = `
-                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
+                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket || 'پاس'}</span>
                 <p>نوبت کلی: ${createdTicket.general_ticket}</p>
                 <p>نام: ${createdTicket.first_name} ${createdTicket.last_name}</p>
                 <p>کد ملی: ${createdTicket.national_id}</p>
