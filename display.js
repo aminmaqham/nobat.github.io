@@ -52,16 +52,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 callDisplay.innerHTML = `
                     <div class="ticket-card">
                         <div class="ticket-number">${latestTicket.specific_ticket || 'پاس'}</div>
-                        <div class="counter-name">${latestTicket.called_by_counter_name || 'باجه'}</div>
+                        <div class="counter-name">باجه ${latestTicket.called_by_counter_name || '---'}</div>
                     </div>
                 `;
 
                 // Update history list (next 4 tickets)
                 historyList.innerHTML = '';
-                calledTickets.slice(1).forEach(ticket => {
+                calledTickets.slice(1, 4).forEach(ticket => { // Show last 3 tickets in history
                     const historyItem = document.createElement('div');
                     historyItem.className = 'history-item';
-                    historyItem.textContent = ticket.specific_ticket || 'پاس';
+                    historyItem.innerHTML = `
+                        <div>شماره ${ticket.specific_ticket || 'پاس'}</div>
+                        <div>باجه ${ticket.called_by_counter_name || '---'}</div>
+                    `;
                     historyList.appendChild(historyItem);
                 });
 
@@ -101,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Announce the number
                     const numberToSpeak = updatedTicket.specific_ticket || 'نوبت پاس شده';
                     const counterName = updatedTicket.called_by_counter_name || 'باجه';
-                    const textToSpeak = `شماره ${numberToSpeak} به ${counterName}`;
+                    const textToSpeak = `شماره ${numberToSpeak} به باجه ${counterName}`;
                     speak(textToSpeak);
                 }
             }
