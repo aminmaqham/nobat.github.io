@@ -147,9 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function login() {
         try {
             await account.createEmailSession(emailInput.value, passwordInput.value);
-            // After successful login, we re-initialize the app to fetch the user and data.
-            // This avoids trying to create a new session when one is already active.
-            initializeApp(); 
+            // After successful login, reload the app state.
+            window.location.reload();
         } catch (error) {
             showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
         }
@@ -159,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await account.deleteSession('current');
             currentUser = null;
-            window.location.reload();
+            showLoggedOutUI();
         } catch (error) {
             console.error('Logout failed:', error);
         }
@@ -200,6 +199,16 @@ document.addEventListener('DOMContentLoaded', () => {
         userInfo.style.display = 'none';
         mainContent.style.display = 'none';
         totalWaitingContainer.style.display = 'none';
+        
+        // Clear all dynamic UI elements when logged out
+        serviceButtonsContainer.innerHTML = '';
+        serviceCheckboxes.innerHTML = '';
+        ticketHistoryTable.innerHTML = '';
+        currentTicketDisplay.innerHTML = '';
+        
+        // Reset inputs
+        emailInput.value = '';
+        passwordInput.value = '';
     }
 
     // --- REALTIME ---
@@ -255,7 +264,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 selections[service.$id] = checkbox.checked;
                 try {
                     await account.updatePrefs({ ...userPrefs, service_selections: selections });
-                    // Refresh user prefs to ensure the local state is in sync
                     currentUser.prefs = await account.getPrefs();
                 } catch (e) {
                     console.error("Failed to save preferences", e);
@@ -312,7 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function countActiveCountersForService(serviceId) {
-        // This function now relies on the service selections stored in Appwrite user preferences.
         const activeUsersWithSelections = services.filter(service => {
             const activeUserIds = Object.keys(service.user_selections || {});
             return activeUserIds.length > 0;
@@ -411,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
             const popupMessage = `
-                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
+                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket || 'پاس'}</span>
                 <p>نوبت کلی: ${createdTicket.general_ticket}</p>
                 <p>نام: ---</p>
                 <p>کد ملی: ---</p>
