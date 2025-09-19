@@ -99,7 +99,6 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
 }
 
 #user-info button {
@@ -191,7 +190,6 @@ header h1 {
   padding: 12px;
   margin-bottom: 12px;
   background-color: #E8F5E9;
-  border-radius: var(--border-radius);
   border-right: 4px solid var(--primary-color); /* */
 }
 
