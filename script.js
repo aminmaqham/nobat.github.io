@@ -50,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const passServiceList = document.getElementById('pass-service-list');
     const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
     const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
+    const counterNameInput = document.getElementById('counter-name-input');
+    const saveCounterBtn = document.getElementById('save-counter-btn');
 
     // --- Application State ---
     let currentUser = null;
@@ -147,6 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
         userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email}`;
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
+        
+        // Load the saved counter name
+        if (currentUser.prefs && currentUser.prefs.counter_name) {
+            counterNameInput.value = currentUser.prefs.counter_name;
+        }
 
         if (currentUser.prefs && currentUser.prefs.role === 'admin') {
             settingsBtn.style.display = 'inline-block';
@@ -237,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${ticket.registered_by_name || '---'}</td>
                 <td>${formatDate(ticket.$createdAt)}</td>
                 <td>${ticket.called_by_name || '---'}</td>
+                <td>${ticket.called_by_counter_name || '---'}</td>
                 <td>${formatDate(ticket.call_time)}</td>
                 <td>${ticket.status}</td>
             `;
@@ -257,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
             div.innerHTML = `
                 <h3>${service ? service.name : ''}</h3>
                 <p><strong>نوبت:</strong> ${ticket.specific_ticket || 'پاس'}</p>
+                <p><strong>باجه:</strong> ${ticket.called_by_counter_name || '---'}</p>
                 <p><strong>نام:</strong> ${ticket.first_name} ${ticket.last_name}</p>
                 <p><strong>زمان فراخوان:</strong> ${formatDate(ticket.call_time)}</p>
             `;
@@ -408,6 +417,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 await updateSmartTime(lastTicket.service_id, lastTicket.call_time);
             }
         }
+        
+        // Get user's counter name
+        const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
 
         const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
         const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
@@ -445,12 +457,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (ticketToCall) {
             try {
-                const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
                 const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
                     called_by_name: currentUser.name,
-                    called_by_counter_name: counterName, // *** ADDED THIS LINE ***
+                    called_by_counter_name: counterName, // Use the user's defined counter name
                     call_time: new Date().toISOString()
                 });
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
@@ -639,6 +650,26 @@ document.addEventListener('DOMContentLoaded', () => {
     passTicketBtn.addEventListener('click', openPassServiceModal);
     cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
     
+    // New listener for saving the counter name
+    saveCounterBtn.addEventListener('click', async () => {
+        const counterName = counterNameInput.value.trim();
+        if (counterName === '') {
+            alert('لطفا نام باجه را وارد کنید.');
+            return;
+        }
+        try {
+            const userPrefs = currentUser.prefs || {};
+            await account.updatePrefs({ ...userPrefs, counter_name: counterName });
+            currentUser.prefs = await account.getPrefs();
+            showPopupNotification('<p>نام باجه با موفقیت ذخیره شد.</p>');
+            // Update the greeting to show the counter name
+            userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
+        } catch (e) {
+            console.error("Failed to save counter name", e);
+            showPopupNotification('<p>خطا در ذخیره نام باجه.</p>');
+        }
+    });
+
     confirmPassServiceBtn.addEventListener('click', () => {
         const selected = passServiceList.querySelectorAll('input:checked');
         if (selected.length === 0) {
