@@ -1,720 +1,529 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
-    const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
-    const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
-    const DATABASE_ID = '68a8d24b003cd6609e37';
-    const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
-    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
+:root {
+--primary-color: #4CAF50; /* /
+--secondary-color: #2196F3; / /
+--danger-color: #f44336; / /
+--warning-color: #FF9800; / /
+--light-bg: #f5f5f5; / /
+--dark-text: #333; / /
+--light-text: #fff; / /
+--border-radius: 5px; / /
+--box-shadow: 0 2px 5px rgba(0,0,0,0.1); / */
+}
 
-    const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
-
-    const client = new Client();
-    client
-        .setEndpoint(APPWRITE_ENDPOINT)
-        .setProject(APPWRITE_PROJECT_ID);
-
-    const account = new Account(client);
-    const databases = new Databases(client);
-
-    // --- DOM Elements ---
-    const loginBtn = document.getElementById('login-btn');
-    const logoutBtn = document.getElementById('logout-btn');
-    const settingsBtn = document.getElementById('settings-btn');
-    const resetAllBtn = document.getElementById('reset-all-btn');
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const counterNameInput = document.getElementById('counter-name'); // ADDED
-    const userGreeting = document.getElementById('user-greeting');
-    const loginFields = document.getElementById('login-fields');
-    const userInfo = document.getElementById('user-info');
-    const mainContent = document.getElementById('main-content');
-    const serviceButtonsContainer = document.querySelector('.service-buttons');
-    const ticketForm = document.getElementById('ticket-form');
-    const callNextBtn = document.getElementById('call-next-btn');
-    const passTicketBtn = document.getElementById('pass-ticket-btn');
-    const serviceCheckboxes = document.getElementById('service-checkboxes');
-    const currentTicketDisplay = document.getElementById('current-ticket');
-    const popupNotification = document.getElementById('popup-notification');
-    const popupText = document.getElementById('popup-text');
-    const totalWaitingContainer = document.getElementById('total-waiting-container');
-    const ticketHistoryTable = document.querySelector('#ticket-history tbody');
-    const submitTicketBtn = document.getElementById('submit-ticket');
-    const cancelTicketBtn = document.getElementById('cancel-ticket');
-    const ticketFormTitle = document.getElementById('ticket-form-title');
-    const adminPanel = document.getElementById('admin-panel');
-    const serviceList = document.getElementById('service-list');
-    const addServiceBtn = document.getElementById('add-service-btn');
-    const saveSettingsBtn = document.getElementById('save-settings-btn');
-    const closeSettingsBtn = document.getElementById('close-settings');
-    const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
-    const passServiceModalOverlay = document.getElementById('pass-service-modal-overlay');
-    const passServiceList = document.getElementById('pass-service-list');
-    const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
-    const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
-
-    // --- Application State ---
-    let currentUser = null;
-    let services = [];
-    let tickets = [];
-    let tempSelectedServicesForPass = [];
-    let lastCalledTicket = {};
-
-    // --- UTILITY FUNCTIONS ---
-    function checkCodeMeli(code) {
-        if (!code) return true;
-        code = code.toString().replace(/\D/g, '');
-        if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
-        let sum = 0;
-        for (let i = 0; i < 9; i++) {
-            sum += parseInt(code.charAt(i)) * (10 - i);
-        }
-        const lastDigit = parseInt(code.charAt(9));
-        const remainder = sum % 11;
-        return (remainder < 2) ? (lastDigit === remainder) : (lastDigit === (11 - remainder));
+    {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
     }
 
-    // --- INITIALIZATION ---
-    async function initializeApp() {
-        try {
-            currentUser = await account.get();
-            showLoggedInUI();
-            await fetchData();
-            setupRealtimeSubscriptions();
-        } catch (error) {
-            console.log('User not logged in');
-            showLoggedOutUI();
-        }
-    }
+body {
+font-family: 'Vazirmatn', sans-serif; /* /
+background-color: var(--light-bg); / /
+color: var(--dark-text); / */
+font-size: 14px;
+line-height: 1.6;
+}
 
-    async function fetchData() {
-        if (!currentUser) return;
-        await Promise.all([fetchServices(), fetchTickets()]);
-        renderUI();
-    }
+.container {
+max-width: 1200px;
+margin: 0 auto;
+padding: 15px; /* */
+}
 
-    async function fetchServices() {
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, SERVICES_COLLECTION_ID, [Query.orderAsc('name')]);
-            services = response.documents;
-        } catch (error) {
-            console.error('Error fetching services:', error);
-        }
-    }
+header {
+background-color: var(--primary-color);
+color: var(--light-text);
+padding: 15px;
+border-radius: var(--border-radius);
+margin-bottom: 15px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+flex-wrap: wrap; /* */
+box-shadow: var(--box-shadow);
+}
 
-    async function fetchTickets() {
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.orderDesc('$createdAt'),
-                Query.limit(100)
-            ]);
-            tickets = response.documents;
-        } catch (error) {
-            console.error('Error fetching tickets:', error);
-        }
-    }
+header h1 {
+margin: 0;
+font-size: 20px;
+font-weight: 700; /* */
+}
 
-    function renderUI() {
-        if (!currentUser) return;
-        renderServiceButtons();
-        updateServiceCheckboxes();
-        updateHistoryTable();
-        updateCurrentTicketDisplay();
-        updateTotalWaitingCount();
-    }
+/* New Style for Total Waiting Counter /
+#total-waiting-container {
+color: white;
+background-color: rgba(0,0,0,0.2);
+padding: 5px 15px;
+border-radius: 15px; / */
+font-size: 16px;
+margin: 5px 10px;
+}
 
-    // --- AUTHENTICATION & UI TOGGLES ---
-    async function login() {
-        const counterName = counterNameInput.value.trim();
-        if (!counterName) {
-            showPopupNotification('<p>لطفا شماره باجه خود را وارد کنید.</p>');
-            return;
-        }
+#total-waiting-count {
+font-weight: 700;
+font-size: 18px; /* */
+}
 
-        try {
-            await account.createEmailSession(emailInput.value, passwordInput.value);
-            // Save counter name in user preferences
-            await account.updatePrefs({ ...currentUser.prefs, counter_name: counterName });
-            initializeApp();
-        } catch (error) {
-            showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
-        }
-    }
+.login-section {
+display: flex;
+align-items: center;
+gap: 8px;
+flex-wrap: wrap;
+}
 
-    async function logout() {
-        try {
-            await account.deleteSession('current');
-            currentUser = null;
-            window.location.reload();
-        } catch (error) {
-            console.error('Logout failed:', error);
-        }
-    }
+.login-section input {
+padding: 8px 12px;
+border: none;
+border-radius: var(--border-radius); /* */
+font-size: 14px;
+font-family: 'Vazirmatn', sans-serif;
+}
 
-    function showLoggedInUI() {
-        loginFields.style.display = 'none';
-        userInfo.style.display = 'flex';
-        const counterName = currentUser.prefs.counter_name || 'بدون باجه';
-        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} - باجه: ${counterName}`;
-        mainContent.style.display = 'block';
-        totalWaitingContainer.style.display = 'block';
+.login-section button {
+padding: 8px 12px;
+background-color: #2E7D32;
+color: var(--light-text);
+border: none;
+border-radius: var(--border-radius); /* */
+cursor: pointer;
+font-size: 14px;
+font-family: 'Vazirmatn', sans-serif;
+transition: background-color 0.3s;
+}
 
-        if (currentUser.prefs && currentUser.prefs.role === 'admin') {
-            settingsBtn.style.display = 'inline-block';
-            resetAllBtn.style.display = 'inline-block';
-        } else {
-            settingsBtn.style.display = 'none';
-            resetAllBtn.style.display = 'none';
-        }
-    }
+.login-section button:hover {
+background-color: #1B5E20; /* */
+}
 
-    function showLoggedOutUI() {
-        loginFields.style.display = 'flex';
-        userInfo.style.display = 'none';
-        mainContent.style.display = 'none';
-        totalWaitingContainer.style.display = 'none';
-    }
+#user-info {
+display: flex;
+align-items: center;
+gap: 10px;
+}
 
-    // --- REALTIME ---
-    function setupRealtimeSubscriptions() {
-        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        client.subscribe(ticketChannel, () => fetchData());
-        const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
-        client.subscribe(serviceChannel, () => fetchData());
-    }
+#user-info button {
+padding: 8px 12px;
+font-size: 14px;
+font-family: 'Vazirmatn', sans-serif; /* */
+}
 
-    // --- UI RENDERING ---
-    function updateTotalWaitingCount() {
-        const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
-        document.getElementById('total-waiting-count').textContent = waitingCount;
-    }
+#user-info #reset-all-btn {
+margin-top: 0;
+}
 
-    function renderServiceButtons() {
-        serviceButtonsContainer.innerHTML = '';
-        services.forEach(service => {
-            const button = document.createElement('button');
-            button.className = 'service-btn';
-            const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-            const timeToShow = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
-            button.innerHTML = `
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <div class="waiting-count">منتظران: ${waitingCount}</div>
-                </div>
-                <div class="estimation-time">زمان تخمینی: ${Math.round(timeToShow)} دقیقه</div>
-            `;
-            button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
-            serviceButtonsContainer.appendChild(button);
-        });
-    }
+#user-greeting {
+font-weight: 500;
+font-size: 14px; /* */
+}
 
-    async function updateServiceCheckboxes() {
-        if (!currentUser) return;
-        serviceCheckboxes.innerHTML = '';
-        const userPrefs = currentUser.prefs || {};
-        const selections = userPrefs.service_selections || {};
+#settings-btn {
+background-color: var(--warning-color);
+}
 
-        services.forEach(service => {
-            const div = document.createElement('div');
-            div.className = 'service-checkbox';
-            div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}">
-                             <label for="service-check-${service.$id}">${service.name}</label>`;
-            const checkbox = div.querySelector('input');
-            checkbox.checked = selections[service.$id] || false;
-            checkbox.addEventListener('change', async () => {
-                selections[service.$id] = checkbox.checked;
-                try {
-                    await account.updatePrefs({ ...userPrefs, service_selections: selections });
-                    currentUser.prefs = await account.getPrefs();
-                } catch (e) {
-                    console.error("Failed to save preferences", e);
-                }
-            });
-            serviceCheckboxes.appendChild(div);
-        });
-    }
+#settings-btn:hover {
+background-color: #F57C00;
+}
 
-    function updateHistoryTable() {
-        ticketHistoryTable.innerHTML = '';
-        tickets.forEach(ticket => {
-            const service = services.find(s => s.$id === ticket.service_id);
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${ticket.general_ticket || 'پاس'}</td>
-                <td>${ticket.specific_ticket || 'پاس'}</td>
-                <td>${ticket.first_name} ${ticket.last_name}</td>
-                <td>${ticket.national_id || '---'}</td>
-                <td>${service ? service.name : '---'}</td>
-                <td>${ticket.registered_by_name || '---'}</td>
-                <td>${formatDate(ticket.$createdAt)}</td>
-                <td>${ticket.called_by_name || '---'}</td>
-                <td>${formatDate(ticket.call_time)}</td>
-                <td>${ticket.status}</td>
-            `;
-            ticketHistoryTable.appendChild(row);
-        });
-    }
+.service-buttons {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+gap: 10px; /* */
+margin-bottom: 15px;
+}
 
-    function updateCurrentTicketDisplay() {
-        currentTicketDisplay.innerHTML = '';
-        const activeTickets = tickets
-            .filter(t => t.status === 'در حال سرویس')
-            .sort((a, b) => new Date(b.call_time) - new Date(a.call_time));
-        
-        activeTickets.slice(0, 3).forEach(ticket => {
-            const service = services.find(s => s.$id === ticket.service_id);
-            const div = document.createElement('div');
-            div.className = 'current-ticket-item';
-            div.innerHTML = `
-                <h3>${service ? service.name : ''}</h3>
-                <p><strong>نوبت:</strong> ${ticket.specific_ticket || 'پاس'}</p>
-                <p><strong>نام:</strong> ${ticket.first_name} ${ticket.last_name}</p>
-                <p><strong>زمان فراخوان:</strong> ${formatDate(ticket.call_time)}</p>
-                <p><strong>باجه فراخواننده:</strong> ${ticket.called_by_counter_name || '---'}</p>
-            `;
-            currentTicketDisplay.appendChild(div);
-        });
+.service-btn {
+display: flex;
+flex-direction: column;
+justify-content: space-between;
+background-color: var(--secondary-color);
+color: var(--light-text);
+border: none;
+border-radius: var(--border-radius); /* /
+padding: 12px;
+cursor: pointer;
+text-align: center;
+transition: all 0.3s;
+font-family: 'Vazirmatn', sans-serif;
+box-shadow: var(--box-shadow);
+min-height: 100px; / */
+}
 
-        if (activeTickets.length === 0) {
-            currentTicketDisplay.innerHTML = '<p>هیچ نوبتی در حال سرویس نیست</p>';
-        }
-    }
-    
-    // --- Estimation Logic ---
-    function calculateEstimatedWaitTime(serviceId) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service) return 0;
-        
-        const timePerTicket = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
-        const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-        
-        return queueLength * timePerTicket;
-    }
+.service-btn:hover {
+background-color: #1565C0;
+transform: translateY(-2px);
+}
 
-    async function checkAvailabilityAndOpenForm(serviceId) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service) return;
+.service-btn .service-name {
+font-weight: 700;
+margin-bottom: 6px;
+font-size: 16px; /* */
+}
 
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
-        const now = new Date();
-        const endTimeParts = (service.work_hours_end || "17:00").split(':');
-        const endTime = new Date();
-        endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
+.service-btn .waiting-count {
+font-size: 13px;
+opacity: 0.9;
+}
 
-        const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
+.service-btn .estimation-time {
+font-size: 12px;
+font-weight: 500;
+margin-top: 8px;
+background-color: rgba(0, 0, 0, 0.15); /* */
+padding: 3px 6px;
+border-radius: 3px;
+}
 
-        if (estimatedFinishTime > endTime) {
-            const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-            showPopupNotification(`<p>${warning}</p><button id="confirm-ticket-btn" class="primary-btn">بله</button><button id="cancel-ticket-btn" class="secondary-btn">خیر</button>`);
-            document.getElementById('confirm-ticket-btn').addEventListener('click', () => {
-                closePopupNotification();
-                openTicketForm('regular', service.$id);
-            });
-            document.getElementById('cancel-ticket-btn').addEventListener('click', () => closePopupNotification());
-        } else {
-            openTicketForm('regular', service.$id);
-        }
-    }
+.ticket-display {
+background-color: white;
+padding: 15px;
+border-radius: var(--border-radius);
+margin-bottom: 15px; /* */
+box-shadow: var(--box-shadow);
+}
 
-    // --- TICKET LOGIC ---
-    async function generateTicket(serviceId, firstName, lastName, nationalId) {
-        if (nationalId && !checkCodeMeli(nationalId)) {
-            showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
-            return;
-        }
+.ticket-actions {
+margin-bottom: 15px;
+}
 
-        const service = services.find(s => s.$id === serviceId);
-        if (!service) return;
+.current-ticket-item {
+padding: 12px;
+margin-bottom: 12px;
+background-color: #E8F5E9;
+border-radius: var(--border-radius);
+border-right: 4px solid var(--primary-color); /* */
+}
 
-        const serviceTickets = tickets.filter(t => t.service_id === serviceId && t.ticket_type === 'regular');
-        const specificNumber = (serviceTickets.length) + service.start_number;
-        const generalNumber = tickets.length + 1;
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+.call-panel {
+background-color: white;
+padding: 15px;
+border-radius: var(--border-radius);
+margin-bottom: 15px;
+box-shadow: var(--box-shadow); /* */
+}
 
-        const newTicketData = {
-            service_id: serviceId,
-            specific_ticket: specificNumber,
-            general_ticket: generalNumber,
-            first_name: firstName || '---',
-            last_name: lastName || '---',
-            national_id: nationalId || '---',
-            registered_by: currentUser.$id,
-            registered_by_name: currentUser.name,
-            status: 'در حال انتظار',
-            ticket_type: 'regular'
-        };
+.service-checkbox {
+margin: 8px 0;
+padding: 8px;
+background-color: var(--light-bg);
+border-radius: var(--border-radius);
+display: flex;
+align-items: center; /* */
+}
 
-        try {
-            const createdTicket = await databases.createDocument(
-                DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
-                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
-            );
-            const popupMessage = `
-                <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
-                <p>نوبت کلی: ${createdTicket.general_ticket}</p>
-                <p>نام: ${createdTicket.first_name} ${createdTicket.last_name}</p>
-                <p>کد ملی: ${createdTicket.national_id}</p>
-                <span class="wait-time">زمان تخمینی انتظار: ${Math.round(estimatedWait)} دقیقه</span>
-            `;
-            showPopupNotification(popupMessage);
-            closeTicketForm();
-        } catch (error) {
-            console.error('Error creating ticket:', error);
-            showPopupNotification('<p>خطا در ثبت نوبت!</p>');
-        }
-    }
-    
-    async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
-        if (nationalId && !checkCodeMeli(nationalId)) {
-            showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
-            return;
-        }
-        if (tempSelectedServicesForPass.length === 0) return;
+.service-checkbox label {
+margin-right: 8px;
+font-weight: 500;
+flex-grow: 1;
+font-size: 14px;
+cursor: pointer; /* */
+}
 
-        const generalNumber = tickets.length + 1;
-        const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
-            const newTicketData = {
-                service_id: serviceId,
-                general_ticket: generalNumber + index,
-                specific_ticket: 'پاس',
-                first_name: firstName || '---',
-                last_name: lastName || '---',
-                national_id: nationalId || '---',
-                registered_by: currentUser.$id,
-                registered_by_name: currentUser.name,
-                status: 'در حال انتظار',
-                ticket_type: 'pass',
-                delay_count: delayCount
-            };
-            return databases.createDocument(
-                DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
-                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
-            );
-        });
+.service-checkbox .waiting-count-label {
+color: var(--danger-color);
+font-weight: 700;
+margin: 0 4px;
+}
 
-        try {
-            await Promise.all(creationPromises);
-            showPopupNotification(`<p>نوبت پاس شده با موفقیت ثبت شد.</p>`);
-            closeTicketForm();
-        } catch (error) {
-            console.error('Error creating pass ticket:', error);
-            showPopupNotification('<p>خطا در ثبت نوبت پاس شده!</p>');
-        }
-    }
+.service-checkbox input[type="checkbox"] {
+margin-left: 8px;
+width: 16px; /* */
+height: 16px;
+}
 
-    async function updateSmartTime(serviceId, callTime) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service || service.estimation_mode !== 'smart') return;
+.big-button {
+padding: 12px 20px;
+font-size: 16px;
+font-weight: 500;
+width: 100%;
+background-color: var(--primary-color);
+color: white;
+border: none; /* */
+border-radius: var(--border-radius);
+cursor: pointer;
+transition: background-color 0.3s;
+font-family: 'Vazirmatn', sans-serif;
+}
 
-        const durationMinutes = (new Date() - new Date(callTime)) / 60000;
-        if (durationMinutes < 0.1 || durationMinutes > 120) return;
+.big-button:hover {
+background-color: #2E7D32; /* */
+}
 
-        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2);
-        try {
-            await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { smart_time: newSmartTime });
-        } catch (error) {
-            console.error("Failed to update smart time:", error);
-        }
-    }
+.pass-btn {
+background-color: var(--warning-color);
+margin-bottom: 10px;
+}
 
-    async function callNextTicket() {
-        if (lastCalledTicket[currentUser.$id]) {
-            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
-            if (lastTicket && lastTicket.status === 'در حال سرویس') {
-                await updateSmartTime(lastTicket.service_id, lastTicket.call_time);
-            }
-        }
+.pass-btn:hover {
+background-color: #F57C00; /* */
+}
 
-        const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
-        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+.danger-button {
+background-color: var(--danger-color);
+}
 
-        if (selectedServiceIds.length === 0) {
-            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-            return;
-        }
+.danger-button:hover {
+background-color: #D32F2F;
+}
 
-        let ticketToCall = null;
-        
-        const waitingTickets = tickets
-            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+.history {
+background-color: white;
+padding: 15px;
+border-radius: var(--border-radius);
+box-shadow: var(--box-shadow); /* */
+overflow-x: auto;
+}
 
-        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
-        
-        if (passedTickets.length > 0) {
-            ticketToCall = passedTickets[0];
-        } else {
-            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
-            if (regularTickets.length > 0) {
-                ticketToCall = regularTickets[0];
-                
-                const passedToUpdate = tickets.filter(t => 
-                    t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
-                    t.service_id === ticketToCall.service_id
-                );
-                const updatePromises = passedToUpdate.map(t => 
-                    databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
-                );
-                if (updatePromises.length > 0) await Promise.all(updatePromises);
-            }
-        }
+.table-container {
+overflow-x: auto;
+margin-top: 10px;
+border: 1px solid #ddd;
+border-radius: var(--border-radius); /* */
+}
 
-        if (ticketToCall) {
-            try {
-                const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
-                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
-                    status: 'در حال سرویس',
-                    called_by: currentUser.$id,
-                    called_by_name: currentUser.name,
-                    called_by_counter_name: counterName,
-                    call_time: new Date().toISOString()
-                });
-                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-                const popupMessage = `
-                    <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
-                    <p>نام: ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                    <p>کد ملی: ${updatedTicket.national_id}</p>
-                    <p class="counter-info">لطفا به باجه ${counterName} مراجعه کنید</p>
-                `;
-                showPopupNotification(popupMessage);
-            } catch (error) {
-                console.error('Error calling next ticket:', error);
-            }
-        } else {
-            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
-        }
-    }
-    
-    async function resetAllTickets() {
-        const confirm = new Promise(resolve => {
-            showPopupNotification('<p>آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.</p><button id="confirm-reset-btn" class="danger-button">بله، پاک شود</button><button id="cancel-reset-btn" class="secondary-btn">انصراف</button>');
-            document.getElementById('confirm-reset-btn').addEventListener('click', () => {
-                closePopupNotification();
-                resolve(true);
-            });
-            document.getElementById('cancel-reset-btn').addEventListener('click', () => {
-                closePopupNotification();
-                resolve(false);
-            });
-        });
+.services-table, #ticket-history {
+width: 100%;
+border-collapse: collapse;
+font-size: 13px; /* */
+}
 
-        if (await confirm) {
-            try {
-                let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-                while (response.documents.length > 0) {
-                    const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
-                    await Promise.all(deletePromises);
-                    response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-                }
-                showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
-            } catch (error) {
-                console.error('Error resetting tickets:', error);
-                showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
-            }
-        }
-    }
+.services-table th,
+.services-table td,
+#ticket-history th,
+#ticket-history td {
+padding: 10px 8px;
+text-align: right;
+border-bottom: 1px solid #ddd; /* */
+}
 
-    // --- MODAL & FORM LOGIC ---
-    function openTicketForm(mode, serviceId = null) {
-        ticketForm.dataset.mode = mode;
-        const passDelayGroup = document.getElementById('pass-delay-group');
-        if (mode === 'regular') {
-            ticketForm.dataset.serviceId = serviceId;
-            ticketFormTitle.textContent = 'ثبت نوبت جدید';
-            passDelayGroup.style.display = 'none';
-        } else if (mode === 'pass') {
-            ticketFormTitle.textContent = 'ثبت اطلاعات شخص پاس داده شده';
-            passDelayGroup.style.display = 'block';
-        }
-        ticketForm.style.display = 'block';
-    }
+.services-table input, .services-table select {
+width: 100%;
+padding: 5px;
+border: 1px solid #ccc;
+border-radius: 3px; /* */
+}
 
-    function closeTicketForm() {
-        ticketForm.style.display = 'none';
-        document.getElementById('first-name').value = '';
-        document.getElementById('last-name').value = '';
-        document.getElementById('national-id').value = '';
-        document.getElementById('pass-delay-count').value = 0;
-    }
+.services-table th,
+#ticket-history th {
+background-color: #f2f2f2;
+font-weight: 700;
+}
 
-    function openPassServiceModal() {
-        passServiceList.innerHTML = '';
-        services.forEach(service => {
-            const div = document.createElement('div');
-            div.className = 'service-checkbox';
-            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}">
-                             <label for="pass-check-${service.$id}">${service.name}</label>`;
-            passServiceList.appendChild(div);
-        });
-        passServiceModalOverlay.style.display = 'flex';
-    }
+/* Modal and Form Styles /
+.modal-overlay {
+position: fixed;
+top: 0; / /
+left: 0;
+width: 100%;
+height: 100%;
+background-color: rgba(0, 0, 0, 0.6);
+z-index: 1000;
+display: flex;
+justify-content: center;
+align-items: center; / */
+}
 
-    // --- ADMIN PANEL LOGIC ---
-    function openAdminPanel() {
-        renderServiceSettings();
-        adminPanel.style.display = 'block';
-    }
+.modal {
+background-color: white;
+padding: 25px;
+border-radius: var(--border-radius);
+box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+width: 90%;
+max-width: 500px; /* */
+z-index: 1001;
+}
 
-    function renderServiceSettings() {
-        serviceList.innerHTML = '';
-        services.forEach(service => {
-            const row = document.createElement('tr');
-            row.dataset.id = service.$id;
-            row.innerHTML = `
-                <td><input type="text" value="${service.name}" class="setting-name"></td>
-                <td><input type="number" value="${service.start_number}" class="setting-start"></td>
-                <td><input type="number" value="${service.end_number}" class="setting-end"></td>
-                <td>
-                    <select class="setting-estimation-mode">
-                        <option value="manual" ${service.estimation_mode === 'manual' ? 'selected' : ''}>دستی</option>
-                        <option value="smart" ${service.estimation_mode === 'smart' ? 'selected' : ''}>هوشمند</option>
-                    </select>
-                </td>
-                <td><input type="number" value="${service.smart_time}" class="setting-smart-time" step="0.1"></td>
-                <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
-                <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
-                <td><button class="remove-service-btn">حذف</button></td>`;
-            serviceList.appendChild(row);
-        });
-        
-        serviceList.querySelectorAll('.remove-service-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => e.target.closest('tr').remove());
-        });
-    }
-    
-    function addNewServiceRow() {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
-            <td><input type="number" value="100" class="setting-start"></td>
-            <td><input type="number" value="199" class="setting-end"></td>
-            <td>
-                <select class="setting-estimation-mode">
-                    <option value="manual">دستی</option>
-                    <option value="smart">هوشمند</option>
-                </select>
-            </td>
-            <td><input type="number" value="10.0" class="setting-smart-time" step="0.1"></td>
-            <td><input type="text" value="08:00" class="setting-work-start"></td>
-            <td><input type="text" value="17:00" class="setting-work-end"></td>
-            <td><button class="remove-service-btn">حذف</button></td>`;
-        serviceList.appendChild(row);
-        row.querySelector('.remove-service-btn').addEventListener('click', () => row.remove());
-    }
+.modal h2 {
+margin-bottom: 20px;
+text-align: center;
+color: var(--primary-color); /* */
+}
 
-    async function saveSettings() {
-        const existingServiceIds = services.map(s => s.$id);
-        const uiServiceIds = [];
-        const promises = [];
+.ticket-form {
+background-color: white;
+padding: 20px;
+border-radius: var(--border-radius);
+box-shadow: 0 0 15px rgba(0,0,0,0.15);
+position: fixed;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%); /* */
+z-index: 1001;
+display: none;
+width: 90%;
+max-width: 400px;
+}
 
-        serviceList.querySelectorAll('tr').forEach(row => {
-            const id = row.dataset.id;
-            if(id) uiServiceIds.push(id);
+.admin-panel {
+background-color: white;
+padding: 20px;
+border-radius: var(--border-radius);
+box-shadow: 0 0 15px rgba(0,0,0,0.15); /* /
+position: fixed;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+z-index: 1001;
+display: none;
+width: 90%;
+max-width: 800px; / */
+max-height: 80vh;
+overflow-y: auto;
+}
 
-            const data = {
-                name: row.querySelector('.setting-name').value,
-                start_number: parseInt(row.querySelector('.setting-start').value),
-                end_number: parseInt(row.querySelector('.setting-end').value),
-                estimation_mode: row.querySelector('.setting-estimation-mode').value,
-                smart_time: parseFloat(row.querySelector('.setting-smart-time').value),
-                work_hours_start: row.querySelector('.setting-work-start').value,
-                work_hours_end: row.querySelector('.setting-work-end').value
-            };
+.settings-container {
+padding: 10px;
+}
 
-            // Keep manual_time field for compatibility, but don't show it
-            if(data.estimation_mode === 'manual') {
-                data.manual_time = data.smart_time;
-            }
+.settings-section {
+margin-bottom: 20px;
+padding: 12px;
+background-color: var(--light-bg);
+border-radius: var(--border-radius); /* */
+}
 
-            if (id) {
-                promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
-            } else {
-                promises.push(databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), data));
-            }
-        });
+.settings-section h3 {
+margin-bottom: 12px;
+color: var(--primary-color);
+font-size: 16px;
+}
 
-        const servicesToDelete = existingServiceIds.filter(id => !uiServiceIds.includes(id));
-        servicesToDelete.forEach(id => {
-            promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
-        });
+.close-btn {
+position: absolute;
+top: 10px;
+left: 10px; /* */
+background: none;
+border: none;
+font-size: 20px;
+cursor: pointer;
+color: var(--dark-text);
+}
 
-        try {
-            await Promise.all(promises);
-            showPopupNotification('<p>تنظیمات با موفقیت ذخیره شد.</p>');
-            adminPanel.style.display = 'none';
-            fetchData();
-        } catch (error) {
-            console.error('Error saving settings:', error);
-            showPopupNotification('<p>خطا در ذخیره تنظیمات!</p>');
-        }
-    }
+.form-group {
+margin-bottom: 15px; /* */
+}
 
-    // --- HELPERS ---
-    function showPopupNotification(htmlContent) {
-        popupText.innerHTML = htmlContent;
-        popupNotification.style.display = 'flex';
-        setTimeout(() => popupNotification.classList.add('show'), 10);
-        // The popup now requires a specific button to be clicked to close, to replace the confirm()
-        // If a simple message is shown, it will auto-close
-        if(!popupText.querySelector('button')) {
-             popupNotification.addEventListener('click', function closeHandler() {
-                popupNotification.classList.remove('show');
-                setTimeout(() => popupNotification.style.display = 'none', 300);
-                popupNotification.removeEventListener('click', closeHandler);
-            });
-        }
-    }
-    
-    function closePopupNotification() {
-        popupNotification.classList.remove('show');
-        setTimeout(() => popupNotification.style.display = 'none', 300);
-    }
+.form-group label {
+display: block;
+margin-bottom: 6px;
+font-weight: 500;
+font-size: 14px;
+}
 
-    function formatDate(dateString) {
-        if (!dateString) return '---';
-        const d = new Date(dateString);
-        return d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-    }
+.form-group input {
+width: 100%;
+padding: 10px;
+border: 1px solid #ddd; /* */
+border-radius: var(--border-radius);
+font-size: 14px;
+font-family: 'Vazirmatn', sans-serif;
+}
 
-    // --- EVENT LISTENERS ---
-    loginBtn.addEventListener('click', login);
-    logoutBtn.addEventListener('click', logout);
-    settingsBtn.addEventListener('click', openAdminPanel);
-    resetAllBtn.addEventListener('click', resetAllTickets);
-    closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
-    cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
-    addServiceBtn.addEventListener('click', addNewServiceRow);
-    saveSettingsBtn.addEventListener('click', saveSettings);
-    callNextBtn.addEventListener('click', callNextTicket);
-    passTicketBtn.addEventListener('click', openPassServiceModal);
-    cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
-    
-    confirmPassServiceBtn.addEventListener('click', () => {
-        const selected = passServiceList.querySelectorAll('input:checked');
-        if (selected.length === 0) {
-            showPopupNotification('<p>لطفا حداقل یک خدمت را انتخاب کنید.</p>');
-            return;
-        }
-        tempSelectedServicesForPass = Array.from(selected).map(cb => cb.value);
-        passServiceModalOverlay.style.display = 'none';
-        openTicketForm('pass');
-    });
+.form-actions {
+display: flex;
+gap: 10px;
+margin-top: 20px; /* */
+}
 
-    submitTicketBtn.addEventListener('click', () => {
-        const mode = ticketForm.dataset.mode;
-        const firstName = document.getElementById('first-name').value;
-        const lastName = document.getElementById('last-name').value;
-        const nationalId = document.getElementById('national-id').value;
-        
-        if (mode === 'regular') {
-            const serviceId = ticketForm.dataset.serviceId;
-            generateTicket(serviceId, firstName, lastName, nationalId);
-        } else if (mode === 'pass') {
-            const delayCount = parseInt(document.getElementById('pass-delay-count').value) || 0;
-            generatePassTicket(firstName, lastName, nationalId, delayCount);
-        }
-    });
-    cancelTicketBtn.addEventListener('click', closeTicketForm);
+.primary-btn, .secondary-btn {
+padding: 10px 20px;
+border: none;
+border-radius: var(--border-radius);
+cursor: pointer;
+font-family: 'Vazirmatn', sans-serif;
+flex: 1; /* */
+}
 
-    // --- START THE APP ---
-    initializeApp();
-});
+.primary-btn {
+background-color: var(--primary-color);
+color: white;
+}
+
+.secondary-btn {
+background-color: #e0e0e0;
+color: var(--dark-text);
+}
+
+.add-btn {
+padding: 8px 15px;
+background-color: var(--secondary-color); /* /
+color: white;
+border: none;
+border-radius: var(--border-radius);
+cursor: pointer;
+font-family: 'Vazirmatn', sans-serif;
+margin-top: 10px;
+font-size: 14px; / */
+}
+
+/* Popup Notification Styles /
+.popup-container {
+position: fixed;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+background-color: rgba(0, 0, 0, 0.5); / /
+display: flex;
+justify-content: center;
+align-items: center;
+z-index: 2000;
+opacity: 0;
+transition: opacity 0.3s ease-in-out;
+pointer-events: none; / */
+}
+
+.popup-container.show {
+opacity: 1;
+pointer-events: auto; /* <--- کد اضافه شده */
+}
+
+.popup-message {
+background-color: white;
+color: var(--dark-text);
+padding: 25px 40px; /* /
+border-radius: var(--border-radius);
+box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+text-align: center;
+font-size: 18px;
+font-weight: 500;
+max-width: 90%;
+transform: scale(0.9);
+transition: transform 0.3s ease-in-out; / */
+}
+
+.popup-container.show .popup-message {
+transform: scale(1);
+}
+
+.popup-message p {
+margin: 0;
+line-height: 1.7; /* */
+}
+
+.popup-message .ticket-number {
+display: block;
+font-size: 24px;
+font-weight: 700;
+color: var(--primary-color);
+margin-bottom: 10px; /* */
+}
+
+.popup-message .wait-time {
+display: block;
+font-size: 16px;
+color: var(--dark-text);
+opacity: 0.9; /* */
+}
+
+.popup-message .counter-info {
+font-size: 18px;
+font-weight: 700;
+margin-top: 15px;
+}
+
+@media (max-width: 768px) {
+.admin-panel, .ticket-form, .modal {
+width: 95%;
+padding: 15px;
+}
+}
