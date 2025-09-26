@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetAllBtn = document.getElementById('reset-all-btn');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
+    const counterNameInput = document.getElementById('counter-name'); // ADDED
     const userGreeting = document.getElementById('user-greeting');
     const loginFields = document.getElementById('login-fields');
     const userInfo = document.getElementById('user-info');
@@ -123,11 +124,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- AUTHENTICATION & UI TOGGLES ---
     async function login() {
+        const counterName = counterNameInput.value.trim();
+        if (!counterName) {
+            showPopupNotification('<p>لطفا شماره باجه خود را وارد کنید.</p>');
+            return;
+        }
+
         try {
             await account.createEmailSession(emailInput.value, passwordInput.value);
+            // Save counter name in user preferences
+            await account.updatePrefs({ ...currentUser.prefs, counter_name: counterName });
             initializeApp();
         } catch (error) {
-            alert('خطا در ورود: ' + error.message);
+            showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
         }
     }
 
@@ -144,7 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function showLoggedInUI() {
         loginFields.style.display = 'none';
         userInfo.style.display = 'flex';
-        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email}`;
+        const counterName = currentUser.prefs.counter_name || 'بدون باجه';
+        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} - باجه: ${counterName}`;
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
 
@@ -190,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="service-name">${service.name}</div>
                     <div class="waiting-count">منتظران: ${waitingCount}</div>
                 </div>
-                <div class="estimation-time">${service.estimation_mode}: ${Math.round(timeToShow)} دقیقه</div>
+                <div class="estimation-time">زمان تخمینی: ${Math.round(timeToShow)} دقیقه</div>
             `;
             button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
             serviceButtonsContainer.appendChild(button);
@@ -259,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p><strong>نوبت:</strong> ${ticket.specific_ticket || 'پاس'}</p>
                 <p><strong>نام:</strong> ${ticket.first_name} ${ticket.last_name}</p>
                 <p><strong>زمان فراخوان:</strong> ${formatDate(ticket.call_time)}</p>
+                <p><strong>باجه فراخواننده:</strong> ${ticket.called_by_counter_name || '---'}</p>
             `;
             currentTicketDisplay.appendChild(div);
         });
@@ -293,9 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (estimatedFinishTime > endTime) {
             const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-            if (confirm(warning)) {
+            showPopupNotification(`<p>${warning}</p><button id="confirm-ticket-btn" class="primary-btn">بله</button><button id="cancel-ticket-btn" class="secondary-btn">خیر</button>`);
+            document.getElementById('confirm-ticket-btn').addEventListener('click', () => {
+                closePopupNotification();
                 openTicketForm('regular', service.$id);
-            }
+            });
+            document.getElementById('cancel-ticket-btn').addEventListener('click', () => closePopupNotification());
         } else {
             openTicketForm('regular', service.$id);
         }
@@ -304,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
         if (nationalId && !checkCodeMeli(nationalId)) {
-            alert('کد ملی وارد شده معتبر نیست.');
+            showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
             return;
         }
 
@@ -351,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
         if (nationalId && !checkCodeMeli(nationalId)) {
-            alert('کد ملی وارد شده معتبر نیست.');
+            showPopupNotification('<p>کد ملی وارد شده معتبر نیست.</p>');
             return;
         }
         if (tempSelectedServicesForPass.length === 0) return;
@@ -361,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newTicketData = {
                 service_id: serviceId,
                 general_ticket: generalNumber + index,
+                specific_ticket: 'پاس',
                 first_name: firstName || '---',
                 last_name: lastName || '---',
                 national_id: nationalId || '---',
@@ -450,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
                     called_by_name: currentUser.name,
-                    called_by_counter_name: counterName, // *** ADDED THIS LINE ***
+                    called_by_counter_name: counterName,
                     call_time: new Date().toISOString()
                 });
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
@@ -458,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
                     <p>نام: ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
                     <p>کد ملی: ${updatedTicket.national_id}</p>
+                    <p class="counter-info">لطفا به باجه ${counterName} مراجعه کنید</p>
                 `;
                 showPopupNotification(popupMessage);
             } catch (error) {
@@ -469,19 +485,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function resetAllTickets() {
-        if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
-        
-        try {
-            let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-            while (response.documents.length > 0) {
-                const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
-                await Promise.all(deletePromises);
-                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+        const confirm = new Promise(resolve => {
+            showPopupNotification('<p>آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.</p><button id="confirm-reset-btn" class="danger-button">بله، پاک شود</button><button id="cancel-reset-btn" class="secondary-btn">انصراف</button>');
+            document.getElementById('confirm-reset-btn').addEventListener('click', () => {
+                closePopupNotification();
+                resolve(true);
+            });
+            document.getElementById('cancel-reset-btn').addEventListener('click', () => {
+                closePopupNotification();
+                resolve(false);
+            });
+        });
+
+        if (await confirm) {
+            try {
+                let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+                while (response.documents.length > 0) {
+                    const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
+                    await Promise.all(deletePromises);
+                    response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+                }
+                showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
+            } catch (error) {
+                console.error('Error resetting tickets:', error);
+                showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
             }
-            showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
-        } catch (error) {
-            console.error('Error resetting tickets:', error);
-            showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
         }
     }
 
@@ -535,8 +563,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><input type="text" value="${service.name}" class="setting-name"></td>
                 <td><input type="number" value="${service.start_number}" class="setting-start"></td>
                 <td><input type="number" value="${service.end_number}" class="setting-end"></td>
-                <td><input type="text" value="${service.estimation_mode}" class="setting-estimation-mode"></td>
-                <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
+                <td>
+                    <select class="setting-estimation-mode">
+                        <option value="manual" ${service.estimation_mode === 'manual' ? 'selected' : ''}>دستی</option>
+                        <option value="smart" ${service.estimation_mode === 'smart' ? 'selected' : ''}>هوشمند</option>
+                    </select>
+                </td>
                 <td><input type="number" value="${service.smart_time}" class="setting-smart-time" step="0.1"></td>
                 <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
                 <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
@@ -555,8 +587,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
             <td><input type="number" value="100" class="setting-start"></td>
             <td><input type="number" value="199" class="setting-end"></td>
-            <td><input type="text" value="manual" class="setting-estimation-mode"></td>
-            <td><input type="number" value="10" class="setting-manual-time"></td>
+            <td>
+                <select class="setting-estimation-mode">
+                    <option value="manual">دستی</option>
+                    <option value="smart">هوشمند</option>
+                </select>
+            </td>
             <td><input type="number" value="10.0" class="setting-smart-time" step="0.1"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
@@ -579,11 +615,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 start_number: parseInt(row.querySelector('.setting-start').value),
                 end_number: parseInt(row.querySelector('.setting-end').value),
                 estimation_mode: row.querySelector('.setting-estimation-mode').value,
-                manual_time: parseInt(row.querySelector('.setting-manual-time').value),
-                smart_time: parseFloat(row.querySelector('.setting-smart-time').value), 
+                smart_time: parseFloat(row.querySelector('.setting-smart-time').value),
                 work_hours_start: row.querySelector('.setting-work-start').value,
                 work_hours_end: row.querySelector('.setting-work-end').value
             };
+
+            // Keep manual_time field for compatibility, but don't show it
+            if(data.estimation_mode === 'manual') {
+                data.manual_time = data.smart_time;
+            }
 
             if (id) {
                 promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
@@ -613,11 +653,20 @@ document.addEventListener('DOMContentLoaded', () => {
         popupText.innerHTML = htmlContent;
         popupNotification.style.display = 'flex';
         setTimeout(() => popupNotification.classList.add('show'), 10);
-        popupNotification.addEventListener('click', function closeHandler() {
-            popupNotification.classList.remove('show');
-            setTimeout(() => popupNotification.style.display = 'none', 300);
-            popupNotification.removeEventListener('click', closeHandler);
-        });
+        // The popup now requires a specific button to be clicked to close, to replace the confirm()
+        // If a simple message is shown, it will auto-close
+        if(!popupText.querySelector('button')) {
+             popupNotification.addEventListener('click', function closeHandler() {
+                popupNotification.classList.remove('show');
+                setTimeout(() => popupNotification.style.display = 'none', 300);
+                popupNotification.removeEventListener('click', closeHandler);
+            });
+        }
+    }
+    
+    function closePopupNotification() {
+        popupNotification.classList.remove('show');
+        setTimeout(() => popupNotification.style.display = 'none', 300);
     }
 
     function formatDate(dateString) {
@@ -642,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmPassServiceBtn.addEventListener('click', () => {
         const selected = passServiceList.querySelectorAll('input:checked');
         if (selected.length === 0) {
-            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
+            showPopupNotification('<p>لطفا حداقل یک خدمت را انتخاب کنید.</p>');
             return;
         }
         tempSelectedServicesForPass = Array.from(selected).map(cb => cb.value);
