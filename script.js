@@ -104,8 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchTickets() {
         try {
             const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.orderDesc('$createdAt'),
-                Query.limit(100)
+                Query.orderDesc('$createdAt')
             ]);
             tickets = response.documents;
         } catch (error) {
@@ -353,9 +352,32 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const serviceTickets = tickets.filter(t => t.service_id === serviceId && t.ticket_type === 'regular');
-        const specificNumber = (serviceTickets.length) + service.start_number;
-        const generalNumber = tickets.length + 1;
+        // محاسبه شماره نوبت کلی (همیشه باید پشت سر هم باشد)
+        const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+        ]);
+        const lastGeneralTicket = allTickets.documents.length > 0 ? 
+            parseInt(allTickets.documents[0].general_ticket) : 0;
+        const generalNumber = lastGeneralTicket + 1;
+
+        // محاسبه شماره نوبت خاص برای این سرویس
+        const serviceTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.equal('service_id', serviceId),
+            Query.equal('ticket_type', 'regular'),
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+        ]);
+        const lastSpecificTicket = serviceTickets.documents.length > 0 ? 
+            parseInt(serviceTickets.documents[0].specific_ticket) : service.start_number - 1;
+        const specificNumber = lastSpecificTicket + 1;
+
+        // بررسی محدوده شماره سرویس
+        if (specificNumber > service.end_number) {
+            showPopupNotification('<p>شماره نوبت این خدمت به حداکثر مقدار مجاز رسیده است.</p>');
+            return;
+        }
+
         const estimatedWait = calculateEstimatedWaitTime(serviceId);
 
         const newTicketData = {
@@ -392,13 +414,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
+        // بررسی اجباری بودن نام و نام خانوادگی برای پاس نوبت
+        if (!firstName || !lastName) {
+            alert('برای ثبت پاس نوبت، وارد کردن نام و نام خانوادگی الزامی است.');
+            return;
+        }
+
         if (nationalId && !checkCodeMeli(nationalId)) {
             alert('کد ملی وارد شده معتبر نیست.');
             return;
         }
         if (tempSelectedServicesForPass.length === 0) return;
 
-        const generalNumber = tickets.length + 1;
+        // محاسبه شماره نوبت کلی (همیشه باید پشت سر هم باشد)
+        const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+        ]);
+        const lastGeneralTicket = allTickets.documents.length > 0 ? 
+            parseInt(allTickets.documents[0].general_ticket) : 0;
+        const generalNumber = lastGeneralTicket + 1;
+
         const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
             const service = services.find(s => s.$id === serviceId);
             // Check if service is disabled - برای همه کاربران
@@ -410,9 +446,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const newTicketData = {
                 service_id: serviceId,
-                general_ticket: generalNumber + index,
-                first_name: firstName || '---',
-                last_name: lastName || '---',
+                general_ticket: generalNumber,
+                first_name: firstName,
+                last_name: lastName,
                 national_id: nationalId || '---',
                 registered_by: currentUser.$id,
                 registered_by_name: currentUser.name,
@@ -492,10 +528,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     call_time: new Date().toISOString()
                 });
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                
+                // نمایش نام شخص در پاپاپ فراخوانی
                 const popupMessage = `
                     <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
-                    <p>نام: ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                    <p>کد ملی: ${updatedTicket.national_id}</p>
+                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                    <p><strong>خدمت:</strong> ${services.find(s => s.$id === updatedTicket.service_id)?.name || '---'}</p>
                 `;
                 showPopupNotification(popupMessage);
             } catch (error) {
@@ -565,6 +604,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (mode === 'pass') {
             ticketFormTitle.textContent = 'ثبت اطلاعات شخص پاس داده شده';
             passDelayGroup.style.display = 'block';
+            
+            // تنظیم required برای فیلدهای نام و نام خانوادگی در حالت پاس
+            document.getElementById('first-name').required = true;
+            document.getElementById('last-name').required = true;
         }
         ticketForm.style.display = 'block';
     }
@@ -575,6 +618,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('last-name').value = '';
         document.getElementById('national-id').value = '';
         document.getElementById('pass-delay-count').value = 0;
+        
+        // حذف required هنگام بستن فرم
+        document.getElementById('first-name').required = false;
+        document.getElementById('last-name').required = false;
     }
 
     function openPassServiceModal() {
