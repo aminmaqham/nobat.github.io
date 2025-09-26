@@ -40,6 +40,44 @@
 }
 
 .service-checkbox.disabled-service label {
+    color: #666;
+}
+
+.service-checkbox input:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* استایل برای سرویس غیرفعال */
+.service-btn.disabled-service {
+    background-color: #9e9e9e !important;
+    cursor: not-allowed !important;
+    opacity: 0.7;
+    position: relative;
+}
+
+.service-btn.disabled-service:hover {
+    background-color: #9e9e9e !important;
+    transform: none !important;
+}
+
+.service-disabled-label {
+    background-color: #f44336;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 5px;
+    display: inline-block;
+}
+
+/* استایل برای نمایش وضعیت غیرفعال در لیست خدمات */
+.service-checkbox.disabled-service {
+    opacity: 0.6;
+}
+
+.service-checkbox.disabled-service label {
     text-decoration: line-through;
     color: #999;
 }
