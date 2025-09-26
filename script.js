@@ -182,7 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderServiceButtons() {
         serviceButtonsContainer.innerHTML = '';
         services.forEach(service => {
-            if (service.disabled) return; // Skip disabled services
+            // Check if service is disabled - use safe access
+            const isDisabled = service.disabled === true;
+            if (isDisabled) return; // Skip disabled services
             
             const button = document.createElement('button');
             button.className = 'service-btn';
@@ -206,7 +208,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const selections = userPrefs.service_selections || {};
 
         services.forEach(service => {
-            if (service.disabled) return; // Skip disabled services
+            // Check if service is disabled - use safe access
+            const isDisabled = service.disabled === true;
+            if (isDisabled) return; // Skip disabled services
             
             const div = document.createElement('div');
             div.className = 'service-checkbox';
@@ -287,8 +291,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        // Check if service is disabled
-        if (service.disabled) {
+        // Check if service is disabled - use safe access
+        const isDisabled = service.disabled === true;
+        if (isDisabled) {
             showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
             return;
         }
@@ -321,8 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        // Check if service is disabled
-        if (service.disabled) {
+        // Check if service is disabled - use safe access
+        const isDisabled = service.disabled === true;
+        if (isDisabled) {
             showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
             return;
         }
@@ -375,7 +381,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const generalNumber = tickets.length + 1;
         const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
             const service = services.find(s => s.$id === serviceId);
-            if (service && service.disabled) {
+            // Check if service is disabled - use safe access
+            const isDisabled = service && service.disabled === true;
+            if (isDisabled) {
                 return Promise.resolve(); // Skip disabled services
             }
             
@@ -407,26 +415,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function updateSmartTime(serviceId, callTime) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service || service.estimation_mode !== 'smart') return;
-
-        const durationMinutes = (new Date() - new Date(callTime)) / 60000;
-        if (durationMinutes < 0.1 || durationMinutes > 120) return;
-
-        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2);
-        try {
-            await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { smart_time: newSmartTime });
-        } catch (error) {
-            console.error("Failed to update smart time:", error);
-        }
-    }
-
     async function callNextTicket() {
         if (lastCalledTicket[currentUser.$id]) {
             const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
             if (lastTicket && lastTicket.status === 'در حال سرویس') {
-                await updateSmartTime(lastTicket.service_id, lastTicket.call_time);
+                // No smart time update needed anymore
             }
         }
 
@@ -513,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lastReset = localStorage.getItem('lastAutoReset');
             
             if (lastReset !== today) {
-                const servicesWithAutoReset = services.filter(service => service.auto_reset);
+                const servicesWithAutoReset = services.filter(service => service.auto_reset === true);
                 
                 if (servicesWithAutoReset.length > 0) {
                     const serviceIds = servicesWithAutoReset.map(service => service.$id);
@@ -563,7 +556,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function openPassServiceModal() {
         passServiceList.innerHTML = '';
         services.forEach(service => {
-            if (service.disabled) return; // Skip disabled services
+            // Check if service is disabled - use safe access
+            const isDisabled = service.disabled === true;
+            if (isDisabled) return; // Skip disabled services
             
             const div = document.createElement('div');
             div.className = 'service-checkbox';
@@ -628,16 +623,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = row.dataset.id;
             if(id) uiServiceIds.push(id);
 
+            // Create data object with safe defaults
             const data = {
                 name: row.querySelector('.setting-name').value,
-                start_number: parseInt(row.querySelector('.setting-start').value),
-                end_number: parseInt(row.querySelector('.setting-end').value),
-                manual_time: parseInt(row.querySelector('.setting-manual-time').value),
-                work_hours_start: row.querySelector('.setting-work-start').value,
-                work_hours_end: row.querySelector('.setting-work-end').value,
-                disabled: row.querySelector('.setting-disabled').checked,
-                auto_reset: row.querySelector('.setting-auto-reset').checked
+                start_number: parseInt(row.querySelector('.setting-start').value) || 100,
+                end_number: parseInt(row.querySelector('.setting-end').value) || 199,
+                manual_time: parseInt(row.querySelector('.setting-manual-time').value) || 10,
+                work_hours_start: row.querySelector('.setting-work-start').value || '08:00',
+                work_hours_end: row.querySelector('.setting-work-end').value || '17:00'
             };
+
+            // Only add new fields if they exist in the database
+            // These will be added after you create the attributes in Appwrite Console
+            const disabledCheckbox = row.querySelector('.setting-disabled');
+            const autoResetCheckbox = row.querySelector('.setting-auto-reset');
+            
+            if (disabledCheckbox) {
+                data.disabled = disabledCheckbox.checked;
+            }
+            
+            if (autoResetCheckbox) {
+                data.auto_reset = autoResetCheckbox.checked;
+            }
 
             if (id) {
                 promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
@@ -658,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchData();
         } catch (error) {
             console.error('Error saving settings:', error);
-            showPopupNotification('<p>خطا در ذخیره تنظیمات!</p>');
+            showPopupNotification('<p>خطا در ذخیره تنظیمات! لطفا فیلدهای جدید را در دیتابیس اضافه کنید.</p>');
         }
     }
 
