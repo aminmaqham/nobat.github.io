@@ -200,12 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="waiting-count">منتظران: ${waitingCount}</div>
                 </div>
                 <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
-                ${isDisabled ? '<div class="service-disabled-label">(غیرفعال - فقط فراخوانی)</div>' : ''}
+                ${isDisabled ? '<div class="service-disabled-label">(غیرفعال)</div>' : ''}
             `;
             
             button.addEventListener('click', () => {
                 if (isDisabled) {
-                    showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. فقط امکان فراخوانی نوبت‌های موجود وجود دارد.</p>');
+                    showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
                 } else {
                     checkAvailabilityAndOpenForm(service.$id);
                 }
@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}" ${isDisabled ? '' : ''}>
-                             <label for="service-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال - فقط فراخوانی)' : ''}</label>`;
+                             <label for="service-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
             
             const checkbox = div.querySelector('input');
             checkbox.checked = selections[service.$id] || false;
@@ -311,10 +311,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        // Check if service is disabled - use safe access
+        // Check if service is disabled - برای همه کاربران (هم اپراتور هم کیوسک)
         const isDisabled = service.disabled === true;
         if (isDisabled) {
-            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. فقط امکان فراخوانی نوبت‌های موجود وجود دارد.</p>');
+            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
             return;
         }
 
@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        // Check if service is disabled - use safe access
+        // Check if service is disabled - برای همه کاربران (هم اپراتور هم کیوسک)
         const isDisabled = service.disabled === true;
         if (isDisabled) {
             showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
@@ -401,10 +401,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const generalNumber = tickets.length + 1;
         const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
             const service = services.find(s => s.$id === serviceId);
-            // Check if service is disabled - use safe access
+            // Check if service is disabled - برای همه کاربران
             const isDisabled = service && service.disabled === true;
             if (isDisabled) {
-                return Promise.resolve(); // Skip disabled services for pass tickets
+                showPopupNotification('<p>یکی از خدمات انتخاب شده غیرفعال است. امکان ثبت نوبت پاس وجود ندارد.</p>');
+                return Promise.reject('Service disabled');
             }
             
             const newTicketData = {
@@ -431,7 +432,9 @@ document.addEventListener('DOMContentLoaded', () => {
             closeTicketForm();
         } catch (error) {
             console.error('Error creating pass ticket:', error);
-            showPopupNotification('<p>خطا در ثبت نوبت پاس شده!</p>');
+            if (error !== 'Service disabled') {
+                showPopupNotification('<p>خطا در ثبت نوبت پاس شده!</p>');
+            }
         }
     }
 
@@ -586,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 div.classList.add('disabled-service');
             }
             
-            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}">
+            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
                              <label for="pass-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
             passServiceList.appendChild(div);
         });
