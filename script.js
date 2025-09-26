@@ -179,41 +179,41 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('total-waiting-count').textContent = waitingCount;
     }
 
- function renderServiceButtons() {
-    serviceButtonsContainer.innerHTML = '';
-    services.forEach(service => {
-        const button = document.createElement('button');
-        button.className = 'service-btn';
-        
-        // Check if service is disabled
-        const isDisabled = service.disabled === true;
-        const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-        
-        // Add disabled class if service is disabled
-        if (isDisabled) {
-            button.classList.add('disabled-service');
-        }
-        
-        button.innerHTML = `
-            <div>
-                <div class="service-name">${service.name}</div>
-                <div class="waiting-count">منتظران: ${waitingCount}</div>
-            </div>
-            <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
-            ${isDisabled ? '<div class="service-disabled-label">غیرفعال</div>' : ''}
-        `;
-        
-        button.addEventListener('click', () => {
+    function renderServiceButtons() {
+        serviceButtonsContainer.innerHTML = '';
+        services.forEach(service => {
+            const button = document.createElement('button');
+            button.className = 'service-btn';
+            
+            // Check if service is disabled
+            const isDisabled = service.disabled === true;
+            const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+            
+            // Add disabled class if service is disabled
             if (isDisabled) {
-                showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
-            } else {
-                checkAvailabilityAndOpenForm(service.$id);
+                button.classList.add('disabled-service');
             }
+            
+            button.innerHTML = `
+                <div>
+                    <div class="service-name">${service.name}</div>
+                    <div class="waiting-count">منتظران: ${waitingCount}</div>
+                </div>
+                <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
+                ${isDisabled ? '<div class="service-disabled-label">(غیرفعال - فقط فراخوانی)</div>' : ''}
+            `;
+            
+            button.addEventListener('click', () => {
+                if (isDisabled) {
+                    showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. فقط امکان فراخوانی نوبت‌های موجود وجود دارد.</p>');
+                } else {
+                    checkAvailabilityAndOpenForm(service.$id);
+                }
+            });
+            
+            serviceButtonsContainer.appendChild(button);
         });
-        
-        serviceButtonsContainer.appendChild(button);
-    });
-}
+    }
 
     async function updateServiceCheckboxes() {
         if (!currentUser) return;
@@ -222,16 +222,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const selections = userPrefs.service_selections || {};
 
         services.forEach(service => {
-            // Check if service is disabled - use safe access
-            const isDisabled = service.disabled === true;
-            if (isDisabled) return; // Skip disabled services
-            
             const div = document.createElement('div');
             div.className = 'service-checkbox';
-            div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}">
-                             <label for="service-check-${service.$id}">${service.name}</label>`;
+            
+            // Check if service is disabled
+            const isDisabled = service.disabled === true;
+            if (isDisabled) {
+                div.classList.add('disabled-service');
+            }
+            
+            div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}" ${isDisabled ? '' : ''}>
+                             <label for="service-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال - فقط فراخوانی)' : ''}</label>`;
+            
             const checkbox = div.querySelector('input');
             checkbox.checked = selections[service.$id] || false;
+            
             checkbox.addEventListener('change', async () => {
                 selections[service.$id] = checkbox.checked;
                 try {
@@ -241,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Failed to save preferences", e);
                 }
             });
+            
             serviceCheckboxes.appendChild(div);
         });
     }
@@ -302,33 +308,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkAvailabilityAndOpenForm(serviceId) {
-    const service = services.find(s => s.$id === serviceId);
-    if (!service) return;
+        const service = services.find(s => s.$id === serviceId);
+        if (!service) return;
 
-    // Check if service is disabled - use safe access
-    const isDisabled = service.disabled === true;
-    if (isDisabled) {
-        showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
-        return;
-    }
+        // Check if service is disabled - use safe access
+        const isDisabled = service.disabled === true;
+        if (isDisabled) {
+            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. فقط امکان فراخوانی نوبت‌های موجود وجود دارد.</p>');
+            return;
+        }
 
-    const estimatedWait = calculateEstimatedWaitTime(serviceId);
-    const now = new Date();
-    const endTimeParts = (service.work_hours_end || "17:00").split(':');
-    const endTime = new Date();
-    endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const now = new Date();
+        const endTimeParts = (service.work_hours_end || "17:00").split(':');
+        const endTime = new Date();
+        endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
 
-    const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
+        const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
 
-    if (estimatedFinishTime > endTime) {
-        const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-        if (confirm(warning)) {
+        if (estimatedFinishTime > endTime) {
+            const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
+            if (confirm(warning)) {
+                openTicketForm('regular', service.$id);
+            }
+        } else {
             openTicketForm('regular', service.$id);
         }
-    } else {
-        openTicketForm('regular', service.$id);
     }
-}
+
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
         if (nationalId && !checkCodeMeli(nationalId)) {
@@ -342,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if service is disabled - use safe access
         const isDisabled = service.disabled === true;
         if (isDisabled) {
-            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
+            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
             return;
         }
 
@@ -397,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if service is disabled - use safe access
             const isDisabled = service && service.disabled === true;
             if (isDisabled) {
-                return Promise.resolve(); // Skip disabled services
+                return Promise.resolve(); // Skip disabled services for pass tickets
             }
             
             const newTicketData = {
@@ -446,6 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let ticketToCall = null;
         
+        // Include disabled services in the waiting tickets for calling
         const waitingTickets = tickets
             .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
             .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
@@ -569,14 +577,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function openPassServiceModal() {
         passServiceList.innerHTML = '';
         services.forEach(service => {
-            // Check if service is disabled - use safe access
-            const isDisabled = service.disabled === true;
-            if (isDisabled) return; // Skip disabled services
-            
             const div = document.createElement('div');
             div.className = 'service-checkbox';
+            
+            // Check if service is disabled
+            const isDisabled = service.disabled === true;
+            if (isDisabled) {
+                div.classList.add('disabled-service');
+            }
+            
             div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}">
-                             <label for="pass-check-${service.$id}">${service.name}</label>`;
+                             <label for="pass-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
             passServiceList.appendChild(div);
         });
         passServiceModalOverlay.style.display = 'flex';
@@ -647,7 +658,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             // Only add new fields if they exist in the database
-            // These will be added after you create the attributes in Appwrite Console
             const disabledCheckbox = row.querySelector('.setting-disabled');
             const autoResetCheckbox = row.querySelector('.setting-auto-reset');
             
