@@ -15,15 +15,14 @@
                 کل منتظران: <span id="total-waiting-count">0</span>
             </div>
             <div class="login-section">
+                <!-- Login fields now accept email -->
                 <div id="login-fields">
                     <input type="email" id="email" placeholder="ایمیل">
                     <input type="password" id="password" placeholder="رمز عبور">
-                    <input type="text" id="counter-name" placeholder="شماره باجه" required>
                     <button id="login-btn">ورود</button>
                 </div>
                 <div id="user-info" style="display: none;">
                     <div id="user-greeting"></div>
-                    <button id="edit-counter-btn" class="secondary-btn">ویرایش باجه</button>
                     <button id="settings-btn" style="display: none;">تنظیمات</button>
                     <button id="reset-all-btn" class="danger-button" style="display: none;">پاک کردن همه نوبت‌ها</button>
                     <button id="logout-btn">خروج</button>
@@ -31,6 +30,7 @@
             </div>
         </header>
 
+        <!-- Modals and Panels remain the same -->
         <div class="modal-overlay" id="pass-service-modal-overlay" style="display: none;">
             <div class="modal">
                 <h2>انتخاب خدمت برای پاس نوبت</h2>
@@ -55,10 +55,11 @@
                                 <th>نام خدمت</th>
                                 <th>شماره شروع</th>
                                 <th>شماره پایان</th>
-                                <th>تخمین زمان</th>
+                                <th>حالت تخمین</th>
+                                <th>زمان دستی</th>
+                                <th>زمان هوشمند</th>
                                 <th>ساعت شروع</th>
                                 <th>ساعت پایان</th>
-                                <th>وضعیت</th>
                                 <th>حذف</th>
                             </tr>
                         </thead>
@@ -75,7 +76,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="main-content" id="main-content" style="display: none;">
             <div class="service-buttons"></div>
             
@@ -155,3 +156,4 @@
     <script src="script.js"></script>
 </body>
 </html>
+
