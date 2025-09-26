@@ -23,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetAllBtn = document.getElementById('reset-all-btn');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
-    const counterNameInput = document.getElementById('counter-name'); // ADDED
+    const counterNameInput = document.getElementById('counter-name');
+    const editCounterBtn = document.getElementById('edit-counter-btn');
     const userGreeting = document.getElementById('user-greeting');
     const loginFields = document.getElementById('login-fields');
     const userInfo = document.getElementById('user-info');
@@ -133,7 +134,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await account.createEmailSession(emailInput.value, passwordInput.value);
             // Save counter name in user preferences
-            await account.updatePrefs({ ...currentUser.prefs, counter_name: counterName });
+            const prefs = currentUser ? currentUser.prefs : {};
+            await account.updatePrefs({ ...prefs, counter_name: counterName });
             initializeApp();
         } catch (error) {
             showPopupNotification('<p>خطا در ورود: ' + error.message + '</p>');
@@ -173,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.style.display = 'none';
         totalWaitingContainer.style.display = 'none';
     }
-
+    
     // --- REALTIME ---
     function setupRealtimeSubscriptions() {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
@@ -191,19 +193,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderServiceButtons() {
         serviceButtonsContainer.innerHTML = '';
         services.forEach(service => {
-            const button = document.createElement('button');
-            button.className = 'service-btn';
-            const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-            const timeToShow = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
-            button.innerHTML = `
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <div class="waiting-count">منتظران: ${waitingCount}</div>
-                </div>
-                <div class="estimation-time">زمان تخمینی: ${Math.round(timeToShow)} دقیقه</div>
-            `;
-            button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
-            serviceButtonsContainer.appendChild(button);
+            // Only show active services
+            if (service.is_active) {
+                const button = document.createElement('button');
+                button.className = 'service-btn';
+                const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+                const timeToShow = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
+                button.innerHTML = `
+                    <div>
+                        <div class="service-name">${service.name}</div>
+                        <div class="waiting-count">منتظران: ${waitingCount}</div>
+                    </div>
+                    <div class="estimation-time">تخمین زمان: ${Math.round(timeToShow)} دقیقه</div>
+                `;
+                button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
+                serviceButtonsContainer.appendChild(button);
+            }
         });
     }
 
@@ -284,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return 0;
         
-        const timePerTicket = service.estimation_mode === 'smart' ? service.smart_time : service.manual_time;
+        const timePerTicket = service.manual_time;
         const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
         
         return queueLength * timePerTicket;
@@ -304,12 +309,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (estimatedFinishTime > endTime) {
             const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-            showPopupNotification(`<p>${warning}</p><button id="confirm-ticket-btn" class="primary-btn">بله</button><button id="cancel-ticket-btn" class="secondary-btn">خیر</button>`);
-            document.getElementById('confirm-ticket-btn').addEventListener('click', () => {
-                closePopupNotification();
-                openTicketForm('regular', service.$id);
-            });
-            document.getElementById('cancel-ticket-btn').addEventListener('click', () => closePopupNotification());
+            showPopupNotification(warning);
+            if (window.confirm(warning)) {
+                 openTicketForm('regular', service.$id);
+            }
         } else {
             openTicketForm('regular', service.$id);
         }
@@ -403,16 +406,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function updateSmartTime(serviceId, callTime) {
         const service = services.find(s => s.$id === serviceId);
-        if (!service || service.estimation_mode !== 'smart') return;
-
+        if (!service) return;
         const durationMinutes = (new Date() - new Date(callTime)) / 60000;
         if (durationMinutes < 0.1 || durationMinutes > 120) return;
-
-        const newSmartTime = (service.smart_time * 0.8) + (durationMinutes * 0.2);
+        const newTime = (service.manual_time * 0.8) + (durationMinutes * 0.2);
         try {
-            await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { smart_time: newSmartTime });
+            await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { manual_time: newTime });
         } catch (error) {
-            console.error("Failed to update smart time:", error);
+            console.error("Failed to update time:", error);
         }
     }
 
@@ -485,31 +486,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function resetAllTickets() {
-        const confirm = new Promise(resolve => {
-            showPopupNotification('<p>آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.</p><button id="confirm-reset-btn" class="danger-button">بله، پاک شود</button><button id="cancel-reset-btn" class="secondary-btn">انصراف</button>');
-            document.getElementById('confirm-reset-btn').addEventListener('click', () => {
-                closePopupNotification();
-                resolve(true);
-            });
-            document.getElementById('cancel-reset-btn').addEventListener('click', () => {
-                closePopupNotification();
-                resolve(false);
-            });
-        });
-
-        if (await confirm) {
-            try {
-                let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-                while (response.documents.length > 0) {
-                    const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
-                    await Promise.all(deletePromises);
-                    response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-                }
-                showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
-            } catch (error) {
-                console.error('Error resetting tickets:', error);
-                showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
+        if (!window.confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
+        
+        try {
+            let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            while (response.documents.length > 0) {
+                const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
+                await Promise.all(deletePromises);
+                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
             }
+            showPopupNotification('<p>تمام نوبت‌ها با موفقیت پاک شدند.</p>');
+        } catch (error) {
+            console.error('Error resetting tickets:', error);
+            showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
         }
     }
 
@@ -548,6 +537,25 @@ document.addEventListener('DOMContentLoaded', () => {
         passServiceModalOverlay.style.display = 'flex';
     }
 
+    async function editCounterName() {
+        const newCounterName = window.prompt("شماره باجه جدید را وارد کنید:");
+        if (newCounterName === null || newCounterName.trim() === "") {
+            showPopupNotification('<p>شماره باجه نمی‌تواند خالی باشد.</p>');
+            return;
+        }
+
+        try {
+            const prefs = currentUser.prefs || {};
+            await account.updatePrefs({ ...prefs, counter_name: newCounterName });
+            currentUser.prefs.counter_name = newCounterName;
+            userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} - باجه: ${newCounterName}`;
+            showPopupNotification('<p>شماره باجه با موفقیت تغییر کرد.</p>');
+        } catch (error) {
+            console.error("Failed to update counter name:", error);
+            showPopupNotification('<p>خطا در تغییر شماره باجه!</p>');
+        }
+    }
+
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
         renderServiceSettings();
@@ -563,39 +571,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><input type="text" value="${service.name}" class="setting-name"></td>
                 <td><input type="number" value="${service.start_number}" class="setting-start"></td>
                 <td><input type="number" value="${service.end_number}" class="setting-end"></td>
-                <td>
-                    <select class="setting-estimation-mode">
-                        <option value="manual" ${service.estimation_mode === 'manual' ? 'selected' : ''}>دستی</option>
-                        <option value="smart" ${service.estimation_mode === 'smart' ? 'selected' : ''}>هوشمند</option>
-                    </select>
-                </td>
-                <td><input type="number" value="${service.smart_time}" class="setting-smart-time" step="0.1"></td>
+                <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
                 <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
                 <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
+                <td>
+                    <button class="status-toggle-btn ${service.is_active ? 'active' : 'inactive'}" data-id="${service.$id}">
+                        ${service.is_active ? 'فعال' : 'غیرفعال'}
+                    </button>
+                </td>
                 <td><button class="remove-service-btn">حذف</button></td>`;
             serviceList.appendChild(row);
         });
-        
+
         serviceList.querySelectorAll('.remove-service-btn').forEach(btn => {
             btn.addEventListener('click', (e) => e.target.closest('tr').remove());
         });
+
+        serviceList.querySelectorAll('.status-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const serviceId = e.target.dataset.id;
+                const service = services.find(s => s.$id === serviceId);
+                const newStatus = !service.is_active;
+
+                if (!service.is_active) {
+                    showPopupNotification('<p>غیرفعال است</p>');
+                } else {
+                    try {
+                        await databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId, { is_active: newStatus });
+                        showPopupNotification(`<p>خدمت ${service.name} با موفقیت ${newStatus ? 'فعال' : 'غیرفعال'} شد.</p>`);
+                        await fetchServices();
+                        renderServiceSettings();
+                        renderServiceButtons();
+                    } catch (error) {
+                        console.error("Failed to toggle service status:", error);
+                        showPopupNotification('<p>خطا در تغییر وضعیت خدمت!</p>');
+                    }
+                }
+            });
+        });
     }
-    
+
     function addNewServiceRow() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
             <td><input type="number" value="100" class="setting-start"></td>
             <td><input type="number" value="199" class="setting-end"></td>
-            <td>
-                <select class="setting-estimation-mode">
-                    <option value="manual">دستی</option>
-                    <option value="smart">هوشمند</option>
-                </select>
-            </td>
-            <td><input type="number" value="10.0" class="setting-smart-time" step="0.1"></td>
+            <td><input type="number" value="10" class="setting-manual-time"></td>
             <td><input type="text" value="08:00" class="setting-work-start"></td>
             <td><input type="text" value="17:00" class="setting-work-end"></td>
+            <td>
+                <button class="status-toggle-btn active" disabled>
+                    فعال
+                </button>
+            </td>
             <td><button class="remove-service-btn">حذف</button></td>`;
         serviceList.appendChild(row);
         row.querySelector('.remove-service-btn').addEventListener('click', () => row.remove());
@@ -608,22 +637,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         serviceList.querySelectorAll('tr').forEach(row => {
             const id = row.dataset.id;
-            if(id) uiServiceIds.push(id);
+            if (id) uiServiceIds.push(id);
 
             const data = {
                 name: row.querySelector('.setting-name').value,
                 start_number: parseInt(row.querySelector('.setting-start').value),
                 end_number: parseInt(row.querySelector('.setting-end').value),
-                estimation_mode: row.querySelector('.setting-estimation-mode').value,
-                smart_time: parseFloat(row.querySelector('.setting-smart-time').value),
+                manual_time: parseFloat(row.querySelector('.setting-manual-time').value),
                 work_hours_start: row.querySelector('.setting-work-start').value,
-                work_hours_end: row.querySelector('.setting-work-end').value
+                work_hours_end: row.querySelector('.setting-work-end').value,
+                // New services are active by default
+                is_active: id ? services.find(s => s.$id === id).is_active : true
             };
-
-            // Keep manual_time field for compatibility, but don't show it
-            if(data.estimation_mode === 'manual') {
-                data.manual_time = data.smart_time;
-            }
 
             if (id) {
                 promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
@@ -653,20 +678,10 @@ document.addEventListener('DOMContentLoaded', () => {
         popupText.innerHTML = htmlContent;
         popupNotification.style.display = 'flex';
         setTimeout(() => popupNotification.classList.add('show'), 10);
-        // The popup now requires a specific button to be clicked to close, to replace the confirm()
-        // If a simple message is shown, it will auto-close
-        if(!popupText.querySelector('button')) {
-             popupNotification.addEventListener('click', function closeHandler() {
-                popupNotification.classList.remove('show');
-                setTimeout(() => popupNotification.style.display = 'none', 300);
-                popupNotification.removeEventListener('click', closeHandler);
-            });
-        }
-    }
-    
-    function closePopupNotification() {
-        popupNotification.classList.remove('show');
-        setTimeout(() => popupNotification.style.display = 'none', 300);
+        setTimeout(() => {
+            popupNotification.classList.remove('show');
+            setTimeout(() => popupNotification.style.display = 'none', 300);
+        }, 3000);
     }
 
     function formatDate(dateString) {
@@ -679,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
+    editCounterBtn.addEventListener('click', editCounterName);
     resetAllBtn.addEventListener('click', resetAllTickets);
     closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
     cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
