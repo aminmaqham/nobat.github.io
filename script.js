@@ -179,27 +179,41 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('total-waiting-count').textContent = waitingCount;
     }
 
-    function renderServiceButtons() {
-        serviceButtonsContainer.innerHTML = '';
-        services.forEach(service => {
-            // Check if service is disabled - use safe access
-            const isDisabled = service.disabled === true;
-            if (isDisabled) return; // Skip disabled services
-            
-            const button = document.createElement('button');
-            button.className = 'service-btn';
-            const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-            button.innerHTML = `
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <div class="waiting-count">منتظران: ${waitingCount}</div>
-                </div>
-                <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
-            `;
-            button.addEventListener('click', () => checkAvailabilityAndOpenForm(service.$id));
-            serviceButtonsContainer.appendChild(button);
+ function renderServiceButtons() {
+    serviceButtonsContainer.innerHTML = '';
+    services.forEach(service => {
+        const button = document.createElement('button');
+        button.className = 'service-btn';
+        
+        // Check if service is disabled
+        const isDisabled = service.disabled === true;
+        const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+        
+        // Add disabled class if service is disabled
+        if (isDisabled) {
+            button.classList.add('disabled-service');
+        }
+        
+        button.innerHTML = `
+            <div>
+                <div class="service-name">${service.name}</div>
+                <div class="waiting-count">منتظران: ${waitingCount}</div>
+            </div>
+            <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
+            ${isDisabled ? '<div class="service-disabled-label">غیرفعال</div>' : ''}
+        `;
+        
+        button.addEventListener('click', () => {
+            if (isDisabled) {
+                showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
+            } else {
+                checkAvailabilityAndOpenForm(service.$id);
+            }
         });
-    }
+        
+        serviceButtonsContainer.appendChild(button);
+    });
+}
 
     async function updateServiceCheckboxes() {
         if (!currentUser) return;
@@ -288,34 +302,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkAvailabilityAndOpenForm(serviceId) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service) return;
+    const service = services.find(s => s.$id === serviceId);
+    if (!service) return;
 
-        // Check if service is disabled - use safe access
-        const isDisabled = service.disabled === true;
-        if (isDisabled) {
-            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
-            return;
-        }
-
-        const estimatedWait = calculateEstimatedWaitTime(serviceId);
-        const now = new Date();
-        const endTimeParts = (service.work_hours_end || "17:00").split(':');
-        const endTime = new Date();
-        endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
-
-        const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
-
-        if (estimatedFinishTime > endTime) {
-            const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
-            if (confirm(warning)) {
-                openTicketForm('regular', service.$id);
-            }
-        } else {
-            openTicketForm('regular', service.$id);
-        }
+    // Check if service is disabled - use safe access
+    const isDisabled = service.disabled === true;
+    if (isDisabled) {
+        showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است.</p>');
+        return;
     }
 
+    const estimatedWait = calculateEstimatedWaitTime(serviceId);
+    const now = new Date();
+    const endTimeParts = (service.work_hours_end || "17:00").split(':');
+    const endTime = new Date();
+    endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
+
+    const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
+
+    if (estimatedFinishTime > endTime) {
+        const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
+        if (confirm(warning)) {
+            openTicketForm('regular', service.$id);
+        }
+    } else {
+        openTicketForm('regular', service.$id);
+    }
+}
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
         if (nationalId && !checkCodeMeli(nationalId)) {
