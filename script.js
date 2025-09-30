@@ -624,6 +624,227 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('last-name').required = false;
     }
 
+    // اضافه کردن این بخش بعد از تعریف متغیرها در script.js
+
+// --- COUNTER NUMBER LOGIC ---
+function showCounterNumberModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'counter-modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal">
+            <h2>تعیین شماره باجه</h2>
+            <p>لطفا شماره باجه خود را وارد کنید:</p>
+            <div class="form-group">
+                <input type="text" id="counter-number-input" placeholder="شماره باجه" maxlength="20">
+            </div>
+            <div class="form-actions">
+                <button id="save-counter-btn" class="primary-btn">ذخیره</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    document.getElementById('save-counter-btn').addEventListener('click', saveCounterNumber);
+}
+
+async function saveCounterNumber() {
+    const counterNumber = document.getElementById('counter-number-input').value.trim();
+    
+    if (!counterNumber) {
+        alert('لطفا شماره باجه را وارد کنید.');
+        return;
+    }
+    
+    try {
+        const userPrefs = currentUser.prefs || {};
+        await account.updatePrefs({ 
+            ...userPrefs, 
+            counter_name: counterNumber 
+        });
+        
+        currentUser.prefs = await account.getPrefs();
+        document.getElementById('counter-modal-overlay').remove();
+        
+        // بعد از تنظیم شماره باجه، خدمات انتخابی را نمایش می‌دهیم
+        showServiceSelectionModal();
+    } catch (error) {
+        console.error('Error saving counter number:', error);
+        alert('خطا در ذخیره شماره باجه');
+    }
+}
+
+function showServiceSelectionModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'service-selection-modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal">
+            <h2>انتخاب خدمات برای فراخوانی</h2>
+            <p>لطفا خدمات مورد نظر خود برای فراخوانی را انتخاب کنید:</p>
+            <div id="mandatory-service-checkboxes" class="service-checkboxes-container"></div>
+            <div class="form-actions">
+                <button id="save-services-btn" class="primary-btn">ذخیره و ادامه</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    renderMandatoryServiceCheckboxes();
+    document.getElementById('save-services-btn').addEventListener('click', saveMandatoryServices);
+}
+
+function renderMandatoryServiceCheckboxes() {
+    const container = document.getElementById('mandatory-service-checkboxes');
+    container.innerHTML = '';
+    
+    services.forEach(service => {
+        const div = document.createElement('div');
+        div.className = 'service-checkbox';
+        
+        const isDisabled = service.disabled === true;
+        if (isDisabled) {
+            div.classList.add('disabled-service');
+        }
+        
+        div.innerHTML = `
+            <input type="checkbox" id="mandatory-service-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
+            <label for="mandatory-service-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>
+        `;
+        container.appendChild(div);
+    });
+}
+
+async function saveMandatoryServices() {
+    const selectedServices = [];
+    document.querySelectorAll('#mandatory-service-checkboxes input[type="checkbox"]:checked').forEach(cb => {
+        selectedServices.push(cb.value);
+    });
+    
+    if (selectedServices.length === 0) {
+        alert('لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.');
+        return;
+    }
+    
+    try {
+        const userPrefs = currentUser.prefs || {};
+        const serviceSelections = {};
+        selectedServices.forEach(serviceId => {
+            serviceSelections[serviceId] = true;
+        });
+        
+        await account.updatePrefs({ 
+            ...userPrefs, 
+            service_selections: serviceSelections 
+        });
+        
+        currentUser.prefs = await account.getPrefs();
+        document.getElementById('service-selection-modal-overlay').remove();
+        
+        // ادامه برنامه
+        await fetchData();
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+    } catch (error) {
+        console.error('Error saving service selections:', error);
+        alert('خطا در ذخیره خدمات انتخابی');
+    }
+}
+
+function checkUserPreferences() {
+    const userPrefs = currentUser.prefs || {};
+    
+    // بررسی وجود شماره باجه
+    if (!userPrefs.counter_name) {
+        showCounterNumberModal();
+        return false;
+    }
+    
+    // بررسی وجود خدمات انتخابی
+    const serviceSelections = userPrefs.service_selections || {};
+    const hasSelectedServices = Object.values(serviceSelections).some(val => val === true);
+    
+    if (!hasSelectedServices) {
+        showServiceSelectionModal();
+        return false;
+    }
+    
+    return true;
+}
+
+// تغییر در تابع initializeApp برای بررسی تنظیمات کاربر
+async function initializeApp() {
+    try {
+        currentUser = await account.get();
+        
+        // بررسی تنظیمات کاربر
+        if (!checkUserPreferences()) {
+            return; // منتظر می‌مانیم تا کاربر تنظیمات را تکمیل کند
+        }
+        
+        showLoggedInUI();
+        await fetchData();
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+    } catch (error) {
+        console.log('User not logged in');
+        showLoggedOutUI();
+    }
+}
+
+// اضافه کردن دکمه تغییر شماره باجه در تابع showLoggedInUI
+function showLoggedInUI() {
+    loginFields.style.display = 'none';
+    userInfo.style.display = 'flex';
+    
+    const userPrefs = currentUser.prefs || {};
+    const counterName = userPrefs.counter_name || 'تعیین نشده';
+    
+    userGreeting.innerHTML = `کاربر: ${currentUser.name || currentUser.email} <span class="counter-badge">(باجه: ${counterName})</span>`;
+    mainContent.style.display = 'block';
+    totalWaitingContainer.style.display = 'block';
+
+    if (currentUser.prefs && currentUser.prefs.role === 'admin') {
+        settingsBtn.style.display = 'inline-block';
+        resetAllBtn.style.display = 'inline-block';
+    } else {
+        settingsBtn.style.display = 'none';
+        resetAllBtn.style.display = 'none';
+    }
+    
+    // اضافه کردن دکمه تغییر شماره باجه
+    if (!document.getElementById('change-counter-btn')) {
+        const changeCounterBtn = document.createElement('button');
+        changeCounterBtn.id = 'change-counter-btn';
+        changeCounterBtn.textContent = 'تغییر شماره باجه';
+        changeCounterBtn.className = 'secondary-btn';
+        changeCounterBtn.style.marginRight = '10px';
+        changeCounterBtn.addEventListener('click', showCounterNumberModal);
+        userInfo.insertBefore(changeCounterBtn, settingsBtn);
+    }
+}
+
+// تغییر در تابع callNextTicket برای بررسی خدمات انتخابی
+async function callNextTicket() {
+    if (lastCalledTicket[currentUser.$id]) {
+        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+        if (lastTicket && lastTicket.status === 'در حال سرویس') {
+            // No smart time update needed anymore
+        }
+    }
+
+    const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+    if (selectedServiceIds.length === 0) {
+        showPopupNotification('<p>لطفا ابتدا خدمات مورد نظر برای فراخوانی را از طریق دکمه "تغییر شماره باجه" انتخاب کنید.</p>');
+        return;
+    }
+
+    // بقیه کد بدون تغییر...
+}
     function openPassServiceModal() {
         passServiceList.innerHTML = '';
         services.forEach(service => {
