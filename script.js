@@ -122,30 +122,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- AUTHENTICATION & UI TOGGLES ---
-// --- AUTHENTICATION & UI TOGGLES ---
-async function login() {
-    try {
-        const email = emailInput.value.trim();
-        const password = passwordInput.value.trim();
-        
-        if (!email || !password) {
-            alert('لطفا ایمیل و رمز عبور را وارد کنید.');
-            return;
+    async function login() {
+        try {
+            await account.createEmailSession(emailInput.value, passwordInput.value);
+            initializeApp();
+        } catch (error) {
+            alert('خطا در ورود: ' + error.message);
         }
-        
-        console.log('Attempting login with:', email);
-        
-        await account.createEmailSession(email, password);
-        console.log('Login successful');
-        
-        // بارگذاری مجدد برنامه
-        await initializeApp();
-        
-    } catch (error) {
-        console.error('Login error:', error);
-        alert('خطا در ورود: ' + (error.message || 'لطفا اطلاعات را بررسی کنید'));
     }
-}
 
     async function logout() {
         try {
@@ -490,103 +474,76 @@ async function login() {
         }
     }
 
-// --- TICKET CALLING LOGIC ---
-async function callNextTicket() {
-    console.log('=== CALL NEXT TICKET DEBUG START ===');
-    
-    // بررسی کاربر
-    console.log('Current User:', currentUser);
-    if (!currentUser) {
-        showPopupNotification('<p>کاربر لاگین نیست</p>');
-        return;
-    }
+    async function callNextTicket() {
+        if (lastCalledTicket[currentUser.$id]) {
+            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+            if (lastTicket && lastTicket.status === 'در حال سرویس') {
+                // No smart time update needed anymore
+            }
+        }
 
-    // بررسی خدمات
-    console.log('Services:', services);
-    if (services.length === 0) {
-        showPopupNotification('<p>خدمات بارگذاری نشده</p>');
-        return;
-    }
+        const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
 
-    // بررسی تنظیمات کاربر
-    const userPrefs = currentUser.prefs || {};
-    console.log('User Preferences:', userPrefs);
-    
-    const counterName = userPrefs.counter_name;
-    const serviceSelections = userPrefs.service_selections || {};
-    const selectedServiceIds = Object.keys(serviceSelections).filter(id => serviceSelections[id]);
-    
-    console.log('Counter Name:', counterName);
-    console.log('Selected Service IDs:', selectedServiceIds);
-
-    if (!counterName) {
-        showPopupNotification('<p>شماره باجه تنظیم نشده</p>');
-        return;
-    }
-
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>هیچ خدمتی انتخاب نشده</p>');
-        return;
-    }
-
-    try {
-        // دریافت تیکت‌ها
-        console.log('Fetching tickets...');
-        await fetchTickets();
-        console.log('Tickets loaded:', tickets.length);
-        console.log('All tickets:', tickets);
-
-        // فیلتر تیکت‌های در حال انتظار
-        const waitingTickets = tickets.filter(t => t.status === 'در حال انتظار');
-        console.log('All waiting tickets:', waitingTickets);
-        
-        const filteredTickets = waitingTickets.filter(t => selectedServiceIds.includes(t.service_id));
-        console.log('Filtered tickets for selected services:', filteredTickets);
-
-        if (filteredTickets.length === 0) {
-            showPopupNotification('<p>هیچ نوبت در حال انتظاری برای خدمات انتخابی شما نیست</p>');
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
             return;
         }
 
-        // مرتب‌سازی بر اساس زمان ایجاد
-        const sortedTickets = filteredTickets.sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
-        const ticketToCall = sortedTickets[0];
+        let ticketToCall = null;
         
-        console.log('Ticket to call:', ticketToCall);
+        // Include disabled services in the waiting tickets for calling
+        const waitingTickets = tickets
+            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
 
-        // فراخوانی تیکت
-        console.log('Updating ticket in database...');
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            ticketToCall.$id, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
+        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+        
+        if (passedTickets.length > 0) {
+            ticketToCall = passedTickets[0];
+        } else {
+            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+            if (regularTickets.length > 0) {
+                ticketToCall = regularTickets[0];
+                
+                const passedToUpdate = tickets.filter(t => 
+                    t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                    t.service_id === ticketToCall.service_id
+                );
+                const updatePromises = passedToUpdate.map(t => 
+                    databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+                );
+                if (updatePromises.length > 0) await Promise.all(updatePromises);
             }
-        );
-        
-        console.log('Ticket updated successfully:', updatedTicket);
-        
-        // نمایش پیام موفقیت
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        showPopupNotification(`
-            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-            <p><strong>خدمت:</strong> ${service ? service.name : '---'}</p>
-            <p><strong>باجه:</strong> ${counterName}</p>
-        `);
+        }
 
-    } catch (error) {
-        console.error('Error in callNextTicket:', error);
-        showPopupNotification(`<p>خطا: ${error.message}</p>`);
+        if (ticketToCall) {
+            try {
+                const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
+                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                });
+                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                
+                // نمایش نام شخص در پاپاپ فراخوانی
+                const popupMessage = `
+                    <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                    <p><strong>خدمت:</strong> ${services.find(s => s.$id === updatedTicket.service_id)?.name || '---'}</p>
+                `;
+                showPopupNotification(popupMessage);
+            } catch (error) {
+                console.error('Error calling next ticket:', error);
+            }
+        } else {
+            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
+        }
     }
-    
-    console.log('=== CALL NEXT TICKET DEBUG END ===');
-}
     
     async function resetAllTickets() {
         if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
@@ -667,255 +624,6 @@ async function callNextTicket() {
         document.getElementById('last-name').required = false;
     }
 
-    // اضافه کردن این بخش بعد از تعریف متغیرها در script.js
-
-// --- COUNTER NUMBER LOGIC ---
-function showCounterNumberModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'counter-modal-overlay';
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-        <div class="modal">
-            <h2>تعیین شماره باجه</h2>
-            <p>لطفا شماره باجه خود را وارد کنید:</p>
-            <div class="form-group">
-                <input type="text" id="counter-number-input" placeholder="شماره باجه" maxlength="20">
-            </div>
-            <div class="form-actions">
-                <button id="save-counter-btn" class="primary-btn">ذخیره</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    
-    document.getElementById('save-counter-btn').addEventListener('click', saveCounterNumber);
-}
-
-async function saveCounterNumber() {
-    const counterNumber = document.getElementById('counter-number-input').value.trim();
-    
-    if (!counterNumber) {
-        alert('لطفا شماره باجه را وارد کنید.');
-        return;
-    }
-    
-    try {
-        const userPrefs = currentUser.prefs || {};
-        await account.updatePrefs({ 
-            ...userPrefs, 
-            counter_name: counterNumber 
-        });
-        
-        currentUser.prefs = await account.getPrefs();
-        document.getElementById('counter-modal-overlay').remove();
-        
-        // بعد از تنظیم شماره باجه، خدمات انتخابی را نمایش می‌دهیم
-        showServiceSelectionModal();
-    } catch (error) {
-        console.error('Error saving counter number:', error);
-        alert('خطا در ذخیره شماره باجه');
-    }
-}
-
-function showServiceSelectionModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'service-selection-modal-overlay';
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-        <div class="modal">
-            <h2>انتخاب خدمات برای فراخوانی</h2>
-            <p>لطفا خدمات مورد نظر خود برای فراخوانی را انتخاب کنید:</p>
-            <div id="mandatory-service-checkboxes" class="service-checkboxes-container"></div>
-            <div class="form-actions">
-                <button id="save-services-btn" class="primary-btn">ذخیره و ادامه</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    
-    renderMandatoryServiceCheckboxes();
-    document.getElementById('save-services-btn').addEventListener('click', saveMandatoryServices);
-}
-
-function renderMandatoryServiceCheckboxes() {
-    const container = document.getElementById('mandatory-service-checkboxes');
-    container.innerHTML = '';
-    
-    services.forEach(service => {
-        const div = document.createElement('div');
-        div.className = 'service-checkbox';
-        
-        const isDisabled = service.disabled === true;
-        if (isDisabled) {
-            div.classList.add('disabled-service');
-        }
-        
-        div.innerHTML = `
-            <input type="checkbox" id="mandatory-service-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
-            <label for="mandatory-service-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>
-        `;
-        container.appendChild(div);
-    });
-}
-
-async function saveMandatoryServices() {
-    const selectedServices = [];
-    document.querySelectorAll('#mandatory-service-checkboxes input[type="checkbox"]:checked').forEach(cb => {
-        selectedServices.push(cb.value);
-    });
-    
-    if (selectedServices.length === 0) {
-        alert('لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.');
-        return;
-    }
-    
-    try {
-        const userPrefs = currentUser.prefs || {};
-        
-        // ایجاد object درست برای service_selections
-        const serviceSelections = {};
-        selectedServices.forEach(serviceId => {
-            serviceSelections[serviceId] = true;
-        });
-        
-        console.log('Saving service selections:', serviceSelections);
-        
-        await account.updatePrefs({ 
-            ...userPrefs, 
-            service_selections: serviceSelections 
-        });
-        
-        // دریافت preferences به‌روز شده
-        currentUser.prefs = await account.getPrefs();
-        console.log('Updated user prefs:', currentUser.prefs);
-        
-        document.getElementById('service-selection-modal-overlay').remove();
-        
-        // ادامه برنامه
-        showLoggedInUI();
-        await fetchData();
-        setupRealtimeSubscriptions();
-        checkAutoReset();
-        
-    } catch (error) {
-        console.error('Error saving service selections:', error);
-        alert('خطا در ذخیره خدمات انتخابی: ' + error.message);
-    }
-}
-
-function checkUserPreferences() {
-    const userPrefs = currentUser.prefs || {};
-    
-    console.log('Checking user preferences:', userPrefs);
-    
-    // بررسی وجود شماره باجه
-    if (!userPrefs.counter_name) {
-        console.log('Counter name not found, showing modal');
-        showCounterNumberModal();
-        return false;
-    }
-    
-    // بررسی وجود خدمات انتخابی
-    const serviceSelections = userPrefs.service_selections || {};
-    console.log('Service selections:', serviceSelections);
-    
-    const hasSelectedServices = Object.keys(serviceSelections).length > 0 && 
-                               Object.values(serviceSelections).some(val => val === true);
-    
-    console.log('Has selected services:', hasSelectedServices);
-    
-    if (!hasSelectedServices) {
-        console.log('No services selected, showing modal');
-        showServiceSelectionModal();
-        return false;
-    }
-    
-    console.log('All preferences are set correctly');
-    return true;
-}
-// تغییر در تابع initializeApp برای بررسی تنظیمات کاربر
-
-// --- INITIALIZATION ---
-async function initializeApp() {
-    try {
-        currentUser = await account.get();
-        console.log('User logged in:', currentUser);
-        
-        // ابتدا خدمات را دریافت می‌کنیم
-        await fetchServices();
-        console.log('Services loaded:', services.length);
-        
-        // بررسی تنظیمات کاربر
-        if (!checkUserPreferences()) {
-            console.log('User preferences not set, waiting for user input...');
-            return; // منتظر می‌مانیم تا کاربر تنظیمات را تکمیل کند
-        }
-        
-        showLoggedInUI();
-        await fetchData();
-        setupRealtimeSubscriptions();
-        checkAutoReset();
-        
-        console.log('App initialized successfully');
-        
-    } catch (error) {
-        console.log('User not logged in or session expired:', error);
-        showLoggedOutUI();
-    }
-}
-// اضافه کردن دکمه تغییر شماره باجه در تابع showLoggedInUI
-function showLoggedInUI() {
-    loginFields.style.display = 'none';
-    userInfo.style.display = 'flex';
-    
-    const userPrefs = currentUser.prefs || {};
-    const counterName = userPrefs.counter_name || 'تعیین نشده';
-    
-    userGreeting.innerHTML = `کاربر: ${currentUser.name || currentUser.email} <span class="counter-badge">(باجه: ${counterName})</span>`;
-    mainContent.style.display = 'block';
-    totalWaitingContainer.style.display = 'block';
-
-    if (currentUser.prefs && currentUser.prefs.role === 'admin') {
-        settingsBtn.style.display = 'inline-block';
-        resetAllBtn.style.display = 'inline-block';
-    } else {
-        settingsBtn.style.display = 'none';
-        resetAllBtn.style.display = 'none';
-    }
-    
-    // اضافه کردن دکمه تغییر شماره باجه
-    if (!document.getElementById('change-counter-btn')) {
-        const changeCounterBtn = document.createElement('button');
-        changeCounterBtn.id = 'change-counter-btn';
-        changeCounterBtn.textContent = 'تغییر شماره باجه';
-        changeCounterBtn.className = 'secondary-btn';
-        changeCounterBtn.style.marginRight = '10px';
-        changeCounterBtn.addEventListener('click', showCounterNumberModal);
-        userInfo.insertBefore(changeCounterBtn, settingsBtn);
-    }
-}
-
-// تغییر در تابع callNextTicket برای بررسی خدمات انتخابی
-async function callNextTicket() {
-    if (lastCalledTicket[currentUser.$id]) {
-        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
-        if (lastTicket && lastTicket.status === 'در حال سرویس') {
-            // No smart time update needed anymore
-        }
-    }
-
-    const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>لطفا ابتدا خدمات مورد نظر برای فراخوانی را از طریق دکمه "تغییر شماره باجه" انتخاب کنید.</p>');
-        return;
-    }
-
-    // بقیه کد بدون تغییر...
-}
     function openPassServiceModal() {
         passServiceList.innerHTML = '';
         services.forEach(service => {
@@ -1056,10 +764,7 @@ async function callNextTicket() {
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
     resetAllBtn.addEventListener('click', resetAllTickets);
-    callNextBtn.addEventListener('click', async () => {
-    console.log('Call Next button clicked');
-    await callNextTicket();
-    });
+    callNextBtn.addEventListener('click', callNextTicket);
     passTicketBtn.addEventListener('click', openPassServiceModal);
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
