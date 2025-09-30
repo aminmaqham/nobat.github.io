@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- APPWRITE SETUP (FINAL & VERIFIED IDs) ---
+    // --- APPWRITE SETUP ---
     const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
@@ -505,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let ticketToCall = null;
         
+        // Include disabled services in the waiting tickets for calling
         const waitingTickets = tickets
             .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
             .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
@@ -542,15 +543,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
                 
+                // نمایش نام شخص در پاپاپ فراخوانی
+                const service = services.find(s => s.$id === updatedTicket.service_id);
                 const popupMessage = `
                     <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
                     <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
                     <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                    <p><strong>خدمت:</strong> ${services.find(s => s.$id === updatedTicket.service_id)?.name || '---'}</p>
+                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                    <p><strong>باجه:</strong> ${counterName}</p>
                 `;
                 showPopupNotification(popupMessage);
             } catch (error) {
                 console.error('Error calling next ticket:', error);
+                showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
             }
         } else {
             showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
@@ -656,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ticketFormTitle.textContent = 'ثبت اطلاعات شخص پاس داده شده';
             passDelayGroup.style.display = 'block';
             
+            // تنظیم required برای فیلدهای نام و نام خانوادگی در حالت پاس
             document.getElementById('first-name').required = true;
             document.getElementById('last-name').required = true;
         }
@@ -667,193 +673,208 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('first-name').value = '';
         document.getElementById('last-name').value = '';
         document.getElementById('national-id').value = '';
-        document.getElementById('pass-delay-count').value = '0';
+        document.getElementById('pass-delay-count').value = 0;
+        
+        // حذف required هنگام بستن فرم
         document.getElementById('first-name').required = false;
         document.getElementById('last-name').required = false;
     }
 
-    function showPopupNotification(message) {
-        popupText.innerHTML = message;
-        popupNotification.style.display = 'flex';
-        setTimeout(() => {
-            popupNotification.style.display = 'none';
-        }, 5000);
+    function openPassServiceModal() {
+        passServiceList.innerHTML = '';
+        services.forEach(service => {
+            const div = document.createElement('div');
+            div.className = 'service-checkbox';
+            
+            // Check if service is disabled
+            const isDisabled = service.disabled === true;
+            if (isDisabled) {
+                div.classList.add('disabled-service');
+            }
+            
+            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
+                             <label for="pass-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
+            passServiceList.appendChild(div);
+        });
+        passServiceModalOverlay.style.display = 'flex';
     }
 
-    function formatDate(dateString) {
-        if (!dateString) return '---';
-        const date = new Date(dateString);
-        return date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) + ' - ' + date.toLocaleDateString('fa-IR');
+    // --- POPUP NOTIFICATION SYSTEM ---
+    function showPopupNotification(htmlContent) {
+        popupText.innerHTML = htmlContent;
+        popupNotification.style.display = 'flex';
+        
+        // استفاده از سیستم نوتیفیکیشن اصلی که قبلاً تعریف شده بود
+        setTimeout(() => {
+            popupNotification.classList.add('show');
+        }, 10);
+        
+        // بستن خودکار پس از 5 ثانیه
+        setTimeout(() => {
+            popupNotification.classList.remove('show');
+            setTimeout(() => {
+                popupNotification.style.display = 'none';
+            }, 300);
+        }, 5000);
+        
+        // امکان بستن با کلیک
+        popupNotification.addEventListener('click', function closeHandler(e) {
+            if (e.target === popupNotification) {
+                popupNotification.classList.remove('show');
+                setTimeout(() => {
+                    popupNotification.style.display = 'none';
+                }, 300);
+                popupNotification.removeEventListener('click', closeHandler);
+            }
+        });
     }
 
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
-        adminPanel.style.display = 'block';
         renderServiceSettings();
-    }
-
-    function closeAdminPanel() {
-        adminPanel.style.display = 'none';
+        adminPanel.style.display = 'block';
     }
 
     function renderServiceSettings() {
         serviceList.innerHTML = '';
         services.forEach(service => {
             const row = document.createElement('tr');
+            row.dataset.id = service.$id;
             row.innerHTML = `
-                <td><input type="text" class="service-name-input" value="${service.name}"></td>
-                <td><input type="number" class="service-start-input" value="${service.start_number}"></td>
-                <td><input type="number" class="service-end-input" value="${service.end_number}"></td>
-                <td><input type="number" class="service-time-input" value="${service.manual_time}" step="0.5"></td>
-                <td><input type="time" class="service-start-time-input" value="${service.work_hours_start || '08:00'}"></td>
-                <td><input type="time" class="service-end-time-input" value="${service.work_hours_end || '17:00'}"></td>
-                <td><input type="checkbox" class="service-disabled-input" ${service.disabled ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="service-auto-reset-input" ${service.auto_reset ? 'checked' : ''}></td>
-                <td><button class="delete-service-btn" data-id="${service.$id}">حذف</button></td>
-            `;
+                <td><input type="text" value="${service.name}" class="setting-name"></td>
+                <td><input type="number" value="${service.start_number}" class="setting-start"></td>
+                <td><input type="number" value="${service.end_number}" class="setting-end"></td>
+                <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
+                <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
+                <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
+                <td><input type="checkbox" ${service.disabled ? 'checked' : ''} class="setting-disabled"></td>
+                <td><input type="checkbox" ${service.auto_reset ? 'checked' : ''} class="setting-auto-reset"></td>
+                <td><button class="remove-service-btn">حذف</button></td>`;
             serviceList.appendChild(row);
         });
-    }
-
-    async function saveServiceSettings() {
-        const serviceUpdates = Array.from(serviceList.children).map(row => {
-            return {
-                $id: row.querySelector('.delete-service-btn').dataset.id,
-                name: row.querySelector('.service-name-input').value,
-                start_number: parseInt(row.querySelector('.service-start-input').value),
-                end_number: parseInt(row.querySelector('.service-end-input').value),
-                manual_time: parseFloat(row.querySelector('.service-time-input').value),
-                work_hours_start: row.querySelector('.service-start-time-input').value,
-                work_hours_end: row.querySelector('.service-end-time-input').value,
-                disabled: row.querySelector('.service-disabled-input').checked,
-                auto_reset: row.querySelector('.service-auto-reset-input').checked
-            };
-        });
-
-        try {
-            const updatePromises = serviceUpdates.map(update => 
-                databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, update.$id, update)
-            );
-            await Promise.all(updatePromises);
-            showPopupNotification('<p>تنظیمات خدمات با موفقیت ذخیره شد.</p>');
-            closeAdminPanel();
-            await fetchData();
-        } catch (error) {
-            console.error('Error saving service settings:', error);
-            showPopupNotification('<p>خطا در ذخیره تنظیمات!</p>');
-        }
-    }
-
-    async function addNewService() {
-        const newService = {
-            name: 'خدمت جدید',
-            start_number: 1,
-            end_number: 999,
-            manual_time: 5,
-            work_hours_start: '08:00',
-            work_hours_end: '17:00',
-            disabled: false,
-            auto_reset: false
-        };
-
-        try {
-            await databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), newService);
-            await fetchServices();
-            renderServiceSettings();
-        } catch (error) {
-            console.error('Error adding new service:', error);
-            showPopupNotification('<p>خطا در افزودن خدمت جدید!</p>');
-        }
-    }
-
-    async function deleteService(serviceId) {
-        if (!confirm('آیا مطمئن هستید؟ این عمل قابل بازگشت نیست.')) return;
         
-        try {
-            await databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId);
-            await fetchServices();
-            renderServiceSettings();
-            showPopupNotification('<p>خدمت با موفقیت حذف شد.</p>');
-        } catch (error) {
-            console.error('Error deleting service:', error);
-            showPopupNotification('<p>خطا در حذف خدمت!</p>');
-        }
+        serviceList.querySelectorAll('.remove-service-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => e.target.closest('tr').remove());
+        });
+    }
+    
+    function addNewServiceRow() {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
+            <td><input type="number" value="100" class="setting-start"></td>
+            <td><input type="number" value="199" class="setting-end"></td>
+            <td><input type="number" value="10" class="setting-manual-time"></td>
+            <td><input type="text" value="08:00" class="setting-work-start"></td>
+            <td><input type="text" value="17:00" class="setting-work-end"></td>
+            <td><input type="checkbox" class="setting-disabled"></td>
+            <td><input type="checkbox" class="setting-auto-reset"></td>
+            <td><button class="remove-service-btn">حذف</button></td>`;
+        serviceList.appendChild(row);
+        row.querySelector('.remove-service-btn').addEventListener('click', () => row.remove());
     }
 
-    // --- PASS TICKET LOGIC ---
-    function openPassServiceSelection() {
-        passServiceList.innerHTML = '';
-        services.forEach(service => {
-            const div = document.createElement('div');
-            div.className = 'service-checkbox';
+    async function saveSettings() {
+        const existingServiceIds = services.map(s => s.$id);
+        const uiServiceIds = [];
+        const promises = [];
+
+        serviceList.querySelectorAll('tr').forEach(row => {
+            const id = row.dataset.id;
+            if(id) uiServiceIds.push(id);
+
+            // Create data object with safe defaults
+            const data = {
+                name: row.querySelector('.setting-name').value,
+                start_number: parseInt(row.querySelector('.setting-start').value) || 100,
+                end_number: parseInt(row.querySelector('.setting-end').value) || 199,
+                manual_time: parseInt(row.querySelector('.setting-manual-time').value) || 10,
+                work_hours_start: row.querySelector('.setting-work-start').value || '08:00',
+                work_hours_end: row.querySelector('.setting-work-end').value || '17:00'
+            };
+
+            // Only add new fields if they exist in the database
+            const disabledCheckbox = row.querySelector('.setting-disabled');
+            const autoResetCheckbox = row.querySelector('.setting-auto-reset');
             
-            const isDisabled = service.disabled === true;
-            if (isDisabled) {
-                div.classList.add('disabled-service');
+            if (disabledCheckbox) {
+                data.disabled = disabledCheckbox.checked;
             }
             
-            div.innerHTML = `<input type="checkbox" id="pass-service-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
-                             <label for="pass-service-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
-            passServiceList.appendChild(div);
+            if (autoResetCheckbox) {
+                data.auto_reset = autoResetCheckbox.checked;
+            }
+
+            if (id) {
+                promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
+            } else {
+                promises.push(databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), data));
+            }
         });
-        passServiceModalOverlay.style.display = 'flex';
-    }
 
-    function closePassServiceSelection() {
-        passServiceModalOverlay.style.display = 'none';
-        tempSelectedServicesForPass = [];
-    }
+        const servicesToDelete = existingServiceIds.filter(id => !uiServiceIds.includes(id));
+        servicesToDelete.forEach(id => {
+            promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
+        });
 
-    function confirmPassServiceSelection() {
-        const selectedServices = Array.from(passServiceList.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)'))
-            .map(cb => cb.value);
-        
-        if (selectedServices.length === 0) {
-            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
-            return;
+        try {
+            await Promise.all(promises);
+            showPopupNotification('<p>تنظیمات با موفقیت ذخیره شد.</p>');
+            adminPanel.style.display = 'none';
+            fetchData();
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            showPopupNotification('<p>خطا در ذخیره تنظیمات! لطفا فیلدهای جدید را در دیتابیس اضافه کنید.</p>');
         }
-        
-        tempSelectedServicesForPass = selectedServices;
-        closePassServiceSelection();
-        openTicketForm('pass');
+    }
+
+    // --- HELPERS ---
+    function formatDate(dateString) {
+        if (!dateString) return '---';
+        return new Date(dateString).toLocaleString('fa-IR');
     }
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
-    counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
     resetAllBtn.addEventListener('click', resetAllTickets);
     callNextBtn.addEventListener('click', callNextTicket);
-    passTicketBtn.addEventListener('click', openPassServiceSelection);
+    passTicketBtn.addEventListener('click', openPassServiceModal);
     submitTicketBtn.addEventListener('click', () => {
-        const mode = ticketForm.dataset.mode;
         const firstName = document.getElementById('first-name').value;
         const lastName = document.getElementById('last-name').value;
         const nationalId = document.getElementById('national-id').value;
-        
+        const mode = ticketForm.dataset.mode;
+
         if (mode === 'regular') {
             generateTicket(ticketForm.dataset.serviceId, firstName, lastName, nationalId);
         } else if (mode === 'pass') {
-            const delayCount = parseInt(document.getElementById('pass-delay-count').value) || 0;
+            const delayCount = parseInt(document.getElementById('pass-delay-count').value);
             generatePassTicket(firstName, lastName, nationalId, delayCount);
         }
     });
     cancelTicketBtn.addEventListener('click', closeTicketForm);
+    addServiceBtn.addEventListener('click', addNewServiceRow);
+    saveSettingsBtn.addEventListener('click', saveSettings);
+    closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
+    cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
+    confirmPassServiceBtn.addEventListener('click', () => {
+        tempSelectedServicesForPass = [];
+        passServiceList.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+            tempSelectedServicesForPass.push(cb.value);
+        });
+        if (tempSelectedServicesForPass.length === 0) {
+            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
+            return;
+        }
+        passServiceModalOverlay.style.display = 'none';
+        openTicketForm('pass');
+    });
+    cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
+    counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
     saveCounterBtn.addEventListener('click', saveCounterSettings);
     cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
-    closeSettingsBtn.addEventListener('click', closeAdminPanel);
-    cancelSettingsBtn.addEventListener('click', closeAdminPanel);
-    saveSettingsBtn.addEventListener('click', saveServiceSettings);
-    addServiceBtn.addEventListener('click', addNewService);
-    confirmPassServiceBtn.addEventListener('click', confirmPassServiceSelection);
-    cancelPassServiceBtn.addEventListener('click', closePassServiceSelection);
-
-    serviceList.addEventListener('click', (e) => {
-        if (e.target.classList.contains('delete-service-btn')) {
-            deleteService(e.target.dataset.id);
-        }
-    });
 
     // --- INITIALIZE APP ---
     initializeApp();
