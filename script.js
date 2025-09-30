@@ -773,56 +773,68 @@ async function saveMandatoryServices() {
     
     try {
         const userPrefs = currentUser.prefs || {};
+        
+        // ایجاد object درست برای service_selections
         const serviceSelections = {};
         selectedServices.forEach(serviceId => {
             serviceSelections[serviceId] = true;
         });
+        
+        console.log('Saving service selections:', serviceSelections);
         
         await account.updatePrefs({ 
             ...userPrefs, 
             service_selections: serviceSelections 
         });
         
+        // دریافت preferences به‌روز شده
         currentUser.prefs = await account.getPrefs();
+        console.log('Updated user prefs:', currentUser.prefs);
+        
         document.getElementById('service-selection-modal-overlay').remove();
         
         // ادامه برنامه
+        showLoggedInUI();
         await fetchData();
         setupRealtimeSubscriptions();
         checkAutoReset();
+        
     } catch (error) {
         console.error('Error saving service selections:', error);
-        alert('خطا در ذخیره خدمات انتخابی');
+        alert('خطا در ذخیره خدمات انتخابی: ' + error.message);
     }
 }
 
 function checkUserPreferences() {
     const userPrefs = currentUser.prefs || {};
     
+    console.log('Checking user preferences:', userPrefs);
+    
     // بررسی وجود شماره باجه
     if (!userPrefs.counter_name) {
+        console.log('Counter name not found, showing modal');
         showCounterNumberModal();
         return false;
     }
     
     // بررسی وجود خدمات انتخابی
     const serviceSelections = userPrefs.service_selections || {};
-    const hasSelectedServices = Object.values(serviceSelections).some(val => val === true);
+    console.log('Service selections:', serviceSelections);
+    
+    const hasSelectedServices = Object.keys(serviceSelections).length > 0 && 
+                               Object.values(serviceSelections).some(val => val === true);
+    
+    console.log('Has selected services:', hasSelectedServices);
     
     if (!hasSelectedServices) {
-        // ابتدا مطمئن شویم خدمات بارگذاری شده‌اند
-        if (services.length === 0) {
-            // اگر خدمات هنوز بارگذاری نشده، منتظر می‌مانیم
-            setTimeout(() => checkUserPreferences(), 100);
-            return false;
-        }
+        console.log('No services selected, showing modal');
         showServiceSelectionModal();
         return false;
     }
     
+    console.log('All preferences are set correctly');
     return true;
 }
-
 // تغییر در تابع initializeApp برای بررسی تنظیمات کاربر
 
 // --- INITIALIZATION ---
