@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const settingsBtn = document.getElementById('settings-btn');
+    const counterSettingsBtn = document.getElementById('counter-settings-btn');
     const resetAllBtn = document.getElementById('reset-all-btn');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
@@ -50,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const passServiceList = document.getElementById('pass-service-list');
     const confirmPassServiceBtn = document.getElementById('confirm-pass-service');
     const cancelPassServiceBtn = document.getElementById('cancel-pass-service');
+    
+    // عناصر جدید برای تنظیمات باجه
+    const counterSettingsModal = document.getElementById('counter-settings-modal');
+    const counterNameInput = document.getElementById('counter-name-input');
+    const saveCounterBtn = document.getElementById('save-counter-btn');
+    const cancelCounterBtn = document.getElementById('cancel-counter-btn');
 
     // --- Application State ---
     let currentUser = null;
@@ -76,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         try {
             currentUser = await account.get();
+            await checkAndSetCounterName();
             showLoggedInUI();
             await fetchData();
             setupRealtimeSubscriptions();
@@ -83,6 +91,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.log('User not logged in');
             showLoggedOutUI();
+        }
+    }
+
+    // تابع جدید برای بررسی و تنظیم شماره باجه
+    async function checkAndSetCounterName() {
+        const userPrefs = currentUser.prefs || {};
+        if (!userPrefs.counter_name) {
+            // اگر شماره باجه تنظیم نشده، مودال تنظیمات را نشان بده
+            openCounterSettingsModal();
         }
     }
 
@@ -144,7 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function showLoggedInUI() {
         loginFields.style.display = 'none';
         userInfo.style.display = 'flex';
-        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email}`;
+        
+        const userPrefs = currentUser.prefs || {};
+        const counterName = userPrefs.counter_name || 'تعیین نشده';
+        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
+        
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
 
@@ -155,6 +176,9 @@ document.addEventListener('DOMContentLoaded', () => {
             settingsBtn.style.display = 'none';
             resetAllBtn.style.display = 'none';
         }
+        
+        // دکمه تنظیمات باجه همیشه نمایش داده می‌شود
+        counterSettingsBtn.style.display = 'inline-block';
     }
 
     function showLoggedOutUI() {
@@ -184,11 +208,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const button = document.createElement('button');
             button.className = 'service-btn';
             
-            // Check if service is disabled
             const isDisabled = service.disabled === true;
             const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
             
-            // Add disabled class if service is disabled
             if (isDisabled) {
                 button.classList.add('disabled-service');
             }
@@ -224,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const div = document.createElement('div');
             div.className = 'service-checkbox';
             
-            // Check if service is disabled
             const isDisabled = service.disabled === true;
             if (isDisabled) {
                 div.classList.add('disabled-service');
@@ -310,7 +331,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        // Check if service is disabled - برای همه کاربران (هم اپراتور هم کیوسک)
         const isDisabled = service.disabled === true;
         if (isDisabled) {
             showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
@@ -345,14 +365,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const service = services.find(s => s.$id === serviceId);
         if (!service) return;
 
-        // Check if service is disabled - برای همه کاربران (هم اپراتور هم کیوسک)
         const isDisabled = service.disabled === true;
         if (isDisabled) {
             showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
             return;
         }
 
-        // محاسبه شماره نوبت کلی (همیشه باید پشت سر هم باشد)
         const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
             Query.orderDesc('$createdAt'),
             Query.limit(1)
@@ -361,7 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
             parseInt(allTickets.documents[0].general_ticket) : 0;
         const generalNumber = lastGeneralTicket + 1;
 
-        // محاسبه شماره نوبت خاص برای این سرویس
         const serviceTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
             Query.equal('service_id', serviceId),
             Query.equal('ticket_type', 'regular'),
@@ -372,7 +389,6 @@ document.addEventListener('DOMContentLoaded', () => {
             parseInt(serviceTickets.documents[0].specific_ticket) : service.start_number - 1;
         const specificNumber = lastSpecificTicket + 1;
 
-        // بررسی محدوده شماره سرویس
         if (specificNumber > service.end_number) {
             showPopupNotification('<p>شماره نوبت این خدمت به حداکثر مقدار مجاز رسیده است.</p>');
             return;
@@ -414,7 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
-        // بررسی اجباری بودن نام و نام خانوادگی برای پاس نوبت
         if (!firstName || !lastName) {
             alert('برای ثبت پاس نوبت، وارد کردن نام و نام خانوادگی الزامی است.');
             return;
@@ -426,7 +441,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (tempSelectedServicesForPass.length === 0) return;
 
-        // محاسبه شماره نوبت کلی (همیشه باید پشت سر هم باشد)
         const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
             Query.orderDesc('$createdAt'),
             Query.limit(1)
@@ -437,7 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
             const service = services.find(s => s.$id === serviceId);
-            // Check if service is disabled - برای همه کاربران
             const isDisabled = service && service.disabled === true;
             if (isDisabled) {
                 showPopupNotification('<p>یکی از خدمات انتخاب شده غیرفعال است. امکان ثبت نوبت پاس وجود ندارد.</p>');
@@ -492,7 +505,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let ticketToCall = null;
         
-        // Include disabled services in the waiting tickets for calling
         const waitingTickets = tickets
             .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
             .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
@@ -519,7 +531,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (ticketToCall) {
             try {
-                const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
+                const userPrefs = currentUser.prefs || {};
+                const counterName = userPrefs.counter_name || 'باجه';
                 const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
@@ -529,7 +542,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
                 
-                // نمایش نام شخص در پاپاپ فراخوانی
                 const popupMessage = `
                     <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
                     <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
@@ -593,6 +605,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- COUNTER SETTINGS LOGIC ---
+    function openCounterSettingsModal() {
+        const userPrefs = currentUser.prefs || {};
+        counterNameInput.value = userPrefs.counter_name || '';
+        counterSettingsModal.style.display = 'flex';
+    }
+
+    function closeCounterSettingsModal() {
+        counterSettingsModal.style.display = 'none';
+    }
+
+    async function saveCounterSettings() {
+        const counterName = counterNameInput.value.trim();
+        if (!counterName) {
+            alert('لطفا شماره یا نام باجه را وارد کنید.');
+            return;
+        }
+
+        try {
+            const userPrefs = currentUser.prefs || {};
+            await account.updatePrefs({ 
+                ...userPrefs, 
+                counter_name: counterName 
+            });
+            
+            // به‌روزرسانی اطلاعات کاربر
+            currentUser = await account.get();
+            
+            // به‌روزرسانی UI
+            userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
+            
+            showPopupNotification('<p>شماره باجه با موفقیت ذخیره شد.</p>');
+            closeCounterSettingsModal();
+        } catch (error) {
+            console.error('Error saving counter settings:', error);
+            showPopupNotification('<p>خطا در ذخیره شماره باجه!</p>');
+        }
+    }
+
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
         ticketForm.dataset.mode = mode;
@@ -605,7 +656,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ticketFormTitle.textContent = 'ثبت اطلاعات شخص پاس داده شده';
             passDelayGroup.style.display = 'block';
             
-            // تنظیم required برای فیلدهای نام و نام خانوادگی در حالت پاس
             document.getElementById('first-name').required = true;
             document.getElementById('last-name').required = true;
         }
@@ -617,186 +667,193 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('first-name').value = '';
         document.getElementById('last-name').value = '';
         document.getElementById('national-id').value = '';
-        document.getElementById('pass-delay-count').value = 0;
-        
-        // حذف required هنگام بستن فرم
+        document.getElementById('pass-delay-count').value = '0';
         document.getElementById('first-name').required = false;
         document.getElementById('last-name').required = false;
     }
 
-    function openPassServiceModal() {
-        passServiceList.innerHTML = '';
-        services.forEach(service => {
-            const div = document.createElement('div');
-            div.className = 'service-checkbox';
-            
-            // Check if service is disabled
-            const isDisabled = service.disabled === true;
-            if (isDisabled) {
-                div.classList.add('disabled-service');
-            }
-            
-            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
-                             <label for="pass-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
-            passServiceList.appendChild(div);
-        });
-        passServiceModalOverlay.style.display = 'flex';
+    function showPopupNotification(message) {
+        popupText.innerHTML = message;
+        popupNotification.style.display = 'flex';
+        setTimeout(() => {
+            popupNotification.style.display = 'none';
+        }, 5000);
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return '---';
+        const date = new Date(dateString);
+        return date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) + ' - ' + date.toLocaleDateString('fa-IR');
     }
 
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
-        renderServiceSettings();
         adminPanel.style.display = 'block';
+        renderServiceSettings();
+    }
+
+    function closeAdminPanel() {
+        adminPanel.style.display = 'none';
     }
 
     function renderServiceSettings() {
         serviceList.innerHTML = '';
         services.forEach(service => {
             const row = document.createElement('tr');
-            row.dataset.id = service.$id;
             row.innerHTML = `
-                <td><input type="text" value="${service.name}" class="setting-name"></td>
-                <td><input type="number" value="${service.start_number}" class="setting-start"></td>
-                <td><input type="number" value="${service.end_number}" class="setting-end"></td>
-                <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
-                <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
-                <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
-                <td><input type="checkbox" ${service.disabled ? 'checked' : ''} class="setting-disabled"></td>
-                <td><input type="checkbox" ${service.auto_reset ? 'checked' : ''} class="setting-auto-reset"></td>
-                <td><button class="remove-service-btn">حذف</button></td>`;
+                <td><input type="text" class="service-name-input" value="${service.name}"></td>
+                <td><input type="number" class="service-start-input" value="${service.start_number}"></td>
+                <td><input type="number" class="service-end-input" value="${service.end_number}"></td>
+                <td><input type="number" class="service-time-input" value="${service.manual_time}" step="0.5"></td>
+                <td><input type="time" class="service-start-time-input" value="${service.work_hours_start || '08:00'}"></td>
+                <td><input type="time" class="service-end-time-input" value="${service.work_hours_end || '17:00'}"></td>
+                <td><input type="checkbox" class="service-disabled-input" ${service.disabled ? 'checked' : ''}></td>
+                <td><input type="checkbox" class="service-auto-reset-input" ${service.auto_reset ? 'checked' : ''}></td>
+                <td><button class="delete-service-btn" data-id="${service.$id}">حذف</button></td>
+            `;
             serviceList.appendChild(row);
         });
-        
-        serviceList.querySelectorAll('.remove-service-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => e.target.closest('tr').remove());
-        });
-    }
-    
-    function addNewServiceRow() {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
-            <td><input type="number" value="100" class="setting-start"></td>
-            <td><input type="number" value="199" class="setting-end"></td>
-            <td><input type="number" value="10" class="setting-manual-time"></td>
-            <td><input type="text" value="08:00" class="setting-work-start"></td>
-            <td><input type="text" value="17:00" class="setting-work-end"></td>
-            <td><input type="checkbox" class="setting-disabled"></td>
-            <td><input type="checkbox" class="setting-auto-reset"></td>
-            <td><button class="remove-service-btn">حذف</button></td>`;
-        serviceList.appendChild(row);
-        row.querySelector('.remove-service-btn').addEventListener('click', () => row.remove());
     }
 
-    async function saveSettings() {
-        const existingServiceIds = services.map(s => s.$id);
-        const uiServiceIds = [];
-        const promises = [];
-
-        serviceList.querySelectorAll('tr').forEach(row => {
-            const id = row.dataset.id;
-            if(id) uiServiceIds.push(id);
-
-            // Create data object with safe defaults
-            const data = {
-                name: row.querySelector('.setting-name').value,
-                start_number: parseInt(row.querySelector('.setting-start').value) || 100,
-                end_number: parseInt(row.querySelector('.setting-end').value) || 199,
-                manual_time: parseInt(row.querySelector('.setting-manual-time').value) || 10,
-                work_hours_start: row.querySelector('.setting-work-start').value || '08:00',
-                work_hours_end: row.querySelector('.setting-work-end').value || '17:00'
+    async function saveServiceSettings() {
+        const serviceUpdates = Array.from(serviceList.children).map(row => {
+            return {
+                $id: row.querySelector('.delete-service-btn').dataset.id,
+                name: row.querySelector('.service-name-input').value,
+                start_number: parseInt(row.querySelector('.service-start-input').value),
+                end_number: parseInt(row.querySelector('.service-end-input').value),
+                manual_time: parseFloat(row.querySelector('.service-time-input').value),
+                work_hours_start: row.querySelector('.service-start-time-input').value,
+                work_hours_end: row.querySelector('.service-end-time-input').value,
+                disabled: row.querySelector('.service-disabled-input').checked,
+                auto_reset: row.querySelector('.service-auto-reset-input').checked
             };
-
-            // Only add new fields if they exist in the database
-            const disabledCheckbox = row.querySelector('.setting-disabled');
-            const autoResetCheckbox = row.querySelector('.setting-auto-reset');
-            
-            if (disabledCheckbox) {
-                data.disabled = disabledCheckbox.checked;
-            }
-            
-            if (autoResetCheckbox) {
-                data.auto_reset = autoResetCheckbox.checked;
-            }
-
-            if (id) {
-                promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
-            } else {
-                promises.push(databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), data));
-            }
-        });
-
-        const servicesToDelete = existingServiceIds.filter(id => !uiServiceIds.includes(id));
-        servicesToDelete.forEach(id => {
-            promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
         });
 
         try {
-            await Promise.all(promises);
-            showPopupNotification('<p>تنظیمات با موفقیت ذخیره شد.</p>');
-            adminPanel.style.display = 'none';
-            fetchData();
+            const updatePromises = serviceUpdates.map(update => 
+                databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, update.$id, update)
+            );
+            await Promise.all(updatePromises);
+            showPopupNotification('<p>تنظیمات خدمات با موفقیت ذخیره شد.</p>');
+            closeAdminPanel();
+            await fetchData();
         } catch (error) {
-            console.error('Error saving settings:', error);
-            showPopupNotification('<p>خطا در ذخیره تنظیمات! لطفا فیلدهای جدید را در دیتابیس اضافه کنید.</p>');
+            console.error('Error saving service settings:', error);
+            showPopupNotification('<p>خطا در ذخیره تنظیمات!</p>');
         }
     }
 
-    // --- HELPERS ---
-    function showPopupNotification(htmlContent) {
-        popupText.innerHTML = htmlContent;
-        popupNotification.style.display = 'flex';
-        setTimeout(() => popupNotification.classList.add('show'), 10);
-        popupNotification.addEventListener('click', function closeHandler() {
-            popupNotification.classList.remove('show');
-            setTimeout(() => popupNotification.style.display = 'none', 300);
-            popupNotification.removeEventListener('click', closeHandler);
-        });
+    async function addNewService() {
+        const newService = {
+            name: 'خدمت جدید',
+            start_number: 1,
+            end_number: 999,
+            manual_time: 5,
+            work_hours_start: '08:00',
+            work_hours_end: '17:00',
+            disabled: false,
+            auto_reset: false
+        };
+
+        try {
+            await databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), newService);
+            await fetchServices();
+            renderServiceSettings();
+        } catch (error) {
+            console.error('Error adding new service:', error);
+            showPopupNotification('<p>خطا در افزودن خدمت جدید!</p>');
+        }
     }
 
-    function formatDate(dateString) {
-        if (!dateString) return '---';
-        return new Date(dateString).toLocaleString('fa-IR');
+    async function deleteService(serviceId) {
+        if (!confirm('آیا مطمئن هستید؟ این عمل قابل بازگشت نیست.')) return;
+        
+        try {
+            await databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, serviceId);
+            await fetchServices();
+            renderServiceSettings();
+            showPopupNotification('<p>خدمت با موفقیت حذف شد.</p>');
+        } catch (error) {
+            console.error('Error deleting service:', error);
+            showPopupNotification('<p>خطا در حذف خدمت!</p>');
+        }
+    }
+
+    // --- PASS TICKET LOGIC ---
+    function openPassServiceSelection() {
+        passServiceList.innerHTML = '';
+        services.forEach(service => {
+            const div = document.createElement('div');
+            div.className = 'service-checkbox';
+            
+            const isDisabled = service.disabled === true;
+            if (isDisabled) {
+                div.classList.add('disabled-service');
+            }
+            
+            div.innerHTML = `<input type="checkbox" id="pass-service-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
+                             <label for="pass-service-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
+            passServiceList.appendChild(div);
+        });
+        passServiceModalOverlay.style.display = 'flex';
+    }
+
+    function closePassServiceSelection() {
+        passServiceModalOverlay.style.display = 'none';
+        tempSelectedServicesForPass = [];
+    }
+
+    function confirmPassServiceSelection() {
+        const selectedServices = Array.from(passServiceList.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)'))
+            .map(cb => cb.value);
+        
+        if (selectedServices.length === 0) {
+            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
+            return;
+        }
+        
+        tempSelectedServicesForPass = selectedServices;
+        closePassServiceSelection();
+        openTicketForm('pass');
     }
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
+    counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
     resetAllBtn.addEventListener('click', resetAllTickets);
     callNextBtn.addEventListener('click', callNextTicket);
-    passTicketBtn.addEventListener('click', openPassServiceModal);
+    passTicketBtn.addEventListener('click', openPassServiceSelection);
     submitTicketBtn.addEventListener('click', () => {
+        const mode = ticketForm.dataset.mode;
         const firstName = document.getElementById('first-name').value;
         const lastName = document.getElementById('last-name').value;
         const nationalId = document.getElementById('national-id').value;
-        const mode = ticketForm.dataset.mode;
-
+        
         if (mode === 'regular') {
             generateTicket(ticketForm.dataset.serviceId, firstName, lastName, nationalId);
         } else if (mode === 'pass') {
-            const delayCount = parseInt(document.getElementById('pass-delay-count').value);
+            const delayCount = parseInt(document.getElementById('pass-delay-count').value) || 0;
             generatePassTicket(firstName, lastName, nationalId, delayCount);
         }
     });
     cancelTicketBtn.addEventListener('click', closeTicketForm);
-    addServiceBtn.addEventListener('click', addNewServiceRow);
-    saveSettingsBtn.addEventListener('click', saveSettings);
-    closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
-    cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
-    confirmPassServiceBtn.addEventListener('click', () => {
-        tempSelectedServicesForPass = [];
-        passServiceList.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-            tempSelectedServicesForPass.push(cb.value);
-        });
-        if (tempSelectedServicesForPass.length === 0) {
-            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
-            return;
+    saveCounterBtn.addEventListener('click', saveCounterSettings);
+    cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
+    closeSettingsBtn.addEventListener('click', closeAdminPanel);
+    cancelSettingsBtn.addEventListener('click', closeAdminPanel);
+    saveSettingsBtn.addEventListener('click', saveServiceSettings);
+    addServiceBtn.addEventListener('click', addNewService);
+    confirmPassServiceBtn.addEventListener('click', confirmPassServiceSelection);
+    cancelPassServiceBtn.addEventListener('click', closePassServiceSelection);
+
+    serviceList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-service-btn')) {
+            deleteService(e.target.dataset.id);
         }
-        passServiceModalOverlay.style.display = 'none';
-        openTicketForm('pass');
     });
-    cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
 
     // --- INITIALIZE APP ---
     initializeApp();

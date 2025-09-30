@@ -10,6 +10,167 @@
   --box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* */
 }
 
+/* اضافه کردن این استایل‌ها به انتهای فایل styles.css */
+
+/* استایل برای نشان شماره باجه */
+.counter-badge {
+    background-color: var(--secondary-color);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-right: 5px;
+}
+
+/* استایل برای مودال‌های جدید */
+.service-checkboxes-container {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 15px 0;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    padding: 10px;
+}
+
+.service-checkboxes-container .service-checkbox {
+    margin: 8px 0;
+    padding: 8px;
+    background-color: var(--light-bg);
+    border-radius: var(--border-radius);
+}
+
+/* استایل برای دکمه تغییر شماره باجه */
+#change-counter-btn {
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+#change-counter-btn:hover {
+    background-color: #1565C0;
+}
+
+/* استایل برای مودال شماره باجه */
+#counter-number-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    font-family: 'Vazirmatn', sans-serif;
+    text-align: center;
+}
+
+/* استایل‌های قبلی بدون تغییر باقی می‌مانند */
+/* فقط استایل‌های جدید اضافه می‌شوند */
+
+/* استایل دکمه تنظیمات باجه */
+#counter-settings-btn {
+    background-color: #17a2b8;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 8px;
+}
+
+#counter-settings-btn:hover {
+    background-color: #138496;
+}
+
+/* استایل مودال تنظیمات باجه */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal h2 {
+    margin-bottom: 1.5rem;
+    color: #333;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+.primary-btn {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.primary-btn:hover {
+    background-color: #0056b3;
+}
+
+.secondary-btn {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.secondary-btn:hover {
+    background-color: #545b62;
+}
+
+/* سایر استایل‌ها بدون تغییر باقی می‌مانند */
+
 /* استایل برای سرویس غیرفعال */
 .service-btn.disabled-service {
     background-color: #9e9e9e !important;
