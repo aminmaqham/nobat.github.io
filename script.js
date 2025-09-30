@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DOM Elements ---
     const loginBtn = document.getElementById('login-btn');
+    const specificTicketInput = document.getElementById('specific-ticket-input');
+    const callSpecificBtn = document.getElementById('call-specific-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const settingsBtn = document.getElementById('settings-btn');
     const counterSettingsBtn = document.getElementById('counter-settings-btn');
@@ -621,6 +623,107 @@ document.addEventListener('DOMContentLoaded', () => {
         counterSettingsModal.style.display = 'none';
     }
 
+    async function callSpecificTicket() {
+    const ticketNumber = specificTicketInput.value.trim();
+    
+    if (!ticketNumber) {
+        showPopupNotification('<p>لطفا شماره نوبت را وارد کنید.</p>');
+        specificTicketInput.classList.add('error');
+        return;
+    }
+
+    if (!currentUser) {
+        showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
+        return;
+    }
+
+    // بررسی خدمات انتخابی کاربر
+    const userPrefs = currentUser.prefs || {};
+    const selections = userPrefs.service_selections || {};
+    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+    if (selectedServiceIds.length === 0) {
+        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+        return;
+    }
+
+    try {
+        // جستجوی نوبت در خدمات انتخابی کاربر
+        const ticketToCall = tickets.find(t => 
+            t.status === 'در حال انتظار' && 
+            selectedServiceIds.includes(t.service_id) && 
+            (t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber)
+        );
+
+        if (!ticketToCall) {
+            showPopupNotification(`<p>نوبت ${ticketNumber} در صف انتظار خدمات انتخابی شما یافت نشد.</p>`);
+            specificTicketInput.classList.add('error');
+            return;
+        }
+
+        const userPrefs = currentUser.prefs || {};
+        const counterName = userPrefs.counter_name || 'باجه';
+        
+        const updatedTicket = await databases.updateDocument(
+            DATABASE_ID, 
+            TICKETS_COLLECTION_ID, 
+            ticketToCall.$id, 
+            {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name || currentUser.email,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            }
+        );
+
+        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+        
+        const service = services.find(s => s.$id === updatedTicket.service_id);
+        const popupMessage = `
+            <span class="ticket-number">فراخوانی ویژه: ${updatedTicket.specific_ticket || 'پاس'}</span>
+            <p><strong>نوبت کلی:</strong> ${updatedTicket.general_ticket}</p>
+            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+            <p><strong>باجه:</strong> ${counterName}</p>
+        `;
+        showPopupNotification(popupMessage);
+        
+        // پاک کردن input و دادن استایل موفقیت
+        specificTicketInput.value = '';
+        specificTicketInput.classList.remove('error');
+        specificTicketInput.classList.add('success');
+        setTimeout(() => specificTicketInput.classList.remove('success'), 2000);
+        
+        // به روز رسانی داده‌ها
+        await fetchData();
+        
+    } catch (error) {
+        console.error('Error calling specific ticket:', error);
+        showPopupNotification('<p>خطا در فراخوانی نوبت خاص!</p>');
+        specificTicketInput.classList.add('error');
+    }
+}
+
+// همچنین این تابع را برای مدیریت بهتر input اضافه کنید:
+specificTicketInput.addEventListener('input', function() {
+    // فقط اعداد مجاز هستند
+    this.value = this.value.replace(/[^0-9]/g, '');
+    
+    // حذف استایل خطا هنگام تایپ
+    if (this.value.length > 0) {
+        this.classList.remove('error');
+    }
+});
+
+specificTicketInput.addEventListener('keypress', function(e) {
+    // اجازه دادن به کلید Enter برای فراخوانی
+    if (e.key === 'Enter') {
+        callSpecificTicket();
+    }
+});
+
     async function saveCounterSettings() {
         const counterName = counterNameInput.value.trim();
         if (!counterName) {
@@ -836,6 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
+    callSpecificBtn.addEventListener('click', callSpecificTicket);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
     resetAllBtn.addEventListener('click', resetAllTickets);
