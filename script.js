@@ -122,14 +122,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- AUTHENTICATION & UI TOGGLES ---
-    async function login() {
-        try {
-            await account.createEmailSession(emailInput.value, passwordInput.value);
-            initializeApp();
-        } catch (error) {
-            alert('خطا در ورود: ' + error.message);
+// --- AUTHENTICATION & UI TOGGLES ---
+async function login() {
+    try {
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        if (!email || !password) {
+            alert('لطفا ایمیل و رمز عبور را وارد کنید.');
+            return;
         }
+        
+        console.log('Attempting login with:', email);
+        
+        await account.createEmailSession(email, password);
+        console.log('Login successful');
+        
+        // بارگذاری مجدد برنامه
+        await initializeApp();
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('خطا در ورود: ' + (error.message || 'لطفا اطلاعات را بررسی کنید'));
     }
+}
 
     async function logout() {
         try {
@@ -476,128 +492,140 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- TICKET CALLING LOGIC ---
 async function callNextTicket() {
-    // ابتدا مطمئن شویم داده‌ها به روز هستند
-    await fetchTickets();
+    console.log('=== CALL NEXT TICKET STARTED ===');
     
-    if (lastCalledTicket[currentUser.$id]) {
-        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
-        if (lastTicket && lastTicket.status === 'در حال سرویس') {
-            // No smart time update needed anymore
-        }
-    }
-
-    const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification(`
-            <p style="text-align: center; margin: 10px 0;">
-                <strong>هشدار:</strong> شما هیچ خدمتی برای فراخوانی انتخاب نکرده‌اید.
-            </p>
-            <p style="text-align: center;">
-                لطفا از طریق دکمه "تغییر شماره باجه" خدمات مورد نظر را انتخاب کنید.
-            </p>
-        `);
+    // بررسی لاگین بودن کاربر
+    if (!currentUser) {
+        console.error('User not logged in');
+        showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
         return;
     }
-
-    let ticketToCall = null;
     
-    // دریافت تیکت‌های در حال انتظار برای خدمات انتخابی
-    const waitingTickets = tickets
-        .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-        .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
-
-    console.log('Selected services:', selectedServiceIds);
-    console.log('Waiting tickets:', waitingTickets);
-
-    // اولویت 1: پاس‌هایی که delay_count = 0 دارند
-    const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+    // بررسی وجود خدمات
+    if (services.length === 0) {
+        console.error('No services loaded');
+        showPopupNotification('<p>خدمات بارگذاری نشده‌اند. لطفا صفحه را رفرش کنید.</p>');
+        return;
+    }
     
-    if (passedTickets.length > 0) {
-        ticketToCall = passedTickets[0];
-        console.log('Found pass ticket to call:', ticketToCall);
-    } else {
-        // اولویت 2: تیکت‌های معمولی
-        const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
-        if (regularTickets.length > 0) {
-            ticketToCall = regularTickets[0];
-            console.log('Found regular ticket to call:', ticketToCall);
-            
-            // کاهش delay_count برای پاس‌های دیگر در همان سرویس
-            const passedToUpdate = tickets.filter(t => 
-                t.ticket_type === 'pass' && 
-                t.status === 'در حال انتظار' && 
-                t.delay_count > 0 &&
-                t.service_id === ticketToCall.service_id
-            );
-            
-            console.log('Pass tickets to update delay:', passedToUpdate);
-            
-            const updatePromises = passedToUpdate.map(t => 
-                databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { 
-                    delay_count: Math.max(0, t.delay_count - 1) 
-                })
-            );
-            
-            if (updatePromises.length > 0) {
-                await Promise.all(updatePromises);
-                console.log('Updated delay_count for pass tickets');
+    // بررسی تنظیمات کاربر
+    const userPrefs = currentUser.prefs || {};
+    const counterName = userPrefs.counter_name;
+    const serviceSelections = userPrefs.service_selections || {};
+    
+    console.log('User prefs:', userPrefs);
+    console.log('Counter name:', counterName);
+    console.log('Service selections:', serviceSelections);
+    
+    if (!counterName) {
+        console.error('Counter name not set');
+        showPopupNotification('<p>لطفا ابتدا شماره باجه خود را تنظیم کنید.</p>');
+        return;
+    }
+    
+    const selectedServiceIds = Object.keys(serviceSelections).filter(id => serviceSelections[id]);
+    console.log('Selected service IDs:', selectedServiceIds);
+    
+    if (selectedServiceIds.length === 0) {
+        console.error('No services selected');
+        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+        return;
+    }
+    
+    try {
+        // دریافت تیکت‌های به‌روز از سرور
+        console.log('Fetching latest tickets...');
+        await fetchTickets();
+        console.log('Tickets loaded:', tickets.length);
+        
+        // فیلتر تیکت‌های در حال انتظار برای خدمات انتخابی
+        const waitingTickets = tickets
+            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+        
+        console.log('Waiting tickets for selected services:', waitingTickets);
+        
+        if (waitingTickets.length === 0) {
+            console.log('No waiting tickets found');
+            showPopupNotification(`
+                <p>هیچ نوبتی در صف انتظار برای خدمات انتخابی شما نیست.</p>
+                <p style="font-size: 14px; margin-top: 10px;">
+                    خدمات انتخابی: ${selectedServiceIds.map(id => {
+                        const service = services.find(s => s.$id === id);
+                        return service ? service.name : 'نامشخص';
+                    }).join(', ')}
+                </p>
+            `);
+            return;
+        }
+        
+        // پیدا کردن تیکت بعدی برای فراخوانی
+        let ticketToCall = null;
+        
+        // اولویت 1: پاس‌هایی که delay_count = 0
+        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+        if (passedTickets.length > 0) {
+            ticketToCall = passedTickets[0];
+            console.log('Selected pass ticket:', ticketToCall);
+        } else {
+            // اولویت 2: تیکت‌های معمولی
+            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+            if (regularTickets.length > 0) {
+                ticketToCall = regularTickets[0];
+                console.log('Selected regular ticket:', ticketToCall);
             }
         }
-    }
-
-    if (ticketToCall) {
-        try {
-            const counterName = (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
-            console.log('Calling ticket with counter:', counterName);
-            
-            const updatedTicket = await databases.updateDocument(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, 
-                ticketToCall.$id, 
-                {
-                    status: 'در حال سرویس',
-                    called_by: currentUser.$id,
-                    called_by_name: currentUser.name,
-                    called_by_counter_name: counterName,
-                    call_time: new Date().toISOString()
-                }
-            );
-            
-            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-            
-            // نمایش اطلاعات در پاپاپ
-            const service = services.find(s => s.$id === updatedTicket.service_id);
-            const popupMessage = `
-                <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
-                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                <p><strong>خدمت:</strong> ${service ? service.name : '---'}</p>
-                <p><strong>باجه:</strong> ${counterName}</p>
-            `;
-            showPopupNotification(popupMessage);
-            
-            console.log('Ticket called successfully:', updatedTicket);
-            
-        } catch (error) {
-            console.error('Error calling next ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت! لطفا دوباره تلاش کنید.</p>');
+        
+        if (!ticketToCall) {
+            console.log('No suitable ticket found');
+            showPopupNotification('<p>هیچ نوبت مناسبی برای فراخوانی پیدا نشد.</p>');
+            return;
         }
-    } else {
-        console.log('No tickets found to call');
-        showPopupNotification(`
-            <p style="text-align: center;">
-                هیچ نوبتی در صف انتظار برای خدمات انتخابی شما نیست.
-            </p>
-            <p style="text-align: center; font-size: 14px; margin-top: 10px;">
-                خدمات انتخابی شما: ${selectedServiceIds.map(id => {
-                    const service = services.find(s => s.$id === id);
-                    return service ? service.name : 'نامشخص';
-                }).join(', ')}
-            </p>
-        `);
+        
+        // فراخوانی تیکت
+        console.log('Calling ticket:', ticketToCall);
+        
+        const updatedTicket = await databases.updateDocument(
+            DATABASE_ID, 
+            TICKETS_COLLECTION_ID, 
+            ticketToCall.$id, 
+            {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            }
+        );
+        
+        console.log('Ticket called successfully:', updatedTicket);
+        
+        // نمایش پیام موفقیت
+        const service = services.find(s => s.$id === updatedTicket.service_id);
+        const popupMessage = `
+            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+            <p><strong>خدمت:</strong> ${service ? service.name : '---'}</p>
+            <p><strong>باجه:</strong> ${counterName}</p>
+        `;
+        showPopupNotification(popupMessage);
+        
+        // به‌روزرسانی وضعیت تیکت قبلی اگر وجود داشت
+        if (lastCalledTicket[currentUser.$id]) {
+            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+            if (lastTicket && lastTicket.status === 'در حال سرویس') {
+                // می‌توانید وضعیت تیکت قبلی را به "اتمام" تغییر دهید اگر نیاز است
+            }
+        }
+        
+        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+        
+    } catch (error) {
+        console.error('Error in callNextTicket:', error);
+        showPopupNotification('<p>خطا در فراخوانی نوبت. لطفا دوباره تلاش کنید.</p>');
     }
+    
+    console.log('=== CALL NEXT TICKET COMPLETED ===');
 }
     
     async function resetAllTickets() {
@@ -837,28 +865,34 @@ function checkUserPreferences() {
 
 // تغییر در تابع initializeApp برای بررسی تنظیمات کاربر
 
+// --- INITIALIZATION ---
 async function initializeApp() {
     try {
         currentUser = await account.get();
+        console.log('User logged in:', currentUser);
         
         // ابتدا خدمات را دریافت می‌کنیم
         await fetchServices();
+        console.log('Services loaded:', services.length);
         
         // بررسی تنظیمات کاربر
         if (!checkUserPreferences()) {
+            console.log('User preferences not set, waiting for user input...');
             return; // منتظر می‌مانیم تا کاربر تنظیمات را تکمیل کند
         }
         
         showLoggedInUI();
-        await fetchData(); // این تابع هم خدمات و هم تیکت‌ها را دریافت می‌کند
+        await fetchData();
         setupRealtimeSubscriptions();
         checkAutoReset();
+        
+        console.log('App initialized successfully');
+        
     } catch (error) {
-        console.log('User not logged in');
+        console.log('User not logged in or session expired:', error);
         showLoggedOutUI();
     }
 }
-
 // اضافه کردن دکمه تغییر شماره باجه در تابع showLoggedInUI
 function showLoggedInUI() {
     loginFields.style.display = 'none';
@@ -1050,7 +1084,10 @@ async function callNextTicket() {
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
     resetAllBtn.addEventListener('click', resetAllTickets);
-    callNextBtn.addEventListener('click', callNextTicket);
+    callNextBtn.addEventListener('click', async () => {
+    console.log('Call Next button clicked');
+    await callNextTicket();
+    });
     passTicketBtn.addEventListener('click', openPassServiceModal);
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
