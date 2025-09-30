@@ -1,212 +1,13 @@
 :root {
-  --primary-color: #4CAF50; /* */
-  --secondary-color: #2196F3; /* */
-  --danger-color: #f44336; /* */
-  --warning-color: #FF9800; /* */
-  --light-bg: #f5f5f5; /* */
-  --dark-text: #333; /* */
-  --light-text: #fff; /* */
-  --border-radius: 5px; /* */
-  --box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* */
-}
-
-/* اضافه کردن این استایل‌ها به انتهای فایل styles.css */
-
-/* استایل برای نشان شماره باجه */
-.counter-badge {
-    background-color: var(--secondary-color);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-    margin-right: 5px;
-}
-
-/* استایل برای مودال‌های جدید */
-.service-checkboxes-container {
-    max-height: 300px;
-    overflow-y: auto;
-    margin: 15px 0;
-    border: 1px solid #ddd;
-    border-radius: var(--border-radius);
-    padding: 10px;
-}
-
-.service-checkboxes-container .service-checkbox {
-    margin: 8px 0;
-    padding: 8px;
-    background-color: var(--light-bg);
-    border-radius: var(--border-radius);
-}
-
-/* استایل برای دکمه تغییر شماره باجه */
-#change-counter-btn {
-    background-color: var(--secondary-color);
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-family: 'Vazirmatn', sans-serif;
-    font-size: 14px;
-    transition: background-color 0.3s;
-}
-
-#change-counter-btn:hover {
-    background-color: #1565C0;
-}
-
-/* استایل برای مودال شماره باجه */
-#counter-number-input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: var(--border-radius);
-    font-size: 16px;
-    font-family: 'Vazirmatn', sans-serif;
-    text-align: center;
-}
-
-/* استایل‌های قبلی بدون تغییر باقی می‌مانند */
-/* فقط استایل‌های جدید اضافه می‌شوند */
-
-/* استایل دکمه تنظیمات باجه */
-#counter-settings-btn {
-    background-color: #17a2b8;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    margin-left: 8px;
-}
-
-#counter-settings-btn:hover {
-    background-color: #138496;
-}
-
-/* استایل مودال تنظیمات باجه */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.modal {
-    background: white;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 500px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-.modal h2 {
-    margin-bottom: 1.5rem;
-    color: #333;
-    text-align: center;
-}
-
-.form-group {
-    margin-bottom: 1rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: bold;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 16px;
-}
-
-.form-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
-    margin-top: 1.5rem;
-}
-
-.primary-btn {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.primary-btn:hover {
-    background-color: #0056b3;
-}
-
-.secondary-btn {
-    background-color: #6c757d;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.secondary-btn:hover {
-    background-color: #545b62;
-}
-
-/* سایر استایل‌ها بدون تغییر باقی می‌مانند */
-
-/* استایل برای سرویس غیرفعال */
-.service-btn.disabled-service {
-    background-color: #9e9e9e !important;
-    cursor: not-allowed !important;
-    opacity: 0.7;
-    position: relative;
-}
-
-.service-btn.disabled-service:hover {
-    background-color: #9e9e9e !important;
-    transform: none !important;
-}
-
-.service-disabled-label {
-    background-color: #f44336;
-    color: white;
-    padding: 3px 8px;
-    border-radius: 3px;
-    font-size: 12px;
-    font-weight: bold;
-    margin-top: 5px;
-    display: inline-block;
-}
-
-/* استایل برای نمایش وضعیت غیرفعال در لیست خدمات */
-.service-checkbox.disabled-service {
-    opacity: 0.6;
-}
-
-.service-checkbox.disabled-service label {
-    color: #666;
-}
-
-.service-checkbox input:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
+  --primary-color: #4CAF50;
+  --secondary-color: #2196F3;
+  --danger-color: #f44336;
+  --warning-color: #FF9800;
+  --light-bg: #f5f5f5;
+  --dark-text: #333;
+  --light-text: #fff;
+  --border-radius: 8px;
+  --box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 /* استایل برای سرویس غیرفعال */
@@ -250,104 +51,121 @@
 }
 
 body {
-  font-family: 'Vazirmatn', sans-serif; /* */
-  background-color: var(--light-bg); /* */
-  color: var(--dark-text); /* */
+  font-family: 'Vazirmatn', sans-serif;
+  background-color: var(--light-bg);
+  color: var(--dark-text);
   font-size: 14px;
   line-height: 1.6;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 15px; /* */
+  padding: 10px;
+  width: 100%;
 }
 
+/* هدر برای موبایل */
 header {
   background-color: var(--primary-color);
   color: var(--light-text);
-  padding: 15px;
+  padding: 12px 15px;
   border-radius: var(--border-radius);
   margin-bottom: 15px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap; /* */
+  flex-direction: column;
+  gap: 10px;
   box-shadow: var(--box-shadow);
+  width: 100%;
 }
 
 header h1 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700; /* */
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  order: 1;
 }
 
 /* New Style for Total Waiting Counter */
 #total-waiting-container {
     color: white;
     background-color: rgba(0,0,0,0.2);
-    padding: 5px 15px;
-    border-radius: 15px; /* */
-    font-size: 16px;
-    margin: 5px 10px;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 14px;
+    margin: 5px 0;
+    text-align: center;
+    order: 2;
 }
 
 #total-waiting-count {
     font-weight: 700;
-    font-size: 18px; /* */
+    font-size: 16px;
 }
 
 .login-section {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  order: 3;
 }
 
 .login-section input {
-  padding: 8px 12px;
+  padding: 10px 12px;
   border: none;
-  border-radius: var(--border-radius); /* */
-  font-size: 14px;
+  border-radius: var(--border-radius);
+  font-size: 16px; /* بزرگتر برای موبایل */
   font-family: 'Vazirmatn', sans-serif;
+  width: 100%;
 }
 
 .login-section button {
-  padding: 8px 12px;
+  padding: 10px 12px;
   background-color: #2E7D32;
   color: var(--light-text);
   border: none;
-  border-radius: var(--border-radius); /* */
+  border-radius: var(--border-radius);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   font-family: 'Vazirmatn', sans-serif;
   transition: background-color 0.3s;
+  width: 100%;
 }
 
 .login-section button:hover {
-  background-color: #1B5E20; /* */
+  background-color: #1B5E20;
 }
 
 #user-info {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
 
 #user-info button {
-  padding: 8px 12px;
+  padding: 10px 12px;
   font-size: 14px;
-  font-family: 'Vazirmatn', sans-serif; /* */
+  font-family: 'Vazirmatn', sans-serif;
+  width: 100%;
+  margin: 2px 0;
 }
 
 #user-info #reset-all-btn {
     margin-top: 0;
 }
 
-
 #user-greeting {
   font-weight: 500;
-  font-size: 14px; /* */
+  font-size: 14px;
+  text-align: center;
+  padding: 8px 0;
 }
 
 #settings-btn {
@@ -358,11 +176,27 @@ header h1 {
   background-color: #F57C00;
 }
 
+#counter-settings-btn {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 10px 12px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 14px;
+  margin: 2px 0;
+}
+
+#counter-settings-btn:hover {
+  background-color: #138496;
+}
+
 .service-buttons {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px; /* */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
   margin-bottom: 15px;
+  width: 100%;
 }
 
 .service-btn {
@@ -372,14 +206,15 @@ header h1 {
   background-color: var(--secondary-color);
   color: var(--light-text);
   border: none;
-  border-radius: var(--border-radius); /* */
-  padding: 12px;
+  border-radius: var(--border-radius);
+  padding: 15px;
   cursor: pointer;
   text-align: center;
   transition: all 0.3s;
   font-family: 'Vazirmatn', sans-serif;
   box-shadow: var(--box-shadow);
-  min-height: 100px; /* */
+  min-height: 100px;
+  width: 100%;
 }
 
 .service-btn:hover {
@@ -390,7 +225,7 @@ header h1 {
 .service-btn .service-name {
   font-weight: 700;
   margin-bottom: 6px;
-  font-size: 16px; /* */
+  font-size: 16px;
 }
 
 .service-btn .waiting-count {
@@ -402,21 +237,25 @@ header h1 {
     font-size: 12px;
     font-weight: 500;
     margin-top: 8px;
-    background-color: rgba(0, 0, 0, 0.15); /* */
-    padding: 3px 6px;
-    border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0.15);
+    padding: 4px 8px;
+    border-radius: 4px;
 }
 
 .ticket-display {
   background-color: white;
   padding: 15px;
   border-radius: var(--border-radius);
-  margin-bottom: 15px; /* */
+  margin-bottom: 15px;
   box-shadow: var(--box-shadow);
+  width: 100%;
 }
 
 .ticket-actions {
   margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .current-ticket-item {
@@ -424,7 +263,7 @@ header h1 {
   margin-bottom: 12px;
   background-color: #E8F5E9;
   border-radius: var(--border-radius);
-  border-right: 4px solid var(--primary-color); /* */
+  border-right: 4px solid var(--primary-color);
 }
 
 .call-panel {
@@ -432,16 +271,17 @@ header h1 {
   padding: 15px;
   border-radius: var(--border-radius);
   margin-bottom: 15px;
-  box-shadow: var(--box-shadow); /* */
+  box-shadow: var(--box-shadow);
+  width: 100%;
 }
 
 .service-checkbox {
   margin: 8px 0;
-  padding: 8px;
+  padding: 10px;
   background-color: var(--light-bg);
   border-radius: var(--border-radius);
   display: flex;
-  align-items: center; /* */
+  align-items: center;
 }
 
 .service-checkbox label {
@@ -449,7 +289,7 @@ header h1 {
   font-weight: 500;
   flex-grow: 1;
   font-size: 14px;
-  cursor: pointer; /* */
+  cursor: pointer;
 }
 
 .service-checkbox .waiting-count-label {
@@ -460,18 +300,18 @@ header h1 {
 
 .service-checkbox input[type="checkbox"] {
   margin-left: 8px;
-  width: 16px; /* */
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .big-button {
-  padding: 12px 20px;
+  padding: 15px 20px;
   font-size: 16px;
   font-weight: 500;
   width: 100%;
   background-color: var(--primary-color);
   color: white;
-  border: none; /* */
+  border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
   transition: background-color 0.3s;
@@ -479,16 +319,16 @@ header h1 {
 }
 
 .big-button:hover {
-  background-color: #2E7D32; /* */
+  background-color: #2E7D32;
 }
 
 .pass-btn {
     background-color: var(--warning-color);
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 
 .pass-btn:hover {
-    background-color: #F57C00; /* */
+    background-color: #F57C00;
 }
 
 .danger-button {
@@ -503,51 +343,54 @@ header h1 {
   background-color: white;
   padding: 15px;
   border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow); /* */
+  box-shadow: var(--box-shadow);
   overflow-x: auto;
+  width: 100%;
 }
 
 .table-container {
   overflow-x: auto;
   margin-top: 10px;
   border: 1px solid #ddd;
-  border-radius: var(--border-radius); /* */
+  border-radius: var(--border-radius);
+  width: 100%;
 }
 
 .services-table, #ticket-history {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px; /* */
+  font-size: 12px;
+  min-width: 800px;
 }
 
 .services-table th, 
 .services-table td,
 #ticket-history th,
 #ticket-history td {
-  padding: 10px 8px;
+  padding: 8px 6px;
   text-align: right;
-  border-bottom: 1px solid #ddd; /* */
+  border-bottom: 1px solid #ddd;
 }
-
 
 .services-table input, .services-table select {
     width: 100%;
-    padding: 5px;
+    padding: 6px;
     border: 1px solid #ccc;
-    border-radius: 3px; /* */
+    border-radius: 4px;
+    font-size: 12px;
 }
-
 
 .services-table th,
 #ticket-history th {
   background-color: #f2f2f2;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 /* Modal and Form Styles */
 .modal-overlay {
     position: fixed;
-    top: 0; /* */
+    top: 0;
     left: 0;
     width: 100%;
     height: 100%;
@@ -555,23 +398,27 @@ header h1 {
     z-index: 1000;
     display: flex;
     justify-content: center;
-    align-items: center; /* */
+    align-items: center;
+    padding: 20px;
 }
 
 .modal {
     background-color: white;
-    padding: 25px;
+    padding: 20px;
     border-radius: var(--border-radius);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    width: 90%;
-    max-width: 500px; /* */
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
     z-index: 1001;
 }
 
 .modal h2 {
     margin-bottom: 20px;
     text-align: center;
-    color: var(--primary-color); /* */
+    color: var(--primary-color);
+    font-size: 18px;
 }
 
 .ticket-form {
@@ -582,26 +429,28 @@ header h1 {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%); /* */
+  transform: translate(-50%, -50%);
   z-index: 1001;
   display: none;
-  width: 90%;
+  width: 95%;
   max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .admin-panel {
   background-color: white;
   padding: 20px;
   border-radius: var(--border-radius);
-  box-shadow: 0 0 15px rgba(0,0,0,0.15); /* */
+  box-shadow: 0 0 15px rgba(0,0,0,0.15);
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 1001;
   display: none;
-  width: 90%;
-  max-width: 800px; /* */
+  width: 95%;
+  max-width: 800px;
   max-height: 80vh;
   overflow-y: auto;
 }
@@ -614,7 +463,7 @@ header h1 {
   margin-bottom: 20px;
   padding: 12px;
   background-color: var(--light-bg);
-  border-radius: var(--border-radius); /* */
+  border-radius: var(--border-radius);
 }
 
 .settings-section h3 {
@@ -626,17 +475,21 @@ header h1 {
 .close-btn {
   position: absolute;
   top: 10px;
-  left: 10px; /* */
+  left: 10px;
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 24px;
   cursor: pointer;
   color: var(--dark-text);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-
 .form-group {
-  margin-bottom: 15px; /* */
+  margin-bottom: 15px;
 }
 
 .form-group label {
@@ -648,26 +501,28 @@ header h1 {
 
 .form-group input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd; /* */
+  padding: 12px;
+  border: 1px solid #ddd;
   border-radius: var(--border-radius);
-  font-size: 14px;
+  font-size: 16px;
   font-family: 'Vazirmatn', sans-serif;
 }
 
 .form-actions {
   display: flex;
   gap: 10px;
-  margin-top: 20px; /* */
+  margin-top: 20px;
+  flex-direction: column;
 }
 
 .primary-btn, .secondary-btn {
-  padding: 10px 20px;
+  padding: 12px 20px;
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
   font-family: 'Vazirmatn', sans-serif;
-  flex: 1; /* */
+  flex: 1;
+  font-size: 16px;
 }
 
 .primary-btn {
@@ -681,15 +536,16 @@ header h1 {
 }
 
 .add-btn {
-  padding: 8px 15px;
-  background-color: var(--secondary-color); /* */
+  padding: 12px 15px;
+  background-color: var(--secondary-color);
   color: white;
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
   font-family: 'Vazirmatn', sans-serif;
   margin-top: 10px;
-  font-size: 14px; /* */
+  font-size: 14px;
+  width: 100%;
 }
 
 /* Popup Notification Styles */
@@ -699,33 +555,35 @@ header h1 {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* */
+    background-color: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 2000;
     opacity: 0;
     transition: opacity 0.3s ease-in-out;
-    pointer-events: none; /* */
+    pointer-events: none;
+    padding: 20px;
 }
 
 .popup-container.show {
     opacity: 1;
-    pointer-events: auto; /* <--- کد اضافه شده */
+    pointer-events: auto;
 }
 
 .popup-message {
     background-color: white;
     color: var(--dark-text);
-    padding: 25px 40px; /* */
+    padding: 25px;
     border-radius: var(--border-radius);
     box-shadow: 0 5px 20px rgba(0,0,0,0.25);
     text-align: center;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 500;
-    max-width: 90%;
+    width: 100%;
+    max-width: 400px;
     transform: scale(0.9);
-    transition: transform 0.3s ease-in-out; /* */
+    transition: transform 0.3s ease-in-out;
 }
 
 .popup-container.show .popup-message {
@@ -734,7 +592,7 @@ header h1 {
 
 .popup-message p {
     margin: 0;
-    line-height: 1.7; /* */
+    line-height: 1.7;
 }
 
 .popup-message .ticket-number {
@@ -742,64 +600,178 @@ header h1 {
     font-size: 24px;
     font-weight: 700;
     color: var(--primary-color);
-    margin-bottom: 10px; /* */
+    margin-bottom: 10px;
 }
 
 .popup-message .wait-time {
     display: block;
-    font-size: 16px;
+    font-size: 14px;
     color: var(--dark-text);
-    opacity: 0.9; /* */
-}
-
-
-@media (max-width: 768px) {
-  .admin-panel, .ticket-form, .modal {
-      width: 95%;
-      padding: 15px;
-  }
-
-  /* ... سایر استایل‌ها بدون تغییر ... */
-
-.services-table {
-    width: 100%;
-    border-collapse: collapse;
+    opacity: 0.9;
     margin-top: 10px;
 }
 
-.services-table th, .services-table td {
-    border: 1px solid #ddd;
+/* استایل‌های مخصوص موبایل */
+@media (max-width: 768px) {
+  .container {
     padding: 8px;
-    text-align: center;
-}
-
-.services-table th {
-    background-color: #f2f2f2;
-}
-
-.services-table input[type="text"],
-.services-table input[type="number"] {
+  }
+  
+  header {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  header h1 {
+    font-size: 16px;
+  }
+  
+  .service-buttons {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  
+  .service-btn {
+    padding: 12px;
+    min-height: 90px;
+  }
+  
+  .service-btn .service-name {
+    font-size: 14px;
+  }
+  
+  .big-button {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+  
+  .ticket-display,
+  .call-panel,
+  .history {
+    padding: 12px;
+  }
+  
+  .modal {
+    padding: 15px;
+    margin: 10px;
+  }
+  
+  .ticket-form,
+  .admin-panel {
+    width: 98%;
+    padding: 15px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .primary-btn, .secondary-btn {
     width: 100%;
+  }
+  
+  /* بهبود نمایش تاریخچه در موبایل */
+  .table-container {
+    font-size: 11px;
+  }
+  
+  #ticket-history th,
+  #ticket-history td {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
     padding: 5px;
-    box-sizing: border-box;
+  }
+  
+  header {
+    padding: 8px;
+  }
+  
+  header h1 {
+    font-size: 15px;
+  }
+  
+  .service-buttons {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  
+  .service-btn {
+    padding: 10px;
+    min-height: 85px;
+  }
+  
+  .service-btn .service-name {
+    font-size: 13px;
+  }
+  
+  .service-btn .waiting-count {
+    font-size: 12px;
+  }
+  
+  .service-btn .estimation-time {
+    font-size: 11px;
+  }
+  
+  .popup-message {
+    padding: 20px;
+    font-size: 15px;
+  }
+  
+  .popup-message .ticket-number {
+    font-size: 20px;
+  }
 }
 
-.services-table input[type="checkbox"] {
-    transform: scale(1.2);
+/* برای صفحات بسیار کوچک */
+@media (max-width: 360px) {
+  .service-buttons {
+    grid-template-columns: 1fr;
+  }
+  
+  .service-btn {
+    min-height: 80px;
+  }
+  
+  header h1 {
+    font-size: 14px;
+  }
+  
+  #user-greeting {
+    font-size: 13px;
+  }
 }
 
-.remove-service-btn {
-    background-color: #f44336;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 3px;
-    cursor: pointer;
+/* بهبود اسکرول در موبایل */
+body {
+  -webkit-overflow-scrolling: touch;
 }
 
-.remove-service-btn:hover {
-    background-color: #d32f2f;
+.table-container {
+  -webkit-overflow-scrolling: touch;
 }
 
-/* ... سایر استایل‌ها بدون تغییر ... */
+/* حذف هایلایت آبی هنگام تاچ در موبایل */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* بهبود نمایش دکمه‌ها در موبایل */
+button {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* حذف حاشیه اضافی در ویوپورت موبایل */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
