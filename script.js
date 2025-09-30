@@ -565,163 +565,88 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- فراخوانی نوبت خاص ---
-// تابع callSpecificTicket را با این نسخه جایگزین کنید:
-// نسخه پیشرفته‌تر برای نمایش اطلاعات کامل نوبت
-async function callSpecificTicketAdvanced() {
-    const ticketNumber = specificTicketInput.value.trim();
-    
-    if (!ticketNumber) {
-        showPopupNotification('<p>لطفا شماره نوبت را وارد کنید.</p>');
-        specificTicketInput.classList.add('error');
-        return;
-    }
-
-    if (!currentUser) {
-        showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
-        return;
-    }
-
-    // بررسی خدمات انتخابی کاربر
-    const userPrefs = currentUser.prefs || {};
-    const selections = userPrefs.service_selections || {};
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-        return;
-    }
-
-    try {
-        // جستجوی پیشرفته نوبت
-        const ticketToCall = searchTicketByNumber(ticketNumber, services, tickets);
+    async function callSpecificTicket() {
+        const ticketNumber = specificTicketInput.value.trim();
         
-        if (!ticketToCall) {
-            showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
+        if (!ticketNumber) {
+            showPopupNotification('<p>لطفا شماره نوبت را وارد کنید.</p>');
             specificTicketInput.classList.add('error');
             return;
         }
 
-        // بررسی آیا نوبت متعلق به خدمات انتخابی کاربر است
-        if (!selectedServiceIds.includes(ticketToCall.service_id)) {
-            const service = services.find(s => s.$id === ticketToCall.service_id);
-            showPopupNotification(`<p>نوبت ${ticketNumber} متعلق به خدمت "${service?.name}" است که در خدمات انتخابی شما نیست.</p>`);
-            specificTicketInput.classList.add('error');
+        if (!currentUser) {
+            showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
             return;
         }
 
-        // پیام تأیید بر اساس وضعیت نوبت
-        let confirmationMessage = '';
-        let warningClass = '';
-        
-        switch(ticketToCall.status) {
-            case 'در حال سرویس':
-                confirmationMessage = `نوبت ${ticketNumber} در حال حاضر در حال سرویس است. آیا می‌خواهید مجدداً فراخوانی شود؟`;
-                warningClass = 'past-ticket-warning';
-                break;
-            case 'اتمام سرویس':
-                confirmationMessage = `نوبت ${ticketNumber} قبلاً سرویس شده است. آیا می‌خواهید مجدداً فراخوانی شود؟`;
-                warningClass = 'past-ticket-warning';
-                break;
-            case 'در حال انتظار':
-                // بدون پیام تأیید
-                break;
-            default:
-                confirmationMessage = `نوبت ${ticketNumber} با وضعیت "${ticketToCall.status}" یافت شد. آیا می‌خواهید فراخوانی شود؟`;
-                warningClass = 'past-ticket-info';
-        }
-
-        if (confirmationMessage && !confirm(confirmationMessage)) {
-            return;
-        }
-
+        // بررسی خدمات انتخابی کاربر
         const userPrefs = currentUser.prefs || {};
-        const counterName = userPrefs.counter_name || 'باجه';
-        
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            ticketToCall.$id, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name || currentUser.email,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
-            }
-        );
+        const selections = userPrefs.service_selections || {};
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
 
-        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-        
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        
-        // ایجاد پیام وضعیت
-        let statusMessage = '';
-        if (ticketToCall.status !== 'در حال انتظار') {
-            const statusText = getStatusText(ticketToCall.status);
-            statusMessage = `<div class="${warningClass}">
-                <strong>وضعیت قبلی:</strong> ${statusText}
-                ${ticketToCall.call_time ? `<br><strong>آخرین فراخوانی:</strong> ${formatDate(ticketToCall.call_time)}` : ''}
-            </div>`;
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+            return;
         }
-        
-        const popupMessage = `
-            <span class="ticket-number">فراخوانی ویژه: ${updatedTicket.specific_ticket || 'پاس'}</span>
-            ${statusMessage}
-            <p><strong>نوبت کلی:</strong> ${updatedTicket.general_ticket}</p>
-            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-            <p><strong>باجه:</strong> ${counterName}</p>
-        `;
-        showPopupNotification(popupMessage);
-        
-        // پاک کردن input و دادن استایل موفقیت
-        specificTicketInput.value = '';
-        specificTicketInput.classList.remove('error');
-        specificTicketInput.classList.add('success');
-        setTimeout(() => specificTicketInput.classList.remove('success'), 2000);
-        
-        // به روز رسانی داده‌ها
-        await fetchData();
-        
-    } catch (error) {
-        console.error('Error calling specific ticket:', error);
-        showPopupNotification('<p>خطا در فراخوانی نوبت خاص!</p>');
-        specificTicketInput.classList.add('error');
-    }
-}
 
-// تابع کمکی برای نمایش متن وضعیت
-function getStatusText(status) {
-    const statusMap = {
-        'در حال انتظار': 'در حال انتظار',
-        'در حال سرویس': 'در حال سرویس',
-        'اتمام سرویس': 'اتمام سرویس',
-        'پاس': 'پاس شده'
-    };
-    return statusMap[status] || status;
-}
+        try {
+            // جستجوی نوبت در خدمات انتخابی کاربر
+            const ticketToCall = tickets.find(t => 
+                t.status === 'در حال انتظار' && 
+                selectedServiceIds.includes(t.service_id) && 
+                (t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber)
+            );
 
-// همچنین این تابع کمکی را برای جستجوی پیشرفته نوبت اضافه کنید:
-function searchTicketByNumber(ticketNumber, services, tickets) {
-    // اول: جستجو در نوبت‌های خاص
-    let ticket = tickets.find(t => t.specific_ticket == ticketNumber);
-    
-    // دوم: اگر پیدا نشد، در نوبت‌های کلی جستجو کن
-    if (!ticket) {
-        ticket = tickets.find(t => t.general_ticket == ticketNumber);
+            if (!ticketToCall) {
+                showPopupNotification(`<p>نوبت ${ticketNumber} در صف انتظار خدمات انتخابی شما یافت نشد.</p>`);
+                specificTicketInput.classList.add('error');
+                return;
+            }
+
+            const userPrefs = currentUser.prefs || {};
+            const counterName = userPrefs.counter_name || 'باجه';
+            
+            const updatedTicket = await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                ticketToCall.$id, 
+                {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name || currentUser.email,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                }
+            );
+
+            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            const popupMessage = `
+                <span class="ticket-number">فراخوانی ویژه: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                <p><strong>نوبت کلی:</strong> ${updatedTicket.general_ticket}</p>
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName}</p>
+            `;
+            showPopupNotification(popupMessage);
+            
+            // پاک کردن input و دادن استایل موفقیت
+            specificTicketInput.value = '';
+            specificTicketInput.classList.remove('error');
+            specificTicketInput.classList.add('success');
+            setTimeout(() => specificTicketInput.classList.remove('success'), 2000);
+            
+            // به روز رسانی داده‌ها
+            await fetchData();
+            
+        } catch (error) {
+            console.error('Error calling specific ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت خاص!</p>');
+            specificTicketInput.classList.add('error');
+        }
     }
-    
-    // سوم: اگر هنوز پیدا نشد، جستجوی جزئی انجام بده
-    if (!ticket) {
-        ticket = tickets.find(t => 
-            t.specific_ticket && t.specific_ticket.toString().includes(ticketNumber) ||
-            t.general_ticket && t.general_ticket.toString().includes(ticketNumber)
-        );
-    }
-    
-    return ticket;
-}
     
     async function resetAllTickets() {
         if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
