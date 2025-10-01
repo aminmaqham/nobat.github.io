@@ -143,6 +143,34 @@
             </div>
         </div>
 
+        <!-- بعد از بسته شدن تگ main-content و قبل از بسته شدن تگ container اضافه کنید -->
+
+        <!-- مودال ارسال به عکاسی -->
+        <div class="photography-modal-overlay" id="photography-modal" style="display: none;">
+            <div class="photography-modal">
+                <h2>ارسال به لیست عکاسی</h2>
+                <div class="form-group">
+                    <label for="photography-national-id">کد ملی:</label>
+                    <input type="text" id="photography-national-id" placeholder="کد ملی را وارد کنید" maxlength="10">
+                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">کد ملی برای ثبت در لیست عکاسی الزامی است</small>
+                </div>
+                <div class="form-actions">
+                    <button id="confirm-photography-btn" class="primary-btn">تایید و ارسال</button>
+                    <button id="cancel-photography-btn" class="secondary-btn">انصراف</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- نمایشگر لیست عکاسی -->
+        <div class="photography-display" id="photography-display" style="display: none;">
+            <div class="photography-header">
+                <h2>لیست عکاسی</h2>
+            </div>
+            <div class="photography-list" id="photography-list">
+                <div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>
+            </div>
+        </div>
+
         <div class="ticket-form" id="ticket-form" style="display: none;">
             <h2 id="ticket-form-title"></h2>
             <div class="form-group">

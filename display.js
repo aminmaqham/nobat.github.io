@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Elements ---
     const callDisplay = document.getElementById('call-display');
     const historyList = document.getElementById('history-list');
+    const photographyDisplay = document.getElementById('photography-display');
+    const photographyListContainer = document.getElementById('photography-list');
 
     // --- Text-to-Speech Function ---
     function speak(text) {
@@ -109,6 +111,66 @@ document.addEventListener('DOMContentLoaded', () => {
             updateDisplay();
         });
     }
+
+    function updatePhotographyDisplay() {
+    try {
+        const savedList = localStorage.getItem('photographyList');
+        if (savedList) {
+            const photographyList = JSON.parse(savedList);
+            
+            if (photographyList.length === 0) {
+                photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+                return;
+            }
+            
+            // فقط 7 آیتم اول را نشان بده
+            const displayItems = photographyList.slice(0, 7);
+            
+            photographyListContainer.innerHTML = displayItems.map((item, index) => `
+                <div class="photography-item ${item.photoTaken ? 'photo-taken' : ''}">
+                    <div class="photography-number">${index + 1}</div>
+                    <div class="photography-info">
+                        <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
+                        <div class="photography-national-id">${item.nationalId}</div>
+                    </div>
+                    <div class="photography-status ${item.photoTaken ? 'photo-taken' : ''}">
+                        ${item.photoTaken ? 'عکس گرفته شد' : 'در انتظار'}
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error updating photography display:', error);
+    }
+}
+
+// اضافه کردن به تابع updateDisplay
+async function updateDisplay() {
+    try {
+        // کد موجود...
+        
+        // به‌روزرسانی لیست عکاسی
+        updatePhotographyDisplay();
+        
+    } catch (error) {
+        console.error("Error fetching called tickets:", error);
+    }
+}
+
+// اضافه کردن به تابع setupRealtime
+function setupRealtime() {
+    // کد موجود...
+    
+    // اضافه کردن شنود برای تغییرات در localStorage (برای همگام‌سازی لیست عکاسی)
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'photographyList') {
+            updatePhotographyDisplay();
+        }
+    });
+}
+
+// فراخوانی اولیه
+updatePhotographyDisplay();
 
     // --- Initial Load ---
     updateDisplay();
