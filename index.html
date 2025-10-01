@@ -107,11 +107,48 @@
                         </div>
                         <div class="call-next-section">
                             <button id="call-next-btn" class="big-button">فراخوان نوبت بعدی</button>
+
+                            <!-- بعد از دکمه call-next-btn و قبل از بسته شدن ticket-actions اضافه کنید -->
+                            <div class="photography-controls">
+                                <input type="text" id="manual-ticket-input" class="manual-photography-input" placeholder="شماره نوبت برای عکاسی" maxlength="4">
+                                <button id="manual-photography-btn" class="big-button send-to-photography-btn">ثبت دستی در عکاسی</button>
+                            </div>
+
                         </div>
                     </div>
                 </div>
                 <h2>نوبت فعلی (آخرین ۳ نوبت)</h2>
                 <div id="current-ticket"></div>
+            </div>
+
+                        <div class="photography-role-section">
+                <div class="photography-role-checkbox">
+                    <input type="checkbox" id="photography-role-checkbox">
+                    <label for="photography-role-checkbox">کاربر عکاسی هستم</label>
+                </div>
+                <div class="photography-waiting-display">
+                    منتظران عکاسی: <span id="photography-waiting-count">0</span>
+                </div>
+            </div>
+
+            <!-- تغییر در مودال عکاسی برای نمایش کدملی -->
+            <div class="photography-modal-overlay" id="photography-modal" style="display: none;">
+                <div class="photography-modal">
+                    <h2>ارسال به لیست عکاسی</h2>
+                    <div class="form-group">
+                        <label for="photography-national-id">کد ملی:</label>
+                        <input type="text" id="photography-national-id" placeholder="کد ملی را وارد کنید" maxlength="10">
+                        <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                            <strong>اطلاعات نوبت:</strong><br>
+                            شماره: <span id="photography-ticket-number">---</span><br>
+                            نام: <span id="photography-customer-name">---</span>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button id="confirm-photography-btn" class="primary-btn">تایید و ارسال</button>
+                        <button id="cancel-photography-btn" class="secondary-btn">انصراف</button>
+                    </div>
+                </div>
             </div>
 
             <div class="call-panel">

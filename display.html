@@ -4,35 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>نمایشگر نوبت</title>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="display.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>آخرین نوبت فراخوانده شده</h1>
-        </header>
-        <main id="call-display">
-            <div class="ticket-card placeholder">
-                <div class="ticket-number">---</div>
-                <div class="counter-name">منتظر فراخوان...</div>
+        <!-- بخش اصلی نمایش نوبت‌ها -->
+        <div class="main-display">
+            <header>
+                <h1>سیستم نوبت دهی هوشمند</h1>
+                <div class="waiting-count">آخرین نوبت‌های فراخوانده شده</div>
+            </header>
+            
+            <div class="tickets-container">
+                <!-- نوبت‌ها اینجا نمایش داده می‌شوند -->
             </div>
-        </main>
-        <footer>
-            <div id="history-header">نوبت‌های قبلی</div>
-            <div id="history-list">
-                <!-- Previous tickets will be shown here -->
-            </div>
-        </footer>
-    </div>
-
-        <!-- اضافه کردن این کد قبل از بسته شدن تگ body -->
-    <div class="photography-display" id="photography-display">
-        <div class="photography-header">
-            <h2>لیست عکاسی</h2>
         </div>
-        <div class="photography-list" id="photography-list">
-            <div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>
+
+        <!-- بخش لیست عکاسی -->
+        <div class="photography-display">
+            <div class="photography-header">
+                <h2>لیست عکاسی</h2>
+                <div class="photography-waiting">منتظران: ۰</div>
+            </div>
+            <div class="photography-list">
+                <!-- لیست عکاسی اینجا نمایش داده می‌شود -->
+            </div>
         </div>
     </div>
 

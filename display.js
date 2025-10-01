@@ -15,71 +15,143 @@ document.addEventListener('DOMContentLoaded', () => {
     const databases = new Databases(client);
 
     // --- DOM Elements ---
-    const callDisplay = document.getElementById('call-display');
-    const historyList = document.getElementById('history-list');
-    const photographyDisplay = document.getElementById('photography-display');
-    const photographyListContainer = document.getElementById('photography-list');
+    const ticketsContainer = document.querySelector('.tickets-container');
+    const photographyList = document.querySelector('.photography-list');
+    const photographyWaiting = document.querySelector('.photography-waiting');
 
     // --- Text-to-Speech Function ---
     function speak(text) {
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'fa-IR'; // Set language to Persian
+            utterance.lang = 'fa-IR';
             utterance.rate = 0.9;
             window.speechSynthesis.speak(utterance);
-        } else {
-            console.log('Text-to-Speech not supported in this browser.');
         }
     }
 
     // --- UI Update Functions ---
     async function updateDisplay() {
         try {
+            // دریافت ۳ نوبت آخر
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
                 [
                     Query.equal('status', 'در حال سرویس'),
                     Query.orderDesc('call_time'),
-                    Query.limit(5) // Get the latest 5 called tickets
+                    Query.limit(3)
                 ]
             );
 
             const calledTickets = response.documents;
-
-            if (calledTickets.length > 0) {
-                const latestTicket = calledTickets[0];
-                
-                // Update main display
-                callDisplay.innerHTML = `
-                    <div class="ticket-card">
-                        <div class="ticket-number">${latestTicket.specific_ticket || 'پاس'}</div>
-                        <div class="counter-name">${latestTicket.called_by_counter_name || 'باجه'}</div>
-                    </div>
-                `;
-
-                // Update history list (next 4 tickets)
-                historyList.innerHTML = '';
-                calledTickets.slice(1).forEach(ticket => {
-                    const historyItem = document.createElement('div');
-                    historyItem.className = 'history-item';
-                    historyItem.textContent = ticket.specific_ticket || 'پاس';
-                    historyList.appendChild(historyItem);
-                });
-
-            } else {
-                callDisplay.innerHTML = `
-                    <div class="ticket-card placeholder">
-                        <div class="ticket-number">---</div>
-                        <div class="counter-name">منتظر فراخوان...</div>
-                    </div>
-                `;
-                historyList.innerHTML = '';
-            }
+            updateTicketsDisplay(calledTickets);
+            updatePhotographyDisplay();
 
         } catch (error) {
-            console.error("Error fetching called tickets:", error);
+            console.error("Error fetching data:", error);
         }
+    }
+
+    function updateTicketsDisplay(tickets) {
+        ticketsContainer.innerHTML = '';
+        
+        if (tickets.length === 0) {
+            ticketsContainer.innerHTML = `
+                <div class="ticket-card">
+                    <div class="ticket-number">---</div>
+                    <div class="ticket-info">منتظر فراخوان...</div>
+                </div>
+            `;
+            return;
+        }
+
+        tickets.forEach((ticket, index) => {
+            const ticketElement = document.createElement('div');
+            const callTime = new Date(ticket.call_time);
+            const now = new Date();
+            const minutesDiff = Math.floor((now - callTime) / (1000 * 60));
+            
+            let cardClass = 'ticket-card';
+            if (minutesDiff < 2) {
+                cardClass += ' recent';
+            } else {
+                cardClass += ' old';
+            }
+
+            ticketElement.className = cardClass;
+            ticketElement.innerHTML = `
+                <div class="ticket-number">${ticket.specific_ticket || 'پاس'}</div>
+                <div class="ticket-info">
+                    <div>شماره ${ticket.specific_ticket || 'پاس'} به ${ticket.called_by_counter_name || 'باجه'}</div>
+                    <div class="counter-name">${ticket.called_by_name || 'سیستم'}</div>
+                </div>
+                <div class="ticket-time">${formatTime(callTime)}</div>
+            `;
+            
+            ticketsContainer.appendChild(ticketElement);
+        });
+    }
+
+    function updatePhotographyDisplay() {
+        try {
+            const savedList = localStorage.getItem('photographyList');
+            if (!savedList) {
+                photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+                photographyWaiting.textContent = 'منتظران: ۰';
+                return;
+            }
+
+            const photographyListData = JSON.parse(savedList);
+            const waitingCount = photographyListData.filter(item => !item.photoTaken).length;
+            
+            photographyWaiting.textContent = `منتظران: ${waitingCount}`;
+
+            if (photographyListData.length === 0) {
+                photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+                return;
+            }
+
+            // مرتب‌سازی بر اساس زمان اضافه شدن (جدیدترین اول)
+            const sortedList = [...photographyListData].sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+            
+            photographyList.innerHTML = `
+                <table class="photography-table">
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>شماره نوبت</th>
+                            <th>وضعیت</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sortedList.map((item, index) => `
+                            <tr>
+                                <td class="photography-row-number">${index + 1}</td>
+                                <td>
+                                    <div class="photography-ticket-number">${item.ticketNumber}</div>
+                                    <div class="photography-national-id">${item.nationalId}</div>
+                                </td>
+                                <td>
+                                    <span class="photography-status ${item.photoTaken ? 'status-done' : 'status-waiting'}">
+                                        ${item.photoTaken ? 'تکمیل' : 'در انتظار'}
+                                    </span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+        } catch (error) {
+            console.error('Error updating photography display:', error);
+        }
+    }
+
+    function formatTime(date) {
+        return date.toLocaleTimeString('fa-IR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     }
 
     // --- Realtime Subscription ---
@@ -87,92 +159,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const channel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
         
         client.subscribe(channel, response => {
-            // Check if a ticket was just called
             if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
                 const updatedTicket = response.payload;
 
-                // If a ticket's status changed to 'در حال سرویس'
                 if (updatedTicket.status === 'در حال سرویس') {
-                    // Flash effect
-                    const ticketCard = callDisplay.querySelector('.ticket-card');
-                    if(ticketCard) {
-                        ticketCard.classList.add('flash');
-                        setTimeout(() => ticketCard.classList.remove('flash'), 1000);
-                    }
-                    
-                    // Announce the number
+                    // اعلام صوتی
                     const numberToSpeak = updatedTicket.specific_ticket || 'نوبت پاس شده';
                     const counterName = updatedTicket.called_by_counter_name || 'باجه';
                     const textToSpeak = `شماره ${numberToSpeak} به ${counterName}`;
                     speak(textToSpeak);
                 }
             }
-            // Update the UI regardless of the event type
+            
+            // همچنین تغییرات در localStorage برای لیست عکاسی
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'photographyList') {
+                    updatePhotographyDisplay();
+                }
+            });
+            
             updateDisplay();
         });
     }
 
-    function updatePhotographyDisplay() {
-    try {
-        const savedList = localStorage.getItem('photographyList');
-        if (savedList) {
-            const photographyList = JSON.parse(savedList);
-            
-            if (photographyList.length === 0) {
-                photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-                return;
-            }
-            
-            // فقط 7 آیتم اول را نشان بده
-            const displayItems = photographyList.slice(0, 7);
-            
-            photographyListContainer.innerHTML = displayItems.map((item, index) => `
-                <div class="photography-item ${item.photoTaken ? 'photo-taken' : ''}">
-                    <div class="photography-number">${index + 1}</div>
-                    <div class="photography-info">
-                        <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
-                        <div class="photography-national-id">${item.nationalId}</div>
-                    </div>
-                    <div class="photography-status ${item.photoTaken ? 'photo-taken' : ''}">
-                        ${item.photoTaken ? 'عکس گرفته شد' : 'در انتظار'}
-                    </div>
-                </div>
-            `).join('');
-        }
-    } catch (error) {
-        console.error('Error updating photography display:', error);
-    }
-}
-
-// اضافه کردن به تابع updateDisplay
-async function updateDisplay() {
-    try {
-        // کد موجود...
-        
-        // به‌روزرسانی لیست عکاسی
-        updatePhotographyDisplay();
-        
-    } catch (error) {
-        console.error("Error fetching called tickets:", error);
-    }
-}
-
-// اضافه کردن به تابع setupRealtime
-function setupRealtime() {
-    // کد موجود...
-    
-    // اضافه کردن شنود برای تغییرات در localStorage (برای همگام‌سازی لیست عکاسی)
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'photographyList') {
-            updatePhotographyDisplay();
-        }
-    });
-}
-
-// فراخوانی اولیه
-updatePhotographyDisplay();
-
     // --- Initial Load ---
     updateDisplay();
     setupRealtime();
+
+    // به‌روزرسانی هر 30 ثانیه برای بررسی تغییر رنگ
+    setInterval(updateDisplay, 30000);
 });

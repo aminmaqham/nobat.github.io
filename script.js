@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DOM Elements ---
     const photographyModal = document.getElementById('photography-modal');
+    const manualTicketInput = document.getElementById('manual-ticket-input');
+    const manualPhotographyBtn = document.getElementById('manual-photography-btn');
+    const photographyRoleCheckbox = document.getElementById('photography-role-checkbox');
+    const photographyWaitingCount = document.getElementById('photography-waiting-count');
+    const photographyTicketNumber = document.getElementById('photography-ticket-number');
+    const photographyCustomerName = document.getElementById('photography-customer-name');
     const photographyNationalIdInput = document.getElementById('photography-national-id');
     const confirmPhotographyBtn = document.getElementById('confirm-photography-btn');
     const cancelPhotographyBtn = document.getElementById('cancel-photography-btn');
@@ -74,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastCalledTicket = {};
     let photographyList = [];
     let currentTicketForPhotography = null;
+    
+
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
@@ -922,9 +930,22 @@ document.addEventListener('DOMContentLoaded', () => {
 function openPhotographyModal(ticket) {
     currentTicketForPhotography = ticket;
     photographyNationalIdInput.value = '';
+    photographyTicketNumber.textContent = ticket.specific_ticket || 'پاس';
+    photographyCustomerName.textContent = `${ticket.first_name} ${ticket.last_name}`;
     photographyModal.style.display = 'flex';
     photographyNationalIdInput.focus();
 }
+
+function updatePhotographyUI() {
+    const waitingCount = photographyList.filter(item => !item.photoTaken).length;
+    photographyWaitingCount.textContent = waitingCount;
+    
+    // ذخیره وضعیت کاربر عکاسی
+    const userPrefs = currentUser.prefs || {};
+    userPrefs.is_photography_user = isPhotographyUser;
+    account.updatePrefs(userPrefs).catch(console.error);
+}
+
 
 function closePhotographyModal() {
     photographyModal.style.display = 'none';
@@ -977,9 +998,9 @@ async function addToPhotographyList() {
             returned: false
         };
         
-        photographyList.unshift(newPhotographyItem); // اضافه کردن به ابتدای لیست
+        photographyList.unshift(newPhotographyItem);
         await savePhotographyList();
-        renderPhotographyList();
+        updatePhotographyUI();
         closePhotographyModal();
         
         showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
@@ -1122,27 +1143,31 @@ async function callFromPhotographyList() {
 
 // --- Modified Call Next Ticket Function ---
 async function callNextTicket() {
-    // اول بررسی کن که آیا کاربر عکاسی هست و آیا لیست عکاسی فعال است
-    const userPrefs = currentUser.prefs || {};
-    const selections = userPrefs.service_selections || {};
+    // اگر کاربر عکاسی هست
+    if (isPhotographyUser) {
+        await processPhotographyTicket();
+        return;
+    }
     
-    // اگر کاربر عکاسی هست و لیست عکاسی خالی نیست، اول از لیست عکاسی فراخوانی کن
-    if (userPrefs.role === 'photography' && photographyList.length > 0) {
-        // پیدا کردن اولین آیتم که عکس آن گرفته نشده
-        const nextPhotographyItem = photographyList.find(item => !item.photoTaken);
-        
-        if (nextPhotographyItem) {
-            // علامت‌گذاری به عنوان عکس گرفته شده
-            await markPhotoAsTaken(nextPhotographyItem.id);
-            showPopupNotification(`<p>عکس برای نوبت ${nextPhotographyItem.ticketNumber} ثبت شد.</p>`);
-            return;
-        } else {
-            // اگر همه عکس‌ها گرفته شده‌اند، از صف اصلی فراخوانی کن
-            await callNextRegularTicket(selections);
-        }
-    } else {
-        // کاربر عادی - از صف اصلی فراخوانی کن
-        await callNextRegularTicket(selections);
+    // کاربر عادی - منطق قبلی
+    await callNextRegularTicket();
+}
+
+async function processPhotographyTicket() {
+    // پیدا کردن اولین نوبت در لیست عکاسی که عکس آن گرفته نشده
+    const nextPhotographyItem = photographyList.find(item => !item.photoTaken);
+    
+    if (!nextPhotographyItem) {
+        showPopupNotification('<p>هیچ نوبتی در لیست عکاسی وجود ندارد.</p>');
+        return;
+    }
+    
+    // نمایش اطلاعات کدملی به کاربر عکاسی
+    const confirmMessage = `نوبت: ${nextPhotographyItem.ticketNumber}\nکد ملی: ${nextPhotographyItem.nationalId}\n\nآیا عکس گرفته شد؟`;
+    
+    if (confirm(confirmMessage)) {
+        await markPhotoAsTaken(nextPhotographyItem.id);
+        showPopupNotification(`<p>عکس برای نوبت ${nextPhotographyItem.ticketNumber} ثبت شد.</p>`);
     }
 }
 
@@ -1322,6 +1347,18 @@ function showLoggedInUI() {
 // --- Event Listeners (اضافه کردن به بخش event listeners موجود) ---
 confirmPhotographyBtn.addEventListener('click', addToPhotographyList);
 cancelPhotographyBtn.addEventListener('click', closePhotographyModal);
+manualPhotographyBtn.addEventListener('click', addManualToPhotographyList);
+photographyRoleCheckbox.addEventListener('change', function() {
+    isPhotographyUser = this.checked;
+    updatePhotographyUI();
+    updateUIForUserRole();
+});
+
+manualTicketInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        addManualToPhotographyList();
+    }
+});
 
 // مدیریت input کد ملی در مودال عکاسی
 photographyNationalIdInput.addEventListener('input', function() {
@@ -1341,14 +1378,35 @@ async function initializeApp() {
     try {
         currentUser = await account.get();
         await checkAndSetCounterName();
+        
+        // بارگذاری وضعیت کاربر عکاسی
+        const userPrefs = currentUser.prefs || {};
+        isPhotographyUser = userPrefs.is_photography_user || false;
+        photographyRoleCheckbox.checked = isPhotographyUser;
+        
         showLoggedInUI();
         await fetchData();
         setupRealtimeSubscriptions();
         checkAutoReset();
-        loadPhotographyList(); // بارگذاری لیست عکاسی
+        loadPhotographyList();
+        updatePhotographyUI();
+        updateUIForUserRole();
+        
     } catch (error) {
         console.log('User not logged in');
         showLoggedOutUI();
+    }
+}
+
+function updateUIForUserRole() {
+    if (isPhotographyUser) {
+        // تغییر رابط برای کاربر عکاسی
+        document.getElementById('call-next-btn').textContent = 'عکس بگیر و تایید کن';
+        document.querySelector('.photography-controls').style.display = 'none';
+    } else {
+        // رابط کاربری عادی
+        document.getElementById('call-next-btn').textContent = 'فراخوان نوبت بعدی';
+        document.querySelector('.photography-controls').style.display = 'flex';
     }
 }
 
