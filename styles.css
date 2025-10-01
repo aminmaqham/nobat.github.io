@@ -1256,3 +1256,102 @@ html, body {
         padding: 12px;
     }
 }
+
+/* استایل‌های جدید برای نمایشگر لیست عکاسی */
+.photography-display {
+    background-color: white;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    margin-bottom: 15px;
+    box-shadow: var(--box-shadow);
+    width: 100%;
+}
+
+.photography-header {
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.photography-header h2 {
+    color: var(--primary-color);
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.photography-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.photography-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border-right: 4px solid #4CAF50;
+    transition: all 0.3s ease;
+}
+
+.photography-item.new-item {
+    background: #e8f5e9;
+    border-right-color: #4CAF50;
+    animation: highlight 2s ease;
+}
+
+.photography-item.photo-taken {
+    background: #e3f2fd;
+    border-right-color: #2196F3;
+}
+
+@keyframes highlight {
+    0% { background-color: #e8f5e9; }
+    50% { background-color: #c8e6c9; }
+    100% { background-color: #e8f5e9; }
+}
+
+.photography-number {
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: #333;
+    min-width: 30px;
+}
+
+.photography-info {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.photography-ticket {
+    font-weight: 600;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.photography-national-id {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 2px;
+}
+
+.photography-status {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: #4CAF50;
+    color: white;
+}
+
+.photography-status.photo-taken {
+    background: #2196F3;
+}
+
+.photography-empty {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+    font-style: italic;
+}

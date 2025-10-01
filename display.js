@@ -182,6 +182,69 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // اضافه کردن تابع برای پاک کردن لیست عکاسی
+function clearPhotographyList() {
+    photographyList = [];
+    localStorage.removeItem('photographyList');
+    updatePhotographyDisplay();
+}
+
+// تغییر در تابع updatePhotographyDisplay برای همگام‌سازی بهتر
+function updatePhotographyDisplay() {
+    try {
+        const savedList = localStorage.getItem('photographyList');
+        if (!savedList) {
+            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+            photographyWaiting.textContent = 'منتظران: ۰';
+            return;
+        }
+
+        const photographyListData = JSON.parse(savedList);
+        const waitingCount = photographyListData.filter(item => !item.photoTaken).length;
+        
+        photographyWaiting.textContent = `منتظران: ${waitingCount}`;
+
+        if (photographyListData.length === 0) {
+            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+            return;
+        }
+
+        // مرتب‌سازی بر اساس زمان اضافه شدن (جدیدترین اول)
+        const sortedList = [...photographyListData].sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+        
+        photographyList.innerHTML = `
+            <table class="photography-table">
+                <thead>
+                    <tr>
+                        <th>ردیف</th>
+                        <th>شماره نوبت</th>
+                        <th>وضعیت</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedList.map((item, index) => `
+                        <tr>
+                            <td class="photography-row-number">${index + 1}</td>
+                            <td>
+                                <div class="photography-ticket-number">${item.ticketNumber}</div>
+                                <div class="photography-national-id">${item.nationalId}</div>
+                            </td>
+                            <td>
+                                <span class="photography-status ${item.photoTaken ? 'status-done' : 'status-waiting'}">
+                                    ${item.photoTaken ? 'تکمیل' : 'در انتظار'}
+                                </span>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+
+    } catch (error) {
+        console.error('Error updating photography display:', error);
+    }
+}
+
     // --- Initial Load ---
     updateDisplay();
     setupRealtime();
