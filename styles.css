@@ -858,3 +858,86 @@ html, body {
   padding: 0;
   overflow-x: hidden;
 }
+
+/* استایل‌های جدید برای بخش فراخوانی نوبت گذشته خاص */
+.specific-call-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.specific-call-input-group {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+#past-ticket-input {
+    flex: 1;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    font-family: 'Vazirmatn', sans-serif;
+    text-align: center;
+    background-color: white;
+    transition: border-color 0.3s;
+}
+
+#past-ticket-input:focus {
+    border-color: #FF9800;
+    outline: none;
+}
+
+#past-ticket-input::placeholder {
+    color: #999;
+    text-align: center;
+}
+
+.past-call-btn {
+    background-color: #FF9800 !important;
+    flex: 0 0 auto;
+    min-width: 160px;
+}
+
+.past-call-btn:hover {
+    background-color: #F57C00 !important;
+}
+
+.call-next-section {
+    width: 100%;
+}
+
+/* استایل برای موبایل */
+@media (max-width: 768px) {
+    .specific-call-input-group {
+        flex-direction: column;
+    }
+    
+    #past-ticket-input {
+        order: 1;
+    }
+    
+    .past-call-btn {
+        order: 2;
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .call-next-section {
+        order: 3;
+    }
+}
+
+/* استایل برای نمایش خطا در input */
+#past-ticket-input.error {
+    border-color: var(--danger-color);
+    background-color: #ffeaea;
+}
+
+/* استایل برای نمایش موفقیت در input */
+#past-ticket-input.success {
+    border-color: var(--primary-color);
+    background-color: #e8f5e9;
+}
