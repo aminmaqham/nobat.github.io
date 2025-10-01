@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DOM Elements ---
     const loginBtn = document.getElementById('login-btn');
-    const specificTicketInput = document.getElementById('specific-ticket-input');
-    const callSpecificBtn = document.getElementById('call-specific-btn');
+    const pastTicketInput = document.getElementById('past-ticket-input');
+    const callPastBtn = document.getElementById('call-past-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const settingsBtn = document.getElementById('settings-btn');
     const counterSettingsBtn = document.getElementById('counter-settings-btn');
@@ -564,180 +564,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-// --- فراخوانی نوبت خاص ---
-async function callSpecificTicket() {
-    const ticketNumber = specificTicketInput.value.trim();
-    
-    if (!ticketNumber) {
-        showPopupNotification('<p>لطفا شماره نوبت را وارد کنید.</p>');
-        specificTicketInput.classList.add('error');
-        return;
-    }
-
-    if (!currentUser) {
-        showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
-        return;
-    }
-
-    // بررسی خدمات انتخابی کاربر
-    const userPrefs = currentUser.prefs || {};
-    const selections = userPrefs.service_selections || {};
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-        return;
-    }
-
-    try {
-        // جستجوی نوبت در خدمات انتخابی کاربر - شامل نوبت‌های عادی و پاس
-        const ticketToCall = tickets.find(t => 
-            t.status === 'در حال انتظار' && 
-            selectedServiceIds.includes(t.service_id) && 
-            (t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber)
-        );
-
-        if (!ticketToCall) {
-            showPopupNotification(`<p>نوبت ${ticketNumber} در صف انتظار خدمات انتخابی شما یافت نشد.</p>`);
-            specificTicketInput.classList.add('error');
+    // --- فراخوانی نوبت گذشته خاص ---
+    async function callPastTicket() {
+        const ticketNumber = pastTicketInput.value.trim();
+        
+        if (!ticketNumber) {
+            showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
+            pastTicketInput.classList.add('error');
             return;
         }
 
-        const userPrefs = currentUser.prefs || {};
-        const counterName = userPrefs.counter_name || 'باجه';
-        
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            ticketToCall.$id, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name || currentUser.email,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
-            }
-        );
-
-        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-        
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        const popupMessage = `
-            <span class="ticket-number">فراخوانی ویژه: ${updatedTicket.specific_ticket || 'پاس'}</span>
-            <p><strong>نوبت کلی:</strong> ${updatedTicket.general_ticket}</p>
-            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-            <p><strong>باجه:</strong> ${counterName}</p>
-        `;
-        showPopupNotification(popupMessage);
-        
-        // پاک کردن input و دادن استایل موفقیت
-        specificTicketInput.value = '';
-        specificTicketInput.classList.remove('error');
-        specificTicketInput.classList.add('success');
-        setTimeout(() => specificTicketInput.classList.remove('success'), 2000);
-        
-        // به روز رسانی داده‌ها
-        await fetchData();
-        
-    } catch (error) {
-        console.error('Error calling specific ticket:', error);
-        showPopupNotification('<p>خطا در فراخوانی نوبت خاص!</p>');
-        specificTicketInput.classList.add('error');
-    }
-}
-
-// --- فراخوانی نوبت گذشته خاص ---
-async function callPastTicket() {
-    const ticketNumber = document.getElementById('past-ticket-input').value.trim();
-    
-    if (!ticketNumber) {
-        showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
-        document.getElementById('past-ticket-input').classList.add('error');
-        return;
-    }
-
-    if (!currentUser) {
-        showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
-        return;
-    }
-
-    try {
-        // جستجوی نوبت گذشته (می‌تواند در هر وضعیتی باشد)
-        const pastTicket = tickets.find(t => 
-            t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
-        );
-
-        if (!pastTicket) {
-            showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
-            document.getElementById('past-ticket-input').classList.add('error');
+        if (!currentUser) {
+            showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
             return;
         }
 
-        const userPrefs = currentUser.prefs || {};
-        const counterName = userPrefs.counter_name || 'باجه';
-        
-        // آپدیت نوبت به وضعیت "در حال سرویس" با زمان جدید
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            pastTicket.$id, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name || currentUser.email,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString() // زمان فراخوان جدید
+        try {
+            // جستجوی نوبت گذشته (می‌تواند در هر وضعیتی باشد)
+            const pastTicket = tickets.find(t => 
+                t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
+            );
+
+            if (!pastTicket) {
+                showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
+                pastTicketInput.classList.add('error');
+                return;
             }
-        );
 
-        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-        
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        
-        // نمایش نوتیفیکیشن دقیقاً مانند فراخوانی عادی
-        const popupMessage = `
-            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-            <p><strong>باجه:</strong> ${counterName}</p>
-        `;
-        showPopupNotification(popupMessage);
-        
-        // پاک کردن input و دادن استایل موفقیت
-        document.getElementById('past-ticket-input').value = '';
-        document.getElementById('past-ticket-input').classList.remove('error');
-        document.getElementById('past-ticket-input').classList.add('success');
-        setTimeout(() => document.getElementById('past-ticket-input').classList.remove('success'), 2000);
-        
-        // به روز رسانی داده‌ها
-        await fetchData();
-        
-    } catch (error) {
-        console.error('Error calling past ticket:', error);
-        showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
-        document.getElementById('past-ticket-input').classList.add('error');
+            const userPrefs = currentUser.prefs || {};
+            const counterName = userPrefs.counter_name || 'باجه';
+            
+            // آپدیت نوبت به وضعیت "در حال سرویس" با زمان جدید
+            const updatedTicket = await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                pastTicket.$id, 
+                {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name || currentUser.email,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                }
+            );
+
+            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            
+            // نمایش نوتیفیکیشن دقیقاً مانند فراخوانی عادی
+            const popupMessage = `
+                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName}</p>
+            `;
+            showPopupNotification(popupMessage);
+            
+            // پاک کردن input و دادن استایل موفقیت
+            pastTicketInput.value = '';
+            pastTicketInput.classList.remove('error');
+            pastTicketInput.classList.add('success');
+            setTimeout(() => pastTicketInput.classList.remove('success'), 2000);
+            
+            // به روز رسانی داده‌ها
+            await fetchData();
+            
+        } catch (error) {
+            console.error('Error calling past ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
+            pastTicketInput.classList.add('error');
+        }
     }
-}
-
-// در بخش event listeners جایگزین کنید:
-document.getElementById('call-past-btn').addEventListener('click', callPastTicket);
-
-// مدیریت input نوبت گذشته
-document.getElementById('past-ticket-input').addEventListener('input', function() {
-    this.value = this.value.replace(/[^0-9]/g, '');
-    if (this.value.length > 0) {
-        this.classList.remove('error');
-    }
-});
-
-document.getElementById('past-ticket-input').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        callPastTicket();
-    }
-});
     
     async function resetAllTickets() {
         if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها برای همیشه پاک خواهند شد.')) return;
@@ -1013,7 +912,7 @@ document.getElementById('past-ticket-input').addEventListener('keypress', functi
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
-    callSpecificBtn.addEventListener('click', callSpecificTicket);
+    callPastBtn.addEventListener('click', callPastTicket);
     logoutBtn.addEventListener('click', logout);
     settingsBtn.addEventListener('click', openAdminPanel);
     resetAllBtn.addEventListener('click', resetAllTickets);
@@ -1054,8 +953,8 @@ document.getElementById('past-ticket-input').addEventListener('keypress', functi
     saveCounterBtn.addEventListener('click', saveCounterSettings);
     cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
 
-    // مدیریت input نوبت خاص
-    specificTicketInput.addEventListener('input', function() {
+    // مدیریت input نوبت گذشته
+    pastTicketInput.addEventListener('input', function() {
         // فقط اعداد مجاز هستند
         this.value = this.value.replace(/[^0-9]/g, '');
         
@@ -1065,10 +964,10 @@ document.getElementById('past-ticket-input').addEventListener('keypress', functi
         }
     });
 
-    specificTicketInput.addEventListener('keypress', function(e) {
+    pastTicketInput.addEventListener('keypress', function(e) {
         // اجازه دادن به کلید Enter برای فراخوانی
         if (e.key === 'Enter') {
-            callSpecificTicket();
+            callPastTicket();
         }
     });
 
