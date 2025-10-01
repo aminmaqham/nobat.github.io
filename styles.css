@@ -1114,3 +1114,145 @@ html, body {
         padding: 12px;
     }
 }
+
+/* استایل‌های جدید برای بخش عکاسی */
+.photography-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.manual-photography-input {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    font-family: 'Vazirmatn', sans-serif;
+    text-align: center;
+    background-color: white;
+}
+
+.manual-photography-input:focus {
+    border-color: #9C27B0;
+    outline: none;
+}
+
+.send-to-photography-btn {
+    background-color: #9C27B0 !important;
+    flex: 0 0 auto;
+    min-width: 160px;
+}
+
+.send-to-photography-btn:hover {
+    background-color: #7B1FA2 !important;
+}
+
+.photography-role-section {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    border-right: 4px solid #9C27B0;
+}
+
+.photography-role-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.photography-role-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.photography-role-checkbox label {
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+}
+
+.photography-waiting-display {
+    background-color: #e9ecef;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    color: #495057;
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* استایل‌های جدید برای مودال عکاسی */
+.photography-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.photography-modal {
+    background-color: white;
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 450px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.photography-modal h2 {
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--primary-color);
+    font-size: 1.3rem;
+}
+
+.photography-modal .form-group {
+    margin-bottom: 15px;
+}
+
+.photography-modal .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.photography-modal .primary-btn,
+.photography-modal .secondary-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+}
+
+/* استایل برای موبایل */
+@media (max-width: 768px) {
+    .photography-controls {
+        flex-direction: column;
+    }
+    
+    .manual-photography-input {
+        order: 1;
+    }
+    
+    .send-to-photography-btn {
+        order: 2;
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .photography-role-section {
+        padding: 12px;
+    }
+}

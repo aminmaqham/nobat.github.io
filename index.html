@@ -45,7 +45,7 @@
             </div>
         </div>
 
-        <!-- سایر مودال‌ها و پنل‌ها بدون تغییر -->
+        <!-- سایر مودال‌ها و پنل‌ها -->
         <div class="modal-overlay" id="pass-service-modal-overlay" style="display: none;">
             <div class="modal">
                 <h2>انتخاب خدمت برای پاس نوبت</h2>
@@ -108,12 +108,11 @@
                         <div class="call-next-section">
                             <button id="call-next-btn" class="big-button">فراخوان نوبت بعدی</button>
 
-                            <!-- بعد از دکمه call-next-btn و قبل از بسته شدن ticket-actions اضافه کنید -->
+                            <!-- بخش ثبت دستی عکاسی -->
                             <div class="photography-controls">
                                 <input type="text" id="manual-ticket-input" class="manual-photography-input" placeholder="شماره نوبت برای عکاسی" maxlength="4">
                                 <button id="manual-photography-btn" class="big-button send-to-photography-btn">ثبت دستی در عکاسی</button>
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -121,7 +120,8 @@
                 <div id="current-ticket"></div>
             </div>
 
-                        <div class="photography-role-section">
+            <!-- بخش نقش عکاسی -->
+            <div class="photography-role-section">
                 <div class="photography-role-checkbox">
                     <input type="checkbox" id="photography-role-checkbox">
                     <label for="photography-role-checkbox">کاربر عکاسی هستم</label>
@@ -131,7 +131,7 @@
                 </div>
             </div>
 
-            <!-- تغییر در مودال عکاسی برای نمایش کدملی -->
+            <!-- مودال عکاسی -->
             <div class="photography-modal-overlay" id="photography-modal" style="display: none;">
                 <div class="photography-modal">
                     <h2>ارسال به لیست عکاسی</h2>
@@ -176,24 +176,6 @@
                         </thead>
                         <tbody></tbody>
                     </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- بعد از بسته شدن تگ main-content و قبل از بسته شدن تگ container اضافه کنید -->
-
-        <!-- مودال ارسال به عکاسی -->
-        <div class="photography-modal-overlay" id="photography-modal" style="display: none;">
-            <div class="photography-modal">
-                <h2>ارسال به لیست عکاسی</h2>
-                <div class="form-group">
-                    <label for="photography-national-id">کد ملی:</label>
-                    <input type="text" id="photography-national-id" placeholder="کد ملی را وارد کنید" maxlength="10">
-                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">کد ملی برای ثبت در لیست عکاسی الزامی است</small>
-                </div>
-                <div class="form-actions">
-                    <button id="confirm-photography-btn" class="primary-btn">تایید و ارسال</button>
-                    <button id="cancel-photography-btn" class="secondary-btn">انصراف</button>
                 </div>
             </div>
         </div>

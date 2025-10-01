@@ -936,6 +936,78 @@ function openPhotographyModal(ticket) {
     photographyNationalIdInput.focus();
 }
 
+async function addManualToPhotographyList() {
+    const ticketNumber = manualTicketInput.value.trim();
+    const nationalId = prompt('لطفا کد ملی را وارد کنید:');
+    
+    if (!ticketNumber) {
+        alert('لطفا شماره نوبت را وارد کنید.');
+        return;
+    }
+    
+    if (!nationalId) {
+        alert('لطفا کد ملی را وارد کنید.');
+        return;
+    }
+    
+    if (!checkCodeMeli(nationalId)) {
+        alert('کد ملی وارد شده معتبر نیست.');
+        return;
+    }
+    
+    try {
+        // بررسی وجود قبلی در لیست عکاسی
+        const existingItem = photographyList.find(item => 
+            item.ticketNumber === ticketNumber
+        );
+        
+        if (existingItem) {
+            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
+            manualTicketInput.value = '';
+            return;
+        }
+        
+        // اضافه کردن به لیست عکاسی
+        const newPhotographyItem = {
+            id: Date.now().toString(),
+            ticketId: `manual_${Date.now()}`,
+            ticketNumber: ticketNumber,
+            generalNumber: 'دستی',
+            firstName: 'ثبت دستی',
+            lastName: '',
+            nationalId: nationalId,
+            serviceId: 'manual',
+            serviceName: 'ثبت دستی',
+            addedAt: new Date().toISOString(),
+            photoTaken: false,
+            returned: false
+        };
+        
+        photographyList.unshift(newPhotographyItem);
+        await savePhotographyList();
+        updatePhotographyUI();
+        manualTicketInput.value = '';
+        
+        showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+        
+    } catch (error) {
+        console.error('Error adding manual to photography list:', error);
+        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+    }
+}
+
+function updatePhotographyUI() {
+    const waitingCount = photographyList.filter(item => !item.photoTaken).length;
+    photographyWaitingCount.textContent = waitingCount;
+    
+    // ذخیره وضعیت کاربر عکاسی
+    if (currentUser) {
+        const userPrefs = currentUser.prefs || {};
+        userPrefs.is_photography_user = isPhotographyUser;
+        account.updatePrefs(userPrefs).catch(console.error);
+    }
+}
+
 function updatePhotographyUI() {
     const waitingCount = photographyList.filter(item => !item.photoTaken).length;
     photographyWaitingCount.textContent = waitingCount;
