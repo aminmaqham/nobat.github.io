@@ -273,55 +273,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Real-time Updates ---
-    function setupRealtime() {
-        // نظارت بر تغییرات در دیتابیس نوبت‌ها
-        const ticketsChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        
-        client.subscribe(ticketsChannel, (response) => {
-            if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`) ||
-                response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.create`)) {
-                
-                console.log('Ticket update detected:', response.payload);
-                updateTicketsDisplay();
-            }
-        });
-
-        // نظارت پیشرفته بر تغییرات در localStorage
-        window.addEventListener('storage', (e) => {
-            if (e.key === 'photographyList' || e.key === 'photographyListUpdate') {
-                console.log('Photography list updated from storage');
-                updatePhotographyDisplay();
-            }
-        });
-
-        // همچنین بررسی دوره‌ای تغییرات در localStorage
-        setInterval(() => {
-            const currentList = localStorage.getItem('photographyList');
-            const lastUpdate = localStorage.getItem('photographyListUpdate');
+// --- بهبود یافته REAL-TIME UPDATES ---
+function setupRealtime() {
+    console.log('Setting up enhanced real-time for display...');
+    
+    // نظارت بر تغییرات در دیتابیس نوبت‌ها
+    const ticketsChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+    
+    client.subscribe(ticketsChannel, (response) => {
+        if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`) ||
+            response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.create`)) {
             
-            if (currentList) {
-                try {
-                    const parsedList = JSON.parse(currentList);
-                    const currentListString = JSON.stringify(photographyData);
-                    const newListString = JSON.stringify(parsedList);
-                    
-                    if (currentListString !== newListString) {
-                        console.log('Photography list changed - updating display');
-                        photographyData = parsedList;
-                        renderPhotographyList();
-                    }
-                } catch (error) {
-                    console.error('Error checking photography list:', error);
-                }
-            }
-        }, 1000); // بررسی هر 1 ثانیه
+            console.log('Display: Ticket update detected');
+            updateTicketsDisplay();
+        }
+    });
 
-        // نظارت بر eventهای custom
-        window.addEventListener('photographyListUpdated', () => {
-            console.log('Photography list updated via custom event');
+    // سیستم پیشرفته sync برای لیست عکاسی
+    setupDisplayPhotographySync();
+}
+
+// --- سیستم SYNC پیشرفته برای نمایشگر ---
+function setupDisplayPhotographySync() {
+    // نظارت بر تغییرات localStorage
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'photographyList' || e.key === 'photographyListUpdate' || e.key === 'photographyCrossTabSync') {
+            console.log('Display: Photography list updated from storage');
             updatePhotographyDisplay();
-        });
-    }
+        }
+    });
+    
+    // نظارت بر custom events
+    window.addEventListener('photographyListUpdated', () => {
+        console.log('Display: Photography list updated via custom event');
+        updatePhotographyDisplay();
+    });
+    
+    // بررسی دوره‌ای تغییرات
+    let lastDisplayCheck = Date.now();
+    setInterval(() => {
+        const currentTime = Date.now();
+        const lastUpdate = parseInt(localStorage.getItem('photographyListUpdate') || '0');
+        
+        if (lastUpdate > lastDisplayCheck) {
+            console.log('Display: Periodic check detected update');
+            updatePhotographyDisplay();
+            lastDisplayCheck = currentTime;
+        }
+    }, 1000);
+}
 
     // --- Auto-refresh ---
     function startAutoRefresh() {
