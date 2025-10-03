@@ -1349,6 +1349,34 @@ html, body {
     background: #2196F3;
 }
 
+/* استایل برای نوبت‌های رزرو شده */
+.photography-item.reserved {
+    background: #fff3e0;
+    border-right-color: #FF9800;
+}
+
+.photography-status.reserved {
+    background: #FF9800;
+}
+
+/* استایل برای نوبت‌های آماده بازگشت */
+.photography-item.ready-to-return {
+    background: #e8f5e9;
+    border-right-color: #4CAF50;
+    animation: pulse-ready 2s infinite;
+}
+
+@keyframes pulse-ready {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+/* استایل برای دکمه فراخوانی با وضعیت رزرو */
+.big-button.with-reservation {
+    background: linear-gradient(135deg, #9C27B0, #7B1FA2) !important;
+}
+
 .photography-empty {
     text-align: center;
     color: #999;
