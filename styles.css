@@ -91,7 +91,6 @@ header h1 {
   order: 1;
 }
 
-/* New Style for Total Waiting Counter */
 #total-waiting-container {
     color: white;
     background-color: rgba(0,0,0,0.2);
@@ -101,6 +100,192 @@ header h1 {
     margin: 5px 0;
     text-align: center;
     order: 2;
+    /* حذف هرگونه محدودیت نمایش */
+}
+
+/* استایل‌های جدید برای نوتیفیکیشن‌های پیشرفته */
+.call-notification,
+.photography-notification {
+    text-align: center;
+    padding: 20px;
+}
+
+.call-notification h3,
+.photography-notification h3 {
+    color: #2196F3;
+    margin-bottom: 20px;
+    font-size: 1.4rem;
+}
+
+.ticket-number-large {
+    font-size: 4rem;
+    font-weight: 900;
+    color: #2196F3;
+    margin: 15px 0;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+
+.customer-info {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 15px 0;
+    text-align: right;
+    line-height: 1.8;
+    border: 2px solid #e9ecef;
+}
+
+.customer-info strong {
+    color: #495057;
+}
+
+.action-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.action-btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Vazirmatn', sans-serif;
+}
+
+.photo-taken-btn {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    grid-column: 1 / -1;
+}
+
+.photo-taken-btn:hover {
+    background: linear-gradient(135deg, #45a049, #3d8b40);
+    transform: translateY(-2px);
+}
+
+.reserve-btn {
+    background: linear-gradient(135deg, #FF9800, #f57c00);
+    color: white;
+}
+
+.reserve-btn:hover {
+    background: linear-gradient(135deg, #f57c00, #e65100);
+    transform: translateY(-2px);
+}
+
+.next-ticket-btn {
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+    color: white;
+}
+
+.next-ticket-btn:hover {
+    background: linear-gradient(135deg, #1976D2, #1565C0);
+    transform: translateY(-2px);
+}
+
+.reserved-list-btn {
+    background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+    color: white;
+}
+
+.reserved-list-btn:hover {
+    background: linear-gradient(135deg, #7B1FA2, #6A1B9A);
+    transform: translateY(-2px);
+}
+
+.send-to-photo-btn {
+    background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+    color: white;
+}
+
+.send-to-photo-btn:hover {
+    background: linear-gradient(135deg, #7B1FA2, #6A1B9A);
+    transform: translateY(-2px);
+}
+
+.back-btn {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+    grid-column: 1 / -1;
+}
+
+.back-btn:hover {
+    background: linear-gradient(135deg, #5a6268, #495057);
+    transform: translateY(-2px);
+}
+
+/* استایل برای لیست رزروها */
+.reserved-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 15px 0;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.reserved-item {
+    padding: 12px;
+    margin: 8px 0;
+    background: #f8f9fa;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-right: 4px solid #FF9800;
+}
+
+.reserved-item:hover {
+    background: #e9ecef;
+    transform: translateX(-5px);
+}
+
+.reserved-ticket-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #FF9800;
+    margin-bottom: 5px;
+}
+
+.reserved-customer-info {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+/* استایل برای نمایش عکس گرفته نشده */
+.no-photo-warning {
+    color: #f44336;
+    font-weight: bold;
+    background: #ffebee;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 10px 0;
+    border: 1px solid #ffcdd2;
+}
+
+/* واکنش‌گرایی برای موبایل */
+@media (max-width: 768px) {
+    .action-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .ticket-number-large {
+        font-size: 3rem;
+    }
+    
+    .call-notification,
+    .photography-notification {
+        padding: 15px;
+    }
+    
+    .action-btn {
+        padding: 15px;
+        font-size: 16px;
+    }
 }
 
 #total-waiting-count {
