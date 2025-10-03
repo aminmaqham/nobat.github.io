@@ -82,8 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTicketForPhotography = null;
     let isPhotographyUser = false;
     let reservedPhotographyTicket = null;
-    
-
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
@@ -104,10 +102,20 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             currentUser = await account.get();
             await checkAndSetCounterName();
+            
+            // بارگذاری وضعیت کاربر عکاسی
+            const userPrefs = currentUser.prefs || {};
+            isPhotographyUser = userPrefs.is_photography_user || false;
+            photographyRoleCheckbox.checked = isPhotographyUser;
+            
             showLoggedInUI();
             await fetchData();
             setupRealtimeSubscriptions();
             checkAutoReset();
+            loadPhotographyList();
+            updatePhotographyUI();
+            updateUIForUserRole();
+            
         } catch (error) {
             console.log('User not logged in');
             showLoggedOutUI();
@@ -184,10 +192,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const userPrefs = currentUser.prefs || {};
         const counterName = userPrefs.counter_name || 'تعیین نشده';
-        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
+        const roleDisplay = userPrefs.role === 'photography' ? ' (عکاسی)' : '';
+        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName}${roleDisplay})`;
         
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
+        
+        // نمایش لیست عکاسی
+        photographyDisplay.style.display = 'flex';
 
         if (currentUser.prefs && currentUser.prefs.role === 'admin') {
             settingsBtn.style.display = 'inline-block';
@@ -199,6 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // دکمه تنظیمات باجه همیشه نمایش داده می‌شود
         counterSettingsBtn.style.display = 'inline-block';
+        
+        // به‌روزرسانی UI برای نقش عکاسی
+        updateUIForPhotographyRole();
     }
 
     function showLoggedOutUI() {
@@ -211,9 +226,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- REALTIME ---
     function setupRealtimeSubscriptions() {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        client.subscribe(ticketChannel, () => fetchData());
+        client.subscribe(ticketChannel, (response) => {
+            console.log('Real-time update:', response);
+            fetchData();
+        });
+        
         const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
         client.subscribe(serviceChannel, () => fetchData());
+        
+        // نظارت بر تغییرات localStorage برای sync بین تب‌ها
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'photographyList' || e.key === 'photographyListUpdate') {
+                console.log('Photography list updated from another tab');
+                loadPhotographyList();
+                updatePhotographyUI();
+                renderPhotographyList();
+            }
+        });
+        
+        // نظارت بر eventهای custom
+        window.addEventListener('photographyListUpdated', () => {
+            updatePhotographyUI();
+            renderPhotographyList();
+        });
     }
 
     // --- UI RENDERING ---
@@ -507,109 +542,180 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-async function callNextTicket() {
-    if (isPhotographyUser) {
-        await processPhotographyTicket();
-        return;
-    }
-    
-    // منطق قبلی برای کاربران عادی
-    const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
-    await callNextRegularTicket(selections);
-}
-
-async function processPhotographyTicket() {
-    // اگر نوبتی رزرو شده باشد، آن را پردازش کن
-    if (reservedPhotographyTicket) {
-        await handleReservedPhotographyTicket();
-        return;
-    }
-    
-    // پیدا کردن اولین نوبت در لیست عکاسی که عکس آن گرفته نشده
-    const nextPhotographyItem = photographyList.find(item => !item.photoTaken && !item.reserved);
-    
-    if (nextPhotographyItem) {
-        await handlePhotographyTicket(nextPhotographyItem);
-    } else {
-        // اگر نوبتی در لیست عکاسی نیست، از خدمات انتخابی فراخوانی کن
+    // --- CALL NEXT TICKET LOGIC ---
+    async function callNextTicket() {
+        if (isPhotographyUser) {
+            await processPhotographyTicket();
+            return;
+        }
+        
+        // منطق قبلی برای کاربران عادی
         const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
         await callNextRegularTicket(selections);
     }
-}
 
-async function handleReservedPhotographyTicket() {
-    const confirmMessage = `نوبت رزرو شده: ${reservedPhotographyTicket.ticketNumber}\nکد ملی: ${reservedPhotographyTicket.nationalId}\n\nآیا عکس گرفته شد؟`;
-    
-    if (confirm(confirmMessage)) {
-        await markPhotoAsTaken(reservedPhotographyTicket.id);
-        showPopupNotification(`<p>عکس برای نوبت ${reservedPhotographyTicket.ticketNumber} ثبت شد.</p>`);
+    async function processPhotographyTicket() {
+        // اگر نوبتی رزرو شده باشد، آن را پردازش کن
+        if (reservedPhotographyTicket) {
+            await handleReservedPhotographyTicket();
+            return;
+        }
         
-        // برگرداندن نوبت به صاحب اصلی
-        await returnTicketToOriginalUser(reservedPhotographyTicket);
+        // پیدا کردن اولین نوبت در لیست عکاسی که عکس آن گرفته نشده و رزرو نشده
+        const nextPhotographyItem = photographyList.find(item => !item.photoTaken && !item.reserved);
         
-        reservedPhotographyTicket = null;
-    } else {
-        // اگر عکس گرفته نشد، همچنان رزرو باقی بماند
-        showPopupNotification(`<p>نوبت ${reservedPhotographyTicket.ticketNumber} همچنان رزرو شده است.</p>`);
+        if (nextPhotographyItem) {
+            await handlePhotographyTicket(nextPhotographyItem);
+        } else {
+            // اگر نوبتی در لیست عکاسی نیست، از خدمات انتخابی فراخوانی کن
+            const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+            await callNextRegularTicket(selections);
+        }
     }
-}
 
-async function handlePhotographyTicket(photographyItem) {
-    const action = confirm(`نوبت: ${photographyItem.ticketNumber}\nکد ملی: ${photographyItem.nationalId}\n\nآیا می‌خواهید این نوبت را رزرو کنید؟\n(اگر 'تایید' بزنید رزرو می‌شود، اگر 'لغو' بزنید عکس گرفته می‌شود)`);
-    
-    if (action) {
-        // رزرو نوبت
-        photographyItem.reserved = true;
-        reservedPhotographyTicket = photographyItem;
-        await savePhotographyList();
-        showPopupNotification(`<p>نوبت ${photographyItem.ticketNumber} رزرو شد.</p>`);
-    } else {
-        // عکس گرفتن مستقیم
-        await markPhotoAsTaken(photographyItem.id);
-        showPopupNotification(`<p>عکس برای نوبت ${photographyItem.ticketNumber} ثبت شد.</p>`);
+    async function handleReservedPhotographyTicket() {
+        const confirmMessage = `نوبت رزرو شده: ${reservedPhotographyTicket.ticketNumber}\nکد ملی: ${reservedPhotographyTicket.nationalId}\n\nآیا عکس گرفته شد؟`;
         
-        // برگرداندن نوبت به صاحب اصلی
-        await returnTicketToOriginalUser(photographyItem);
+        if (confirm(confirmMessage)) {
+            await markPhotoAsTaken(reservedPhotographyTicket.id);
+            showPopupNotification(`<p>عکس برای نوبت ${reservedPhotographyTicket.ticketNumber} ثبت شد.</p>`);
+            
+            // برگرداندن نوبت به صاحب اصلی
+            await returnTicketToOriginalUser(reservedPhotographyTicket);
+            
+            reservedPhotographyTicket = null;
+        } else {
+            // اگر عکس گرفته نشد، همچنان رزرو باقی بماند
+            showPopupNotification(`<p>نوبت ${reservedPhotographyTicket.ticketNumber} همچنان رزرو شده است.</p>`);
+        }
     }
-}
 
-async function returnTicketToOriginalUser(photographyItem) {
-    try {
-        // پیدا کردن کاربر اصلی که این نوبت را به عکاسی فرستاده
-        const originalTicket = tickets.find(t => t.$id === photographyItem.ticketId);
-        if (originalTicket) {
-            const originalUser = await account.get(originalTicket.called_by);
-            if (originalUser) {
-                // ایجاد نوتیفیکیشن برای کاربر اصلی
-                const notificationData = {
-                    type: 'photography_ready',
-                    ticketId: photographyItem.ticketId,
-                    ticketNumber: photographyItem.ticketNumber,
-                    message: `نوبت ${photographyItem.ticketNumber} آماده بازگشت از عکاسی است`,
-                    timestamp: new Date().toISOString()
-                };
+    async function handlePhotographyTicket(photographyItem) {
+        const actionChoice = confirm(`نوبت: ${photographyItem.ticketNumber}\nکد ملی: ${photographyItem.nationalId}\n\nآیا می‌خواهید این نوبت را رزرو کنید؟\n\n"تایید" = رزرو کردن\n"لغو" = عکس گرفتن و تکمیل`);
+        
+        if (actionChoice) {
+            // رزرو نوبت
+            await reservePhotographyTicket(photographyItem.id);
+            reservedPhotographyTicket = photographyItem;
+        } else {
+            // عکس گرفتن مستقیم و تکمیل
+            await markPhotoAsTaken(photographyItem.id);
+            
+            // برگرداندن نوبت به صاحب اصلی
+            await returnTicketToOriginalUser(photographyItem);
+        }
+    }
+
+    async function callNextRegularTicket(selections) {
+        // ابتدا بررسی کن آیا نوبت قبلی نیاز به عکاسی دارد
+        if (lastCalledTicket[currentUser.$id]) {
+            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+            if (lastTicket && lastTicket.status === 'در حال سرویس') {
+                const needsPhoto = confirm(`آیا نوبت قبلی (${lastTicket.specific_ticket || 'پاس'}) نیاز به عکاسی دارد؟\n\nاگر نیاز دارد، برای ثبت کد ملی در لیست عکاسی 'تایید' بزنید.`);
                 
-                // ذخیره نوتیفیکیشن برای کاربر اصلی
-                await databases.createDocument(
-                    DATABASE_ID, 
-                    'notifications', 
-                    ID.unique(), 
-                    {
-                        ...notificationData,
-                        userId: originalUser.$id
-                    }
-                );
-                
-                // علامت‌گذاری در لیست عکاسی
-                photographyItem.readyToReturn = true;
-                await savePhotographyList();
+                if (needsPhoto) {
+                    openPhotographyModal(lastTicket);
+                    return; // منتظر بمان تا کاربر عکاسی را تکمیل کند
+                } else {
+                    // اگر نیاز به عکاسی ندارد، نوبت را کامل کن
+                    await completeTicket(lastTicket.$id);
+                }
             }
         }
-    } catch (error) {
-        console.error('Error returning ticket to original user:', error);
-    }
-}
 
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+            return;
+        }
+
+        let ticketToCall = null;
+        
+        // اولویت با نوبت‌های آماده بازگشت از عکاسی
+        const readyPhotographyTickets = photographyList
+            .filter(item => item.readyToReturn && !item.returned && item.originalUserId === currentUser.$id)
+            .sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt));
+
+        if (readyPhotographyTickets.length > 0) {
+            const readyItem = readyPhotographyTickets[0];
+            ticketToCall = tickets.find(t => t.$id === readyItem.ticketId);
+            
+            if (ticketToCall) {
+                // علامت‌گذاری به عنوان بازگشته
+                readyItem.returned = true;
+                await savePhotographyList();
+                updatePhotographyUI();
+                renderPhotographyList();
+            }
+        }
+
+        // اگر نوبت آماده عکاسی نبود، از صف عادی فراخوانی کن
+        if (!ticketToCall) {
+            const waitingTickets = tickets
+                .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+                .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+
+            const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+            
+            if (passedTickets.length > 0) {
+                ticketToCall = passedTickets[0];
+            } else {
+                const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+                if (regularTickets.length > 0) {
+                    ticketToCall = regularTickets[0];
+                    
+                    const passedToUpdate = tickets.filter(t => 
+                        t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                        t.service_id === ticketToCall.service_id
+                    );
+                    const updatePromises = passedToUpdate.map(t => 
+                        databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+                    );
+                    if (updatePromises.length > 0) await Promise.all(updatePromises);
+                }
+            }
+        }
+
+        if (ticketToCall) {
+            try {
+                const userPrefs = currentUser.prefs || {};
+                const counterName = userPrefs.counter_name || 'باجه';
+                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                });
+                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                
+                // نمایش نوتیفیکیشن
+                const service = services.find(s => s.$id === updatedTicket.service_id);
+                const isFromPhotography = readyPhotographyTickets.length > 0;
+                const popupMessage = `
+                    <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                    <p><strong>باجه:</strong> ${counterName}</p>
+                    ${isFromPhotography ? '<p style="color: #4CAF50; font-weight: bold;">(بازگشته از عکاسی)</p>' : ''}
+                `;
+                showPopupNotification(popupMessage);
+                
+                if (!isFromPhotography) {
+                    // نمایش دکمه ارسال به عکاسی فقط برای نوبت‌های جدید
+                    showSendToPhotographyButton(updatedTicket);
+                }
+                
+            } catch (error) {
+                console.error('Error calling next ticket:', error);
+                showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+            }
+        } else {
+            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
+        }
+    }
 
     // --- فراخوانی نوبت گذشته خاص ---
     async function callPastTicket() {
@@ -685,29 +791,29 @@ async function returnTicketToOriginalUser(photographyItem) {
         }
     }
     
-async function resetAllTickets() {
-    if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها و لیست عکاسی برای همیشه پاک خواهند شد.')) return;
-    
-    try {
-        let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-        while (response.documents.length > 0) {
-            const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
-            await Promise.all(deletePromises);
-            response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+    async function resetAllTickets() {
+        if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها و لیست عکاسی برای همیشه پاک خواهند شد.')) return;
+        
+        try {
+            let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            while (response.documents.length > 0) {
+                const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
+                await Promise.all(deletePromises);
+                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            }
+            
+            // پاک کردن لیست عکاسی
+            photographyList = [];
+            await savePhotographyList();
+            updatePhotographyUI();
+            renderPhotographyList();
+            
+            showPopupNotification('<p>تمام نوبت‌ها و لیست عکاسی با موفقیت پاک شدند.</p>');
+        } catch (error) {
+            console.error('Error resetting tickets:', error);
+            showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
         }
-        
-        // پاک کردن لیست عکاسی
-        photographyList = [];
-        await savePhotographyList();
-        updatePhotographyUI();
-        renderPhotographyList();
-        
-        showPopupNotification('<p>تمام نوبت‌ها و لیست عکاسی با موفقیت پاک شدند.</p>');
-    } catch (error) {
-        console.error('Error resetting tickets:', error);
-        showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
     }
-}
 
     // --- AUTO RESET FUNCTIONALITY ---
     async function checkAutoReset() {
@@ -831,25 +937,16 @@ async function resetAllTickets() {
 
     // --- POPUP NOTIFICATION SYSTEM ---
     function showPopupNotification(htmlContent) {
-        popupText.innerHTML = htmlContent;
+        popupText.innerHTML = htmlContent + '<button class="close-popup">×</button>';
         popupNotification.style.display = 'flex';
         
-        // استفاده از سیستم نوتیفیکیشن اصلی که قبلاً تعریف شده بود
         setTimeout(() => {
             popupNotification.classList.add('show');
         }, 10);
         
-        // بستن خودکار پس از 5 ثانیه
-        setTimeout(() => {
-            popupNotification.classList.remove('show');
-            setTimeout(() => {
-                popupNotification.style.display = 'none';
-            }, 300);
-        }, 5000);
-        
-        // امکان بستن با کلیک
+        // نوتیفیکیشن فقط با کلیک کاربر بسته می‌شود
         popupNotification.addEventListener('click', function closeHandler(e) {
-            if (e.target === popupNotification) {
+            if (e.target === popupNotification || e.target.classList.contains('close-popup')) {
                 popupNotification.classList.remove('show');
                 setTimeout(() => {
                     popupNotification.style.display = 'none';
@@ -964,702 +1061,538 @@ async function resetAllTickets() {
         return new Date(dateString).toLocaleString('fa-IR');
     }
 
-    // --- Photography List Functions ---
-function openPhotographyModal(ticket) {
-    currentTicketForPhotography = ticket;
-    photographyNationalIdInput.value = '';
-    photographyTicketNumber.textContent = ticket.specific_ticket || 'پاس';
-    photographyCustomerName.textContent = `${ticket.first_name} ${ticket.last_name}`;
-    photographyModal.style.display = 'flex';
-    photographyNationalIdInput.focus();
-}
+    async function completeTicket(ticketId) {
+        try {
+            await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketId, {
+                status: 'تکمیل شده'
+            });
+        } catch (error) {
+            console.error('Error completing ticket:', error);
+        }
+    }
 
-async function addManualToPhotographyList() {
-    const ticketNumber = manualTicketInput.value.trim();
-    const nationalId = prompt('لطفا کد ملی را وارد کنید:');
-    
-    if (!ticketNumber) {
-        alert('لطفا شماره نوبت را وارد کنید.');
-        return;
+    // --- Photography List Functions ---
+    function openPhotographyModal(ticket) {
+        currentTicketForPhotography = ticket;
+        photographyNationalIdInput.value = '';
+        photographyTicketNumber.textContent = ticket.specific_ticket || 'پاس';
+        photographyCustomerName.textContent = `${ticket.first_name} ${ticket.last_name}`;
+        photographyModal.style.display = 'flex';
+        photographyNationalIdInput.focus();
     }
-    
-    if (!nationalId) {
-        alert('لطفا کد ملی را وارد کنید.');
-        return;
-    }
-    
-    if (!checkCodeMeli(nationalId)) {
-        alert('کد ملی وارد شده معتبر نیست.');
-        return;
-    }
-    
-    try {
-        // بررسی وجود قبلی در لیست عکاسی
-        const existingItem = photographyList.find(item => 
-            item.ticketNumber === ticketNumber
-        );
+
+    async function addToPhotographyList() {
+        const nationalId = photographyNationalIdInput.value.trim();
         
-        if (existingItem) {
-            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
-            manualTicketInput.value = '';
+        if (!nationalId) {
+            alert('لطفا کد ملی را وارد کنید.');
             return;
         }
         
-        // اضافه کردن به لیست عکاسی
-        const newPhotographyItem = {
-            id: Date.now().toString(),
-            ticketId: `manual_${Date.now()}`,
-            ticketNumber: ticketNumber,
-            generalNumber: 'دستی',
-            firstName: 'ثبت دستی',
-            lastName: '',
-            nationalId: nationalId,
-            serviceId: 'manual',
-            serviceName: 'ثبت دستی',
-            addedAt: new Date().toISOString(),
-            photoTaken: false,
-            returned: false
-        };
+        if (!checkCodeMeli(nationalId)) {
+            alert('کد ملی وارد شده معتبر نیست.');
+            return;
+        }
         
-        photographyList.unshift(newPhotographyItem);
-        await savePhotographyList();
-        updatePhotographyUI();
-        manualTicketInput.value = '';
+        if (!currentTicketForPhotography) {
+            alert('خطا در دریافت اطلاعات نوبت.');
+            return;
+        }
         
-        showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
-        
-    } catch (error) {
-        console.error('Error adding manual to photography list:', error);
-        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+        try {
+            // بررسی وجود قبلی در لیست عکاسی با همان ticketId
+            const existingItemByTicket = photographyList.find(item => 
+                item.ticketId === currentTicketForPhotography.$id
+            );
+            
+            if (existingItemByTicket) {
+                alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
+                closePhotographyModal();
+                return;
+            }
+            
+            // بررسی وجود کدملی تکراری در لیست عکاسی (فقط نوبت‌های در انتظار)
+            const existingItemByNationalId = photographyList.find(item => 
+                item.nationalId === nationalId && !item.photoTaken
+            );
+            
+            if (existingItemByNationalId) {
+                alert(`کد ملی ${nationalId} قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItemByNationalId.ticketNumber}).`);
+                return;
+            }
+            
+            // اضافه کردن به لیست عکاسی
+            const newPhotographyItem = {
+                id: Date.now().toString(),
+                ticketId: currentTicketForPhotography.$id,
+                ticketNumber: currentTicketForPhotography.specific_ticket || 'پاس',
+                generalNumber: currentTicketForPhotography.general_ticket,
+                firstName: currentTicketForPhotography.first_name,
+                lastName: currentTicketForPhotography.last_name,
+                nationalId: nationalId,
+                serviceId: currentTicketForPhotography.service_id,
+                serviceName: services.find(s => s.$id === currentTicketForPhotography.service_id)?.name || '---',
+                addedAt: new Date().toISOString(),
+                photoTaken: false,
+                reserved: false,
+                readyToReturn: false,
+                returned: false,
+                originalUserId: currentTicketForPhotography.called_by,
+                originalCounterName: currentTicketForPhotography.called_by_counter_name
+            };
+            
+            photographyList.unshift(newPhotographyItem);
+            
+            await savePhotographyList();
+            updatePhotographyUI();
+            renderPhotographyList();
+            closePhotographyModal();
+            
+            showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+            
+            // به‌روزرسانی فوری نمایشگر
+            triggerDisplayUpdate();
+            
+        } catch (error) {
+            console.error('Error adding to photography list:', error);
+            showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+        }
     }
-}
 
-function updatePhotographyUI() {
-    const waitingCount = photographyList.filter(item => !item.photoTaken).length;
-    photographyWaitingCount.textContent = waitingCount;
-    
-    // ذخیره وضعیت کاربر عکاسی
-    if (currentUser) {
+    async function addManualToPhotographyList() {
+        const ticketNumber = manualTicketInput.value.trim();
+        const nationalId = prompt('لطفا کد ملی را وارد کنید:');
+        
+        if (!ticketNumber) {
+            alert('لطفا شماره نوبت را وارد کنید.');
+            return;
+        }
+        
+        if (!nationalId) {
+            alert('لطفا کد ملی را وارد کنید.');
+            return;
+        }
+        
+        if (!checkCodeMeli(nationalId)) {
+            alert('کد ملی وارد شده معتبر نیست.');
+            return;
+        }
+        
+        try {
+            // بررسی وجود قبلی در لیست عکاسی با همان شماره نوبت
+            const existingItemByTicket = photographyList.find(item => 
+                item.ticketNumber === ticketNumber
+            );
+            
+            if (existingItemByTicket) {
+                alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
+                manualTicketInput.value = '';
+                return;
+            }
+            
+            // بررسی وجود کدملی تکراری در لیست عکاسی (فقط نوبت‌های در انتظار)
+            const existingItemByNationalId = photographyList.find(item => 
+                item.nationalId === nationalId && !item.photoTaken
+            );
+            
+            if (existingItemByNationalId) {
+                alert(`کد ملی ${nationalId} قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItemByNationalId.ticketNumber}).`);
+                return;
+            }
+            
+            // اضافه کردن به لیست عکاسی
+            const newPhotographyItem = {
+                id: Date.now().toString(),
+                ticketId: `manual_${Date.now()}`,
+                ticketNumber: ticketNumber,
+                generalNumber: 'دستی',
+                firstName: 'ثبت دستی',
+                lastName: '',
+                nationalId: nationalId,
+                serviceId: 'manual',
+                serviceName: 'ثبت دستی',
+                addedAt: new Date().toISOString(),
+                photoTaken: false,
+                reserved: false,
+                readyToReturn: false,
+                returned: false,
+                originalUserId: currentUser.$id,
+                originalCounterName: currentUser.prefs?.counter_name || 'دستی'
+            };
+            
+            photographyList.unshift(newPhotographyItem);
+            await savePhotographyList();
+            updatePhotographyUI();
+            manualTicketInput.value = '';
+            
+            showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+            
+        } catch (error) {
+            console.error('Error adding manual to photography list:', error);
+            showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+        }
+    }
+
+    function updatePhotographyUI() {
+        const waitingCount = photographyList.filter(item => !item.photoTaken).length;
+        photographyWaitingCount.textContent = waitingCount;
+        
+        // ذخیره وضعیت کاربر عکاسی
         const userPrefs = currentUser.prefs || {};
         userPrefs.is_photography_user = isPhotographyUser;
         account.updatePrefs(userPrefs).catch(console.error);
     }
-}
 
-function updatePhotographyUI() {
-    const waitingCount = photographyList.filter(item => !item.photoTaken).length;
-    photographyWaitingCount.textContent = waitingCount;
-    
-    // ذخیره وضعیت کاربر عکاسی
-    const userPrefs = currentUser.prefs || {};
-    userPrefs.is_photography_user = isPhotographyUser;
-    account.updatePrefs(userPrefs).catch(console.error);
-}
-
-
-function closePhotographyModal() {
-    photographyModal.style.display = 'none';
-    currentTicketForPhotography = null;
-}
-
-async function addToPhotographyList() {
-    const nationalId = photographyNationalIdInput.value.trim();
-    
-    if (!nationalId) {
-        alert('لطفا کد ملی را وارد کنید.');
-        return;
+    function closePhotographyModal() {
+        photographyModal.style.display = 'none';
+        currentTicketForPhotography = null;
     }
-    
-    if (!checkCodeMeli(nationalId)) {
-        alert('کد ملی وارد شده معتبر نیست.');
-        return;
-    }
-    
-    if (!currentTicketForPhotography) {
-        alert('خطا در دریافت اطلاعات نوبت.');
-        return;
-    }
-    
-    try {
-        // بررسی وجود قبلی در لیست عکاسی با همان ticketId
-        const existingItemByTicket = photographyList.find(item => 
-            item.ticketId === currentTicketForPhotography.$id
-        );
-        
-        if (existingItemByTicket) {
-            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
-            closePhotographyModal();
+
+    function renderPhotographyList() {
+        if (photographyList.length === 0) {
+            photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+            photographyDisplay.style.display = 'none';
             return;
         }
         
-        // بررسی وجود کدملی تکراری در لیست عکاسی
-        const existingItemByNationalId = photographyList.find(item => 
-            item.nationalId === nationalId && !item.photoTaken
-        );
-        
-        if (existingItemByNationalId) {
-            alert(`کد ملی ${nationalId} قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItemByNationalId.ticketNumber}).`);
-            return;
-        }
-        
-        // اضافه کردن به لیست عکاسی
-        const newPhotographyItem = {
-            id: Date.now().toString(),
-            ticketId: currentTicketForPhotography.$id,
-            ticketNumber: currentTicketForPhotography.specific_ticket || 'پاس',
-            generalNumber: currentTicketForPhotography.general_ticket,
-            firstName: currentTicketForPhotography.first_name,
-            lastName: currentTicketForPhotography.last_name,
-            nationalId: nationalId,
-            serviceId: currentTicketForPhotography.service_id,
-            serviceName: services.find(s => s.$id === currentTicketForPhotography.service_id)?.name || '---',
-            addedAt: new Date().toISOString(),
-            photoTaken: false,
-            returned: false
-        };
-        
-        photographyList.unshift(newPhotographyItem);
-        await savePhotographyList();
-        updatePhotographyUI();
-        closePhotographyModal();
-        
-        showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
-        
-    } catch (error) {
-        console.error('Error adding to photography list:', error);
-        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
-    }
-}
+        // مرتب‌سازی: اول نوبت‌های رزرو شده، سپس نوبت‌های آماده بازگشت، سپس بقیه
+        const sortedList = [...photographyList].sort((a, b) => {
+            const statusPriority = {
+                'reserved': 1,
+                'readyToReturn': 2,
+                'waiting': 3,
+                'completed': 4
+            };
 
-async function addManualToPhotographyList() {
-    const ticketNumber = manualTicketInput.value.trim();
-    const nationalId = prompt('لطفا کد ملی را وارد کنید:');
-    
-    if (!ticketNumber) {
-        alert('لطفا شماره نوبت را وارد کنید.');
-        return;
-    }
-    
-    if (!nationalId) {
-        alert('لطفا کد ملی را وارد کنید.');
-        return;
-    }
-    
-    if (!checkCodeMeli(nationalId)) {
-        alert('کد ملی وارد شده معتبر نیست.');
-        return;
-    }
-    
-    try {
-        // بررسی وجود قبلی در لیست عکاسی با همان شماره نوبت
-        const existingItemByTicket = photographyList.find(item => 
-            item.ticketNumber === ticketNumber
-        );
-        
-        if (existingItemByTicket) {
-            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
-            manualTicketInput.value = '';
-            return;
-        }
-        
-        // بررسی وجود کدملی تکراری در لیست عکاسی
-        const existingItemByNationalId = photographyList.find(item => 
-            item.nationalId === nationalId && !item.photoTaken
-        );
-        
-        if (existingItemByNationalId) {
-            alert(`کد ملی ${nationalId} قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItemByNationalId.ticketNumber}).`);
-            return;
-        }
-        
-        // اضافه کردن به لیست عکاسی
-        const newPhotographyItem = {
-            id: Date.now().toString(),
-            ticketId: `manual_${Date.now()}`,
-            ticketNumber: ticketNumber,
-            generalNumber: 'دستی',
-            firstName: 'ثبت دستی',
-            lastName: '',
-            nationalId: nationalId,
-            serviceId: 'manual',
-            serviceName: 'ثبت دستی',
-            addedAt: new Date().toISOString(),
-            photoTaken: false,
-            returned: false
-        };
-        
-        photographyList.unshift(newPhotographyItem);
-        await savePhotographyList();
-        updatePhotographyUI();
-        manualTicketInput.value = '';
-        
-        showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
-        
-    } catch (error) {
-        console.error('Error adding manual to photography list:', error);
-        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
-    }
-}
-
-function renderPhotographyList() {
-    if (photographyList.length === 0) {
-        photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-        photographyDisplay.style.display = 'none';
-        return;
-    }
-    
-    // فقط 7 آیتم اول را نشان بده
-    const displayItems = photographyList.slice(0, 7);
-    
-    photographyListContainer.innerHTML = displayItems.map((item, index) => `
-        <div class="photography-item ${item.photoTaken ? 'photo-taken' : ''} ${index === 0 && !item.photoTaken ? 'new-item' : ''}">
-            <div class="photography-number">${index + 1}</div>
-            <div class="photography-info">
-                <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
-                <div class="photography-national-id">${item.nationalId}</div>
-            </div>
-            <div class="photography-status ${item.photoTaken ? 'photo-taken' : ''}">
-                ${item.photoTaken ? 'عکس گرفته شد' : 'در انتظار'}
-            </div>
-        </div>
-    `).join('');
-    
-    photographyDisplay.style.display = 'flex';
-}
-
-async function savePhotographyList() {
-    try {
-        localStorage.setItem('photographyList', JSON.stringify(photographyList));
-    } catch (error) {
-        console.error('Error saving photography list:', error);
-    }
-}
-
-function loadPhotographyList() {
-    try {
-        const saved = localStorage.getItem('photographyList');
-        if (saved) {
-            photographyList = JSON.parse(saved);
-        }
-        renderPhotographyList();
-        
-        // نمایش لیست عکاسی اگر آیتمی وجود دارد
-        if (photographyList.length > 0) {
-            photographyDisplay.style.display = 'flex';
-        }
-    } catch (error) {
-        console.error('Error loading photography list:', error);
-        photographyList = [];
-    }
-}
-
-async function markPhotoAsTaken(photographyItemId) {
-    const item = photographyList.find(i => i.id === photographyItemId);
-    if (item) {
-        item.photoTaken = true;
-        await savePhotographyList();
-        renderPhotographyList();
-        
-        // اگر کاربر عکاسی هست، آیتم را از لیست حذف کن
-        const userPrefs = currentUser.prefs || {};
-        if (userPrefs.role === 'photography') {
-            removeFromPhotographyList(photographyItemId);
-        }
-    }
-}
-
-async function removeFromPhotographyList(photographyItemId) {
-    photographyList = photographyList.filter(item => item.id !== photographyItemId);
-    await savePhotographyList();
-    renderPhotographyList();
-    
-    // اگر لیست خالی شد، نمایشگر را مخفی کن
-    if (photographyList.length === 0) {
-        photographyDisplay.style.display = 'none';
-    }
-}
-
-async function callFromPhotographyList() {
-    // پیدا کردن اولین آیتم در لیست عکاسی که عکس آن گرفته شده
-    const readyItem = photographyList.find(item => item.photoTaken && !item.returned);
-    
-    if (!readyItem) {
-        showPopupNotification('<p>هیچ نوبت آماده‌ای در لیست عکاسی وجود ندارد.</p>');
-        return;
-    }
-    
-    try {
-        // آپدیت وضعیت نوبت در دیتابیس
-        const userPrefs = currentUser.prefs || {};
-        const counterName = userPrefs.counter_name || 'باجه';
-        
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            readyItem.ticketId, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name || currentUser.email,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
-            }
-        );
-        
-        // علامت‌گذاری به عنوان بازگشته
-        readyItem.returned = true;
-        await savePhotographyList();
-        renderPhotographyList();
-        
-        // نمایش نوتیفیکیشن
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        const popupMessage = `
-            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-            <p><strong>باجه:</strong> ${counterName}</p>
-            <p style="color: #4CAF50; font-weight: bold;">(بازگشته از عکاسی)</p>
-        `;
-        showPopupNotification(popupMessage);
-        
-        // حذف از لیست عکاسی پس از 2 ثانیه
-        setTimeout(() => {
-            removeFromPhotographyList(readyItem.id);
-        }, 2000);
-        
-    } catch (error) {
-        console.error('Error calling from photography list:', error);
-        showPopupNotification('<p>خطا در فراخوانی از لیست عکاسی!</p>');
-    }
-}
-
-// --- Modified Call Next Ticket Function ---
-// --- Modified Call Next Ticket Function ---
-async function callNextTicket() {
-    // اگر کاربر عکاسی هست
-    if (isPhotographyUser) {
-        await processPhotographyTicket();
-        return;
-    }
-    
-    // کاربر عادی - منطق قبلی
-    const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
-    await callNextRegularTicket(selections);
-}
-
-async function callNextRegularTicket(selections) {
-    // ابتدا بررسی کن آیا نوبت قبلی نیاز به عکاسی دارد
-    if (lastCalledTicket[currentUser.$id]) {
-        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
-        if (lastTicket && lastTicket.status === 'در حال سرویس') {
-            const needsPhoto = confirm(`آیا نوبت قبلی (${lastTicket.specific_ticket || 'پاس'}) نیاز به عکاسی دارد؟\n\nاگر نیاز دارد، برای ثبت کد ملی در لیست عکاسی 'تایید' بزنید.`);
+            const aStatus = getPhotographyItemStatus(a);
+            const bStatus = getPhotographyItemStatus(b);
             
-            if (needsPhoto) {
-                openPhotographyModal(lastTicket);
-                return; // منتظر بمان تا کاربر عکاسی را تکمیل کند
-            } else {
-                // اگر نیاز به عکاسی ندارد، نوبت را کامل کن
-                await completeTicket(lastTicket.$id);
+            if (statusPriority[aStatus] !== statusPriority[bStatus]) {
+                return statusPriority[aStatus] - statusPriority[bStatus];
             }
-        }
-    }
-
-    // بقیه منطق قبلی...
-    let ticketToCall = null;
-    
-    const waitingTickets = tickets
-        .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-        .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
-
-    // بقیه منطق...
-}
-
-async function completeTicket(ticketId) {
-    try {
-        await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketId, {
-            status: 'تکمیل شده'
+            
+            return new Date(a.addedAt) - new Date(b.addedAt);
         });
-    } catch (error) {
-        console.error('Error completing ticket:', error);
-    }
-}
-
-async function processPhotographyTicket() {
-    // پیدا کردن اولین نوبت در لیست عکاسی که عکس آن گرفته نشده
-    const nextPhotographyItem = photographyList.find(item => !item.photoTaken);
-    
-    if (!nextPhotographyItem) {
-        showPopupNotification('<p>هیچ نوبتی در لیست عکاسی وجود ندارد.</p>');
-        return;
-    }
-    
-    // نمایش اطلاعات کدملی به کاربر عکاسی
-    const confirmMessage = `نوبت: ${nextPhotographyItem.ticketNumber}\nکد ملی: ${nextPhotographyItem.nationalId}\n\nآیا عکس گرفته شد؟`;
-    
-    if (confirm(confirmMessage)) {
-        await markPhotoAsTaken(nextPhotographyItem.id);
-        showPopupNotification(`<p>عکس برای نوبت ${nextPhotographyItem.ticketNumber} ثبت شد.</p>`);
-    }
-}
-
-async function callNextRegularTicket(selections) {
-    if (lastCalledTicket[currentUser.$id]) {
-        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
-        if (lastTicket && lastTicket.status === 'در حال سرویس') {
-            // No smart time update needed anymore
-        }
-    }
-
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-        return;
+        
+        photographyListContainer.innerHTML = sortedList.map((item, index) => `
+            <div class="photography-item ${getPhotographyItemClass(item)}" data-id="${item.id}">
+                <div class="photography-number">${index + 1}</div>
+                <div class="photography-info">
+                    <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
+                    <div class="photography-national-id">${item.nationalId}</div>
+                    <div class="photography-service">${item.serviceName}</div>
+                    ${item.originalCounterName ? `<div class="photography-origin">ارسال کننده: ${item.originalCounterName}</div>` : ''}
+                </div>
+                <div class="photography-actions">
+                    ${!item.photoTaken && !item.reserved ? `
+                        <button class="photography-btn complete-btn" onclick="markPhotoAsTaken('${item.id}')">تکمیل</button>
+                        <button class="photography-btn reserve-btn" onclick="reservePhotographyTicket('${item.id}')">رزرو</button>
+                    ` : ''}
+                    ${item.reserved ? `
+                        <button class="photography-btn continue-btn" onclick="continueReservedTicket('${item.id}')">ادامه</button>
+                    ` : ''}
+                    ${item.readyToReturn ? `
+                        <div class="photography-ready-badge">آماده بازگشت</div>
+                    ` : ''}
+                </div>
+                <div class="photography-status ${getPhotographyStatusClass(item)}">
+                    ${getPhotographyStatusText(item)}
+                </div>
+            </div>
+        `).join('');
+        
+        photographyDisplay.style.display = 'flex';
     }
 
-    let ticketToCall = null;
-    
-    // Include disabled services in the waiting tickets for calling
-    const waitingTickets = tickets
-        .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-        .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
-
-    const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
-    
-    if (passedTickets.length > 0) {
-        ticketToCall = passedTickets[0];
-    } else {
-        const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
-        if (regularTickets.length > 0) {
-            ticketToCall = regularTickets[0];
-            
-            const passedToUpdate = tickets.filter(t => 
-                t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
-                t.service_id === ticketToCall.service_id
-            );
-            const updatePromises = passedToUpdate.map(t => 
-                databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
-            );
-            if (updatePromises.length > 0) await Promise.all(updatePromises);
-        }
-    }
-
-    if (ticketToCall) {
+    async function savePhotographyList() {
         try {
+            localStorage.setItem('photographyList', JSON.stringify(photographyList));
+            // تریگر به‌روزرسانی برای نمایشگر
+            localStorage.setItem('photographyListUpdate', Date.now().toString());
+        } catch (error) {
+            console.error('Error saving photography list:', error);
+        }
+    }
+
+    function loadPhotographyList() {
+        try {
+            const saved = localStorage.getItem('photographyList');
+            if (saved) {
+                photographyList = JSON.parse(saved);
+            }
+            renderPhotographyList();
+            
+            // نمایش لیست عکاسی اگر آیتمی وجود دارد
+            if (photographyList.length > 0) {
+                photographyDisplay.style.display = 'flex';
+            }
+        } catch (error) {
+            console.error('Error loading photography list:', error);
+            photographyList = [];
+        }
+    }
+
+    async function markPhotoAsTaken(photographyItemId) {
+        const item = photographyList.find(i => i.id === photographyItemId);
+        if (item) {
+            item.photoTaken = true;
+            item.readyToReturn = true;
+            item.reserved = false;
+            await savePhotographyList();
+            renderPhotographyList();
+            updatePhotographyUI();
+            
+            // به‌روزرسانی فوری نمایشگر
+            triggerDisplayUpdate();
+            
+            showPopupNotification(`<p>نوبت ${item.ticketNumber} آماده بازگشت است.</p>`);
+        }
+    }
+
+    async function reservePhotographyTicket(photographyItemId) {
+        const item = photographyList.find(i => i.id === photographyItemId);
+        if (item) {
+            item.reserved = true;
+            item.photoTaken = false;
+            item.readyToReturn = false;
+            await savePhotographyList();
+            renderPhotographyList();
+            updatePhotographyUI();
+            
+            showPopupNotification(`<p>نوبت ${item.ticketNumber} رزرو شد.</p>`);
+        }
+    }
+
+    async function removeFromPhotographyList(photographyItemId) {
+        photographyList = photographyList.filter(item => item.id !== photographyItemId);
+        await savePhotographyList();
+        renderPhotographyList();
+        
+        // اگر لیست خالی شد، نمایشگر را مخفی کن
+        if (photographyList.length === 0) {
+            photographyDisplay.style.display = 'none';
+        }
+    }
+
+    async function returnTicketToOriginalUser(photographyItem) {
+        try {
+            // آپدیت وضعیت نوبت در دیتابیس برای بازگشت به کاربر اصلی
+            const originalTicket = await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                photographyItem.ticketId, 
+                {
+                    status: 'در حال انتظار',
+                    photography_completed: true,
+                    photography_completed_at: new Date().toISOString()
+                }
+            );
+            
+            // ایجاد نوتیفیکیشن برای کاربر اصلی
+            showPopupNotification(`<p>نوبت ${photographyItem.ticketNumber} آماده بازگشت به ${photographyItem.originalCounterName || 'کاربر اصلی'} است.</p>`);
+            
+        } catch (error) {
+            console.error('Error returning ticket to original user:', error);
+        }
+    }
+
+    function showSendToPhotographyButton(ticket) {
+        // حذف دکمه قبلی اگر وجود دارد
+        const existingButton = document.querySelector('.send-to-photography-btn');
+        if (existingButton) {
+            existingButton.remove();
+        }
+        
+        // ایجاد دکمه جدید
+        const button = document.createElement('button');
+        button.className = 'big-button send-to-photography-btn';
+        button.textContent = 'ارسال به لیست عکاسی';
+        button.addEventListener('click', () => {
+            openPhotographyModal(ticket);
+        });
+        
+        // اضافه کردن دکمه به بخش ticket-actions
+        const ticketActions = document.querySelector('.ticket-actions');
+        ticketActions.appendChild(button);
+        
+        // حذف خودکار دکمه بعد از 30 ثانیه
+        setTimeout(() => {
+            if (button.parentNode) {
+                button.remove();
+            }
+        }, 30000);
+    }
+
+    // --- Helper Functions for Photography ---
+    function getPhotographyItemStatus(item) {
+        if (item.reserved) return 'reserved';
+        if (item.readyToReturn) return 'readyToReturn';
+        if (item.photoTaken) return 'completed';
+        return 'waiting';
+    }
+
+    function getPhotographyItemClass(item) {
+        if (item.reserved) return 'reserved';
+        if (item.readyToReturn) return 'ready-to-return';
+        if (item.photoTaken) return 'photo-taken';
+        return '';
+    }
+
+    function getPhotographyStatusClass(item) {
+        if (item.reserved) return 'status-reserved';
+        if (item.readyToReturn) return 'status-ready';
+        if (item.photoTaken) return 'status-done';
+        return 'status-waiting';
+    }
+
+    function getPhotographyStatusText(item) {
+        if (item.reserved) return 'رزرو شده';
+        if (item.readyToReturn) return 'آماده بازگشت';
+        if (item.photoTaken) return 'تکمیل شده';
+        return 'در انتظار';
+    }
+
+    // --- تابع برای ادامه نوبت رزرو شده ---
+    async function continueReservedTicket(photographyItemId) {
+        const item = photographyList.find(i => i.id === photographyItemId);
+        if (item) {
+            reservedPhotographyTicket = item;
+            showPopupNotification(`<p>نوبت ${item.ticketNumber} برای ادامه کار انتخاب شد.</p>`);
+        }
+    }
+
+    // --- تابع برای به‌روزرسانی فوری نمایشگر ---
+    function triggerDisplayUpdate() {
+        // ارسال event برای به‌روزرسانی نمایشگر
+        window.dispatchEvent(new CustomEvent('photographyListUpdated'));
+        
+        // همچنین به‌روزرسانی localStorage برای sync بین تب‌ها
+        localStorage.setItem('photographyListUpdate', Date.now().toString());
+    }
+
+    // --- Modified UI for Photography Role ---
+    function updateUIForPhotographyRole() {
+        const userPrefs = currentUser.prefs || {};
+        
+        if (userPrefs.role === 'photography') {
+            // مخفی کردن بخش‌های غیرضروری برای کاربر عکاسی
+            document.querySelector('.service-buttons').style.display = 'none';
+            document.querySelector('.ticket-form').style.display = 'none';
+            document.getElementById('pass-ticket-btn').style.display = 'none';
+            document.getElementById('call-past-btn').style.display = 'none';
+            
+            // تغییر متن دکمه فراخوانی
+            const callNextBtn = document.getElementById('call-next-btn');
+            callNextBtn.textContent = 'فراخوانی نوبت عکاسی/خدمات';
+            callNextBtn.style.backgroundColor = '#9C27B0';
+            
+            // اضافه کردن دکمه فراخوانی از لیست عکاسی
+            const photographyCallSection = document.createElement('div');
+            photographyCallSection.className = 'photography-call-section';
+            photographyCallSection.innerHTML = `
+                <button id="call-from-photography-btn" class="big-button photography-call-btn" disabled>
+                    فراخوانی از لیست عکاسی
+                </button>
+            `;
+            
+            const ticketActions = document.querySelector('.ticket-actions');
+            ticketActions.appendChild(photographyCallSection);
+            
+            // اضافه کردن ایونت لیستنر برای دکمه فراخوانی از لیست عکاسی
+            document.getElementById('call-from-photography-btn').addEventListener('click', callFromPhotographyList);
+            
+            // به‌روزرسانی وضعیت دکمه بر اساس وجود آیتم آماده در لیست عکاسی
+            updatePhotographyCallButton();
+        }
+    }
+
+    function updatePhotographyCallButton() {
+        const callFromPhotographyBtn = document.getElementById('call-from-photography-btn');
+        if (callFromPhotographyBtn) {
+            const readyItem = photographyList.find(item => item.photoTaken && !item.returned);
+            callFromPhotographyBtn.disabled = !readyItem;
+        }
+    }
+
+    async function callFromPhotographyList() {
+        // پیدا کردن اولین آیتم در لیست عکاسی که عکس آن گرفته شده
+        const readyItem = photographyList.find(item => item.photoTaken && !item.returned);
+        
+        if (!readyItem) {
+            showPopupNotification('<p>هیچ نوبت آماده‌ای در لیست عکاسی وجود ندارد.</p>');
+            return;
+        }
+        
+        try {
+            // آپدیت وضعیت نوبت در دیتابیس
             const userPrefs = currentUser.prefs || {};
             const counterName = userPrefs.counter_name || 'باجه';
-            const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
-            });
-            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
             
-            // نمایش نام شخص در پاپاپ فراخوانی
+            const updatedTicket = await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                readyItem.ticketId, 
+                {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name || currentUser.email,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                }
+            );
+            
+            // علامت‌گذاری به عنوان بازگشته
+            readyItem.returned = true;
+            await savePhotographyList();
+            renderPhotographyList();
+            
+            // نمایش نوتیفیکیشن
             const service = services.find(s => s.$id === updatedTicket.service_id);
             const popupMessage = `
-                <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
                 <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
                 <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
                 <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
                 <p><strong>باجه:</strong> ${counterName}</p>
+                <p style="color: #4CAF50; font-weight: bold;">(بازگشته از عکاسی)</p>
             `;
             showPopupNotification(popupMessage);
             
-            // نمایش دکمه ارسال به عکاسی
-            showSendToPhotographyButton(updatedTicket);
+            // حذف از لیست عکاسی پس از 2 ثانیه
+            setTimeout(() => {
+                removeFromPhotographyList(readyItem.id);
+            }, 2000);
             
         } catch (error) {
-            console.error('Error calling next ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
-        }
-    } else {
-        showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
-    }
-}
-
-function showSendToPhotographyButton(ticket) {
-    // حذف دکمه قبلی اگر وجود دارد
-    const existingButton = document.querySelector('.send-to-photography-btn');
-    if (existingButton) {
-        existingButton.remove();
-    }
-    
-    // ایجاد دکمه جدید
-    const button = document.createElement('button');
-    button.className = 'big-button send-to-photography-btn';
-    button.textContent = 'ارسال به لیست عکاسی';
-    button.addEventListener('click', () => {
-        openPhotographyModal(ticket);
-    });
-    
-    // اضافه کردن دکمه به بخش ticket-actions
-    const ticketActions = document.querySelector('.ticket-actions');
-    ticketActions.appendChild(button);
-    
-    // حذف خودکار دکمه بعد از 30 ثانیه
-    setTimeout(() => {
-        if (button.parentNode) {
-            button.remove();
-        }
-    }, 30000);
-}
-// --- Modified UI for Photography Role ---
-function updateUIForPhotographyRole() {
-    const userPrefs = currentUser.prefs || {};
-    
-    if (userPrefs.role === 'photography') {
-        // مخفی کردن بخش‌های غیرضروری برای کاربر عکاسی
-        document.querySelector('.service-buttons').style.display = 'none';
-        document.querySelector('.ticket-form').style.display = 'none';
-        document.getElementById('pass-ticket-btn').style.display = 'none';
-        document.getElementById('call-past-btn').style.display = 'none';
-        
-        // تغییر متن دکمه فراخوانی
-        const callNextBtn = document.getElementById('call-next-btn');
-        callNextBtn.textContent = 'عکس بگیر و تایید کن';
-        callNextBtn.style.backgroundColor = '#9C27B0';
-        
-        // اضافه کردن دکمه فراخوانی از لیست عکاسی
-        const photographyCallSection = document.createElement('div');
-        photographyCallSection.className = 'photography-call-section';
-        photographyCallSection.innerHTML = `
-            <button id="call-from-photography-btn" class="big-button photography-call-btn" disabled>
-                فراخوانی از لیست عکاسی
-            </button>
-        `;
-        
-        const ticketActions = document.querySelector('.ticket-actions');
-        ticketActions.appendChild(photographyCallSection);
-        
-        // اضافه کردن ایونت لیستنر برای دکمه فراخوانی از لیست عکاسی
-        document.getElementById('call-from-photography-btn').addEventListener('click', callFromPhotographyList);
-        
-        // به‌روزرسانی وضعیت دکمه بر اساس وجود آیتم آماده در لیست عکاسی
-        updatePhotographyCallButton();
-    }
-}
-
-function updatePhotographyCallButton() {
-    const callFromPhotographyBtn = document.getElementById('call-from-photography-btn');
-    if (callFromPhotographyBtn) {
-        const readyItem = photographyList.find(item => item.photoTaken && !item.returned);
-        callFromPhotographyBtn.disabled = !readyItem;
-    }
-}
-
-// --- Modified Show Logged In UI ---
-function showLoggedInUI() {
-    loginFields.style.display = 'none';
-    userInfo.style.display = 'flex';
-    
-    const userPrefs = currentUser.prefs || {};
-    const counterName = userPrefs.counter_name || 'تعیین نشده';
-    const roleDisplay = userPrefs.role === 'photography' ? ' (عکاسی)' : '';
-    userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName}${roleDisplay})`;
-    
-    mainContent.style.display = 'block';
-    totalWaitingContainer.style.display = 'block';
-    
-    // نمایش لیست عکاسی
-    photographyDisplay.style.display = 'flex';
-
-    if (currentUser.prefs && currentUser.prefs.role === 'admin') {
-        settingsBtn.style.display = 'inline-block';
-        resetAllBtn.style.display = 'inline-block';
-    } else {
-        settingsBtn.style.display = 'none';
-        resetAllBtn.style.display = 'none';
-    }
-    
-    // دکمه تنظیمات باجه همیشه نمایش داده می‌شود
-    counterSettingsBtn.style.display = 'inline-block';
-    
-    // به‌روزرسانی UI برای نقش عکاسی
-    updateUIForPhotographyRole();
-}
-
-// --- Event Listeners (اضافه کردن به بخش event listeners موجود) ---
-confirmPhotographyBtn.addEventListener('click', addToPhotographyList);
-cancelPhotographyBtn.addEventListener('click', closePhotographyModal);
-manualPhotographyBtn.addEventListener('click', addManualToPhotographyList);
-photographyRoleCheckbox.addEventListener('change', function() {
-    isPhotographyUser = this.checked;
-    updatePhotographyUI();
-    updateUIForUserRole();
-});
-
-manualTicketInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        addManualToPhotographyList();
-    }
-});
-
-// مدیریت input کد ملی در مودال عکاسی
-photographyNationalIdInput.addEventListener('input', function() {
-    // فقط اعداد مجاز هستند
-    this.value = this.value.replace(/[^0-9]/g, '');
-});
-
-photographyNationalIdInput.addEventListener('keypress', function(e) {
-    // اجازه دادن به کلید Enter برای تایید
-    if (e.key === 'Enter') {
-        addToPhotographyList();
-    }
-});
-
-// --- Modified Initialize App ---
-async function initializeApp() {
-    try {
-        currentUser = await account.get();
-        await checkAndSetCounterName();
-        
-        // بارگذاری وضعیت کاربر عکاسی
-        const userPrefs = currentUser.prefs || {};
-        isPhotographyUser = userPrefs.is_photography_user || false;
-        photographyRoleCheckbox.checked = isPhotographyUser;
-        
-        showLoggedInUI();
-        await fetchData();
-        setupRealtimeSubscriptions();
-        checkAutoReset();
-        loadPhotographyList();
-        updatePhotographyUI();
-        updateUIForUserRole();
-        
-    } catch (error) {
-        console.log('User not logged in');
-        showLoggedOutUI();
-    }
-}
-
-async function checkReadyPhotographyTickets() {
-    if (!isPhotographyUser) {
-        const readyTickets = photographyList.filter(item => item.readyToReturn && !item.returned);
-        if (readyTickets.length > 0) {
-            // نمایش نوتیفیکیشن برای کاربر
-            showPopupNotification(`<p>${readyTickets.length} نوبت آماده بازگشت از عکاسی دارید.</p>`);
+            console.error('Error calling from photography list:', error);
+            showPopupNotification('<p>خطا در فراخوانی از لیست عکاسی!</p>');
         }
     }
-}
 
-function updateUIForUserRole() {
-    if (isPhotographyUser) {
-        document.getElementById('call-next-btn').textContent = 'فراخوانی نوبت عکاسی/خدمات';
-        document.querySelector('.photography-controls').style.display = 'none';
-        
-        // اضافه کردن نمایش وضعیت رزرو
-        if (reservedPhotographyTicket) {
-            document.getElementById('call-next-btn').textContent = `ادامه نوبت رزرو شده: ${reservedPhotographyTicket.ticketNumber}`;
+    function updateUIForUserRole() {
+        if (isPhotographyUser) {
+            document.getElementById('call-next-btn').textContent = 'فراخوانی نوبت عکاسی/خدمات';
+            document.querySelector('.photography-controls').style.display = 'none';
+            
+            // اضافه کردن نمایش وضعیت رزرو
+            if (reservedPhotographyTicket) {
+                document.getElementById('call-next-btn').textContent = `ادامه نوبت رزرو شده: ${reservedPhotographyTicket.ticketNumber}`;
+            }
+        } else {
+            document.getElementById('call-next-btn').textContent = 'فراخوان نوبت بعدی';
+            document.querySelector('.photography-controls').style.display = 'flex';
         }
-    } else {
-        document.getElementById('call-next-btn').textContent = 'فراخوان نوبت بعدی';
-        document.querySelector('.photography-controls').style.display = 'flex';
     }
-}
+
+    async function checkReadyPhotographyTickets() {
+        if (!isPhotographyUser) {
+            const readyTickets = photographyList.filter(item => item.readyToReturn && !item.returned);
+            if (readyTickets.length > 0) {
+                // نمایش نوتیفیکیشن برای کاربر
+                showPopupNotification(`<p>${readyTickets.length} نوبت آماده بازگشت از عکاسی دارید.</p>`);
+            }
+        }
+    }
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
@@ -1703,6 +1636,33 @@ function updateUIForUserRole() {
     counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
     saveCounterBtn.addEventListener('click', saveCounterSettings);
     cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
+    confirmPhotographyBtn.addEventListener('click', addToPhotographyList);
+    cancelPhotographyBtn.addEventListener('click', closePhotographyModal);
+    manualPhotographyBtn.addEventListener('click', addManualToPhotographyList);
+    photographyRoleCheckbox.addEventListener('change', function() {
+        isPhotographyUser = this.checked;
+        updatePhotographyUI();
+        updateUIForUserRole();
+    });
+
+    manualTicketInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            addManualToPhotographyList();
+        }
+    });
+
+    // مدیریت input کد ملی در مودال عکاسی
+    photographyNationalIdInput.addEventListener('input', function() {
+        // فقط اعداد مجاز هستند
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+
+    photographyNationalIdInput.addEventListener('keypress', function(e) {
+        // اجازه دادن به کلید Enter برای تایید
+        if (e.key === 'Enter') {
+            addToPhotographyList();
+        }
+    });
 
     // مدیریت input نوبت گذشته
     pastTicketInput.addEventListener('input', function() {

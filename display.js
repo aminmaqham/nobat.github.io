@@ -172,12 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // مرتب‌سازی: اول نوبت‌های آماده بازگشت، سپس نوبت‌های رزرو شده، سپس بقیه
         const sortedList = [...photographyData].sort((a, b) => {
-            // اولویت‌بندی بر اساس وضعیت
             const statusPriority = {
                 'readyToReturn': 1,
                 'reserved': 2,
-                'photoTaken': 3,
-                'waiting': 4
+                'waiting': 3,
+                'completed': 4
             };
 
             const aStatus = getPhotographyItemStatus(a);
@@ -187,10 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return statusPriority[aStatus] - statusPriority[bStatus];
             }
             
-            // اگر وضعیت یکسان است، بر اساس زمان اضافه شدن
-            return new Date(b.addedAt) - new Date(a.addedAt);
+            return new Date(a.addedAt) - new Date(b.addedAt);
         });
         
+        // نمایش تمام آیتم‌ها - بدون محدودیت
         photographyList.innerHTML = `
             <table class="photography-table">
                 <thead>
@@ -198,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <th>ردیف</th>
                         <th>شماره نوبت</th>
                         <th>وضعیت</th>
+                        <th>ارسال کننده</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -207,12 +207,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>
                                 <div class="photography-ticket-number">${item.ticketNumber}</div>
                                 <div class="photography-national-id">${item.nationalId}</div>
+                                <div class="photography-name">${item.firstName} ${item.lastName}</div>
                                 ${getPhotographyBadges(item)}
                             </td>
                             <td>
                                 <span class="photography-status ${getPhotographyStatusClass(item)}">
                                     ${getPhotographyStatusText(item)}
                                 </span>
+                            </td>
+                            <td class="photography-origin">
+                                ${item.originalCounterName || '---'}
                             </td>
                         </tr>
                     `).join('')}
@@ -224,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getPhotographyItemStatus(item) {
         if (item.readyToReturn) return 'readyToReturn';
         if (item.reserved) return 'reserved';
-        if (item.photoTaken) return 'photoTaken';
+        if (item.photoTaken) return 'completed';
         return 'waiting';
     }
 
@@ -245,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getPhotographyStatusText(item) {
         if (item.readyToReturn) return 'آماده بازگشت';
         if (item.reserved) return 'رزرو شده';
-        if (item.photoTaken) return 'تکمیل';
+        if (item.photoTaken) return 'تکمیل شده';
         return 'در انتظار';
     }
 
@@ -282,10 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // نظارت بر تغییرات در localStorage برای لیست عکاسی
+        // نظارت پیشرفته بر تغییرات در localStorage
         window.addEventListener('storage', (e) => {
-            if (e.key === 'photographyList') {
-                console.log('Photography list updated in storage');
+            if (e.key === 'photographyList' || e.key === 'photographyListUpdate') {
+                console.log('Photography list updated from storage');
                 updatePhotographyDisplay();
             }
         });
@@ -293,6 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // همچنین بررسی دوره‌ای تغییرات در localStorage
         setInterval(() => {
             const currentList = localStorage.getItem('photographyList');
+            const lastUpdate = localStorage.getItem('photographyListUpdate');
+            
             if (currentList) {
                 try {
                     const parsedList = JSON.parse(currentList);
@@ -301,22 +307,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (currentListString !== newListString) {
                         console.log('Photography list changed - updating display');
-                        updatePhotographyDisplay();
+                        photographyData = parsedList;
+                        renderPhotographyList();
                     }
                 } catch (error) {
                     console.error('Error checking photography list:', error);
                 }
             }
-        }, 2000);
+        }, 1000); // بررسی هر 1 ثانیه
+
+        // نظارت بر eventهای custom
+        window.addEventListener('photographyListUpdated', () => {
+            console.log('Photography list updated via custom event');
+            updatePhotographyDisplay();
+        });
     }
 
     // --- Auto-refresh ---
     function startAutoRefresh() {
-        // به‌روزرسانی کامل هر 10 ثانیه
-        setInterval(updateDisplay, 10000);
+        // به‌روزرسانی کامل هر 3 ثانیه برای پاسخگویی آنی
+        setInterval(updateDisplay, 3000);
         
-        // به‌روزرسانی زمان‌ها هر 30 ثانیه
-        setInterval(updateTicketsDisplay, 30000);
+        // به‌روزرسانی زمان‌ها هر 10 ثانیه
+        setInterval(updateTicketsDisplay, 10000);
     }
 
     // --- Responsive Layout ---
@@ -440,6 +453,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             .ticket-card.error-state .ticket-number {
                 color: #c62828 !important;
+            }
+            
+            .photography-origin {
+                font-size: 0.8rem;
+                color: #666;
+                font-weight: 500;
+            }
+
+            .photography-name {
+                font-size: 0.9rem;
+                color: #333;
+                margin-top: 2px;
+                font-weight: 500;
             }
             
             @keyframes pulse-ready {

@@ -1377,6 +1377,111 @@ html, body {
     background: linear-gradient(135deg, #9C27B0, #7B1FA2) !important;
 }
 
+/* استایل‌های جدید برای لیست عکاسی پیشرفته */
+.photography-item .photography-actions {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.photography-btn {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    transition: all 0.3s;
+}
+
+.complete-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.complete-btn:hover {
+    background-color: #45a049;
+}
+
+.reserve-btn {
+    background-color: #FF9800;
+    color: white;
+}
+
+.reserve-btn:hover {
+    background-color: #f57c00;
+}
+
+.continue-btn {
+    background-color: #9C27B0;
+    color: white;
+}
+
+.continue-btn:hover {
+    background-color: #7b1fa2;
+}
+
+.photography-ready-badge {
+    background-color: #4CAF50;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.photography-service {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 2px;
+}
+
+.photography-origin {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 2px;
+}
+
+/* استایل برای پاپاپ نوتیفیکیشن با دکمه بستن */
+.popup-message {
+    position: relative;
+}
+
+.close-popup {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #666;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-popup:hover {
+    color: #333;
+}
+
+/* استایل برای نمایشگر */
+.photography-origin {
+    font-size: 0.8rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.photography-name {
+    font-size: 0.9rem;
+    color: #333;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
 .photography-empty {
     text-align: center;
     color: #999;
