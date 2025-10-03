@@ -748,7 +748,10 @@ async function callNextRegularTicket(selections) {
 }
 
 // --- اصلاح تابع showCallNotification ---
+// --- بهبود یافته SHOW CALL NOTIFICATION ---
 function showCallNotification(ticket, service, counterName, isFromPhotography = false) {
+    console.log('=== showCallNotification ===', ticket.specific_ticket);
+    
     const popupMessage = `
         <div class="call-notification">
             <h3>فراخوانی نوبت</h3>
@@ -761,15 +764,16 @@ function showCallNotification(ticket, service, counterName, isFromPhotography = 
                 ${isFromPhotography ? '<p style="color: #4CAF50; font-weight: bold;">(بازگشته از عکاسی)</p>' : ''}
             </div>
             <div class="action-buttons">
-                <button class="action-btn send-to-photo-btn" onclick="sendToPhotography('${ticket.$id}')">
+                <button class="action-btn send-to-photo-btn" onclick="window.sendToPhotography('${ticket.$id}')">
                     ارسال به عکاسی
                 </button>
-                <button class="action-btn next-ticket-btn" onclick="callNextAfterNotification()">
+                <button class="action-btn next-ticket-btn" onclick="window.callNextAfterNotification()">
                     فراخوان بعدی
                 </button>
             </div>
         </div>
     `;
+    
     showPopupNotification(popupMessage);
 }
 
@@ -992,26 +996,44 @@ function showCallNotification(ticket, service, counterName, isFromPhotography = 
     }
 
     // --- POPUP NOTIFICATION SYSTEM ---
-    function showPopupNotification(htmlContent) {
-        popupText.innerHTML = htmlContent + '<button class="close-popup">×</button>';
-        popupNotification.style.display = 'flex';
-        
-        setTimeout(() => {
-            popupNotification.classList.add('show');
-        }, 10);
-        
-        // نوتیفیکیشن فقط با کلیک کاربر بسته می‌شود
-        popupNotification.addEventListener('click', function closeHandler(e) {
-            if (e.target === popupNotification || e.target.classList.contains('close-popup')) {
-                popupNotification.classList.remove('show');
-                setTimeout(() => {
-                    popupNotification.style.display = 'none';
-                }, 300);
-                popupNotification.removeEventListener('click', closeHandler);
-            }
-        });
+// --- بهبود یافته POPUP NOTIFICATION SYSTEM ---
+function showPopupNotification(htmlContent) {
+    console.log('=== showPopupNotification ===');
+    
+    const popup = document.getElementById('popup-notification');
+    const popupText = document.getElementById('popup-text');
+    
+    if (!popup || !popupText) {
+        console.error('Popup elements not found!');
+        return;
     }
-
+    
+    popupText.innerHTML = htmlContent;
+    popup.style.display = 'flex';
+    
+    // اجازه دهید DOM به‌روزرسانی شود
+    setTimeout(() => {
+        popup.classList.add('show');
+    }, 10);
+    
+    // اضافه کردن event listener برای دکمه بستن
+    const closeBtn = popupText.querySelector('.close-popup');
+    if (closeBtn) {
+        closeBtn.onclick = function(e) {
+            e.stopPropagation();
+            closePopup();
+        };
+    }
+    
+    // event listener برای کلیک روی overlay
+    popup.onclick = function(e) {
+        if (e.target === popup) {
+            closePopup();
+        }
+    };
+    
+    console.log('Popup notification shown successfully');
+}
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
         renderServiceSettings();
@@ -1634,7 +1656,10 @@ async function callNextAfterNotification() {
 
 // تابع نمایش نوتیفیکیشن عکاسی
 // بهبود تابع نمایش نوتیفیکیشن عکاسی
+// --- بهبود یافته PHOTOGRAPHY NOTIFICATION ---
 function showPhotographyNotification(photographyItem) {
+    console.log('=== showPhotographyNotification ===', photographyItem.ticketNumber);
+    
     const popupMessage = `
         <div class="photography-notification">
             <h3>عکاسی - نوبت فراخوانی شده</h3>
@@ -1646,21 +1671,22 @@ function showPhotographyNotification(photographyItem) {
                 <p><strong>ارسال کننده:</strong> ${photographyItem.originalCounterName}</p>
             </div>
             <div class="action-buttons">
-                <button class="action-btn photo-taken-btn" onclick="completePhotography('${photographyItem.id}')">
+                <button class="action-btn photo-taken-btn" onclick="window.completePhotography('${photographyItem.id}')">
                     ثبت عکس ✓
                 </button>
-                <button class="action-btn reserve-btn" onclick="reservePhotographyFromNotification('${photographyItem.id}')">
+                <button class="action-btn reserve-btn" onclick="window.reservePhotographyFromNotification('${photographyItem.id}')">
                     رزرو نوبت ⏰
                 </button>
-                <button class="action-btn next-ticket-btn" onclick="skipPhotography('${photographyItem.id}')">
+                <button class="action-btn next-ticket-btn" onclick="window.skipPhotography('${photographyItem.id}')">
                     فراخوان بعدی ➡️
                 </button>
-                <button class="action-btn reserved-list-btn" onclick="showReservedList()">
+                <button class="action-btn reserved-list-btn" onclick="window.showReservedList()">
                     لیست رزروها 📋
                 </button>
             </div>
         </div>
     `;
+    
     showPopupNotification(popupMessage);
 }
 
@@ -2073,7 +2099,201 @@ async function processPhotographyTicket() {
 
     // --- INITIALIZE APP ---
     initializeApp();
+// --- DEBUG EVENT LISTENERS ---
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('send-to-photo-btn')) {
+        console.log('=== send-to-photo-btn CLICKED ===', e.target.onclick);
+    }
+    
+    if (e.target.classList.contains('next-ticket-btn')) {
+        console.log('=== next-ticket-btn CLICKED ===', e.target.onclick);
+    }
 });
+
+// بررسی وجود توابع global
+window.checkGlobalFunctions = function() {
+    console.log('=== CHECKING GLOBAL FUNCTIONS ===');
+    console.log('sendToPhotography:', typeof window.sendToPhotography);
+    console.log('callNextAfterNotification:', typeof window.callNextAfterNotification);
+    console.log('completePhotography:', typeof window.completePhotography);
+    console.log('reservePhotographyFromNotification:', typeof window.reservePhotographyFromNotification);
+    console.log('skipPhotography:', typeof window.skipPhotography);
+    console.log('closePopup:', typeof window.closePopup);
+};
+
+// اجرای بررسی هنگام لود
+setTimeout(() => {
+    window.checkGlobalFunctions();
+}, 1000);
+
+});
+
+// ==================== GLOBAL FUNCTIONS FOR HTML ONCLICK ====================
+
+// تابع ارسال به عکاسی - کاملاً اصلاح شده
+window.sendToPhotography = async function(ticketId) {
+    console.log('=== sendToPhotography CALLED ===', ticketId);
+    
+    // پیدا کردن تیکت
+    const ticket = tickets.find(t => t.$id === ticketId);
+    console.log('Ticket found:', ticket);
+    
+    if (ticket) {
+        // بستن نوتیفیکیشن فعلی
+        closePopup();
+        
+        // کمی تأخیر برای اطمینان از بسته شدن پاپاپ
+        setTimeout(() => {
+            openPhotographyModal(ticket);
+        }, 300);
+    } else {
+        console.error('Ticket not found with ID:', ticketId);
+        showPopupNotification('<p>خطا در یافتن اطلاعات نوبت!</p>');
+    }
+}
+
+// تابع فراخوانی بعدی
+window.callNextAfterNotification = function() {
+    console.log('=== callNextAfterNotification CALLED ===');
+    closePopup();
+    
+    setTimeout(async () => {
+        if (isPhotographyUser) {
+            await processPhotographyTicket();
+        } else {
+            const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+            await callNextRegularTicket(selections);
+        }
+    }, 200);
+}
+
+// تابع ثبت عکس
+window.completePhotography = async function(photographyItemId) {
+    console.log('=== completePhotography CALLED ===', photographyItemId);
+    await markPhotoAsTaken(photographyItemId);
+    closePopup();
+    
+    setTimeout(() => {
+        showPopupNotification(`<p>عکس برای نوبت ثبت شد و به باجه اصلی بازگردانده شد.</p>`);
+    }, 300);
+}
+
+// تابع رزرو از نوتیفیکیشن
+window.reservePhotographyFromNotification = async function(photographyItemId) {
+    console.log('=== reservePhotographyFromNotification CALLED ===', photographyItemId);
+    await reservePhotographyTicket(photographyItemId);
+    closePopup();
+    
+    setTimeout(() => {
+        showPopupNotification(`<p>نوبت رزرو شد. پس از آمادگی مشتری، از لیست رزروها انتخاب کنید.</p>`);
+    }, 300);
+}
+
+// تابع رد کردن عکاسی
+window.skipPhotography = async function(photographyItemId) {
+    console.log('=== skipPhotography CALLED ===', photographyItemId);
+    const item = photographyList.find(i => i.id === photographyItemId);
+    if (item) {
+        await removeFromPhotographyList(photographyItemId);
+        
+        try {
+            await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                item.ticketId, 
+                {
+                    status: 'در حال انتظار',
+                    photography_skipped: true,
+                    photography_skipped_at: new Date().toISOString()
+                }
+            );
+        } catch (error) {
+            console.error('Error returning ticket without photo:', error);
+        }
+        
+        closePopup();
+        
+        setTimeout(() => {
+            showPopupNotification(`<p style="color: #f44336;">نوبت بدون عکس به باجه اصلی بازگردانده شد.</p>`);
+        }, 300);
+    }
+}
+
+// تابع نمایش لیست رزروها
+window.showReservedList = function() {
+    console.log('=== showReservedList CALLED ===');
+    const reservedItems = photographyList.filter(item => item.reserved && !item.photoTaken);
+    
+    if (reservedItems.length === 0) {
+        showPopupNotification('<p>هیچ نوبت رزرو شده‌ای وجود ندارد.</p>');
+        return;
+    }
+    
+    const reservedListHTML = reservedItems.map(item => `
+        <div class="reserved-item" onclick="window.selectReservedTicket('${item.id}')">
+            <div class="reserved-ticket-number">${item.ticketNumber}</div>
+            <div class="reserved-customer-info">
+                ${item.firstName} ${item.lastName} - کدملی: ${item.nationalId}
+            </div>
+        </div>
+    `).join('');
+    
+    const popupMessage = `
+        <div class="photography-notification">
+            <h3>لیست نوبت‌های رزرو شده</h3>
+            <div class="reserved-list">
+                ${reservedListHTML}
+            </div>
+            <div class="action-buttons">
+                <button class="action-btn back-btn" onclick="window.showPhotographyMainView()">
+                    بازگشت
+                </button>
+            </div>
+        </div>
+    `;
+    showPopupNotification(popupMessage);
+}
+
+// تابع انتخاب نوبت رزرو شده
+window.selectReservedTicket = function(photographyItemId) {
+    console.log('=== selectReservedTicket CALLED ===', photographyItemId);
+    const item = photographyList.find(i => i.id === photographyItemId);
+    if (item) {
+        showPhotographyNotification(item);
+    }
+}
+
+// تابع بازگشت به نمای اصلی عکاسی
+window.showPhotographyMainView = function() {
+    console.log('=== showPhotographyMainView CALLED ===');
+    const activeItem = photographyList.find(item => !item.photoTaken && !item.reserved);
+    if (activeItem) {
+        showPhotographyNotification(activeItem);
+    } else {
+        closePopup();
+        showPopupNotification('<p>هیچ نوبت فعالی در لیست عکاسی وجود ندارد.</p>');
+    }
+}
+
+// تابع بستن پاپاپ
+window.closePopup = function() {
+    console.log('=== closePopup CALLED ===');
+    const popup = document.getElementById('popup-notification');
+    if (popup) {
+        popup.classList.remove('show');
+        setTimeout(() => {
+            popup.style.display = 'none';
+        }, 300);
+    }
+}
+
+// توابع دیگر برای عکاسی
+window.markPhotoAsTaken = markPhotoAsTaken;
+window.reservePhotographyTicket = reservePhotographyTicket;
+window.continueReservedTicket = continueReservedTicket;
+window.removeFromPhotographyList = removeFromPhotographyList;
+
+console.log('=== ALL GLOBAL PHOTOGRAPHY FUNCTIONS INITIALIZED ===');
 
 // --- EVENT LISTENER برای SYNC بین تب‌ها ---
 window.addEventListener('storage', function(e) {

@@ -228,6 +228,18 @@
         </div>
     </div>
 
+    <!-- دکمه دیباگ (فقط برای توسعه) -->
+<button onclick="window.checkGlobalFunctions()" style="position: fixed; bottom: 10px; left: 10px; z-index: 10000; background: red; color: white; padding: 5px; font-size: 12px;">
+    Debug Functions
+</button>
+
+<script>
+// بررسی اولیه توابع global
+console.log('=== INITIAL GLOBAL FUNCTION CHECK ===');
+console.log('sendToPhotography exists:', typeof window.sendToPhotography === 'function');
+console.log('callNextAfterNotification exists:', typeof window.callNextAfterNotification === 'function');
+</script>
+
     <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
     <script src="script.js"></script>
 </body>
