@@ -94,25 +94,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePhotographyDisplay() {
         try {
-            const savedList = localStorage.getItem('photographyList');
-            if (!savedList) {
+            const savedHistory = localStorage.getItem('photographyHistory');
+            if (!savedHistory) {
                 photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
                 photographyWaiting.textContent = 'منتظران: ۰';
                 return;
             }
 
-            const photographyListData = JSON.parse(savedList);
-            const waitingCount = photographyListData.filter(item => !item.photoTaken).length;
+            const photographyHistory = JSON.parse(savedHistory);
+            
+            // فقط آیتم‌های در انتظار را بگیر
+            const waitingItems = photographyHistory.filter(item => 
+                item.status === 'در انتظار' && !item.photoTaken
+            );
+            
+            const waitingCount = waitingItems.length;
             
             photographyWaiting.textContent = `منتظران: ${waitingCount}`;
 
-            if (photographyListData.length === 0) {
-                photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+            if (waitingItems.length === 0) {
+                photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در انتظار عکاسی وجود ندارد</div>';
                 return;
             }
 
             // مرتب‌سازی بر اساس زمان اضافه شدن (جدیدترین اول)
-            const sortedList = [...photographyListData].sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+            const sortedList = [...waitingItems].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             photographyList.innerHTML = `
                 <table class="photography-table">
@@ -132,8 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <div class="photography-national-id">${item.nationalId}</div>
                                 </td>
                                 <td>
-                                    <span class="photography-status ${item.photoTaken ? 'status-done' : 'status-waiting'}">
-                                        ${item.photoTaken ? 'تکمیل' : 'در انتظار'}
+                                    <span class="photography-status status-waiting">
+                                        در انتظار
                                     </span>
                                 </td>
                             </tr>
@@ -171,9 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // همچنین تغییرات در localStorage برای لیست عکاسی
+            // گوش دادن به تغییرات localStorage برای تاریخچه عکاسی
             window.addEventListener('storage', function(e) {
-                if (e.key === 'photographyList') {
+                if (e.key === 'photographyHistory') {
                     updatePhotographyDisplay();
                 }
             });
@@ -182,109 +188,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // اضافه کردن تابع برای پاک کردن لیست عکاسی
-function clearPhotographyList() {
-    photographyList = [];
-    localStorage.removeItem('photographyList');
-    updatePhotographyDisplay();
-}
-
-// اضافه کردن تابع برای به‌روزرسانی از localStorage
-function setupPhotographySync() {
-    // گوش دادن به تغییرات localStorage
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'photographyList' || e.key === 'photographyHistory') {
+    // --- تابع برای همگام‌سازی با localStorage ---
+    function setupPhotographySync() {
+        // گوش دادن به تغییرات localStorage
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'photographyHistory') {
+                updatePhotographyDisplay();
+            }
+        });
+        
+        // به‌روزرسانی دوره‌ای
+        setInterval(() => {
             updatePhotographyDisplay();
-            updateTotalWaitingCount();
-        }
-    });
-    
-    // به‌روزرسانی دوره‌ای
-    setInterval(() => {
-        updatePhotographyDisplay();
-        updateTotalWaitingCount();
-    }, 5000);
-}
-
-// اضافه کردن تابع به‌روزرسانی تعداد منتظران کل
-function updateTotalWaitingCount() {
-    // این تابع می‌تواند از localStorage یا از سرور داده بگیرد
-    const waitingCount = document.querySelector('.waiting-count');
-    if (waitingCount) {
-        // می‌توانید این مقدار را از سرور بگیرید یا محاسبه کنید
-        waitingCount.textContent = 'آخرین نوبت‌های فراخوانده شده';
+        }, 5000);
     }
-}
 
-// در تابع initialize نمایشگر فراخوانی کنید
-function initializeDisplay() {
-    updateDisplay();
-    setupRealtime();
-    setupPhotographySync();
-    setInterval(updateDisplay, 30000);
-}
-
-document.addEventListener('DOMContentLoaded', initializeDisplay);
-
-// تغییر در تابع updatePhotographyDisplay برای همگام‌سازی بهتر
-function updatePhotographyDisplay() {
-    try {
-        const savedList = localStorage.getItem('photographyList');
-        if (!savedList) {
-            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-            photographyWaiting.textContent = 'منتظران: ۰';
-            return;
-        }
-
-        const photographyListData = JSON.parse(savedList);
-        const waitingCount = photographyListData.filter(item => !item.photoTaken).length;
-        
-        photographyWaiting.textContent = `منتظران: ${waitingCount}`;
-
-        if (photographyListData.length === 0) {
-            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-            return;
-        }
-
-        // مرتب‌سازی بر اساس زمان اضافه شدن (جدیدترین اول)
-        const sortedList = [...photographyListData].sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
-        
-        photographyList.innerHTML = `
-            <table class="photography-table">
-                <thead>
-                    <tr>
-                        <th>ردیف</th>
-                        <th>شماره نوبت</th>
-                        <th>وضعیت</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${sortedList.map((item, index) => `
-                        <tr>
-                            <td class="photography-row-number">${index + 1}</td>
-                            <td>
-                                <div class="photography-ticket-number">${item.ticketNumber}</div>
-                                <div class="photography-national-id">${item.nationalId}</div>
-                            </td>
-                            <td>
-                                <span class="photography-status ${item.photoTaken ? 'status-done' : 'status-waiting'}">
-                                    ${item.photoTaken ? 'تکمیل' : 'در انتظار'}
-                                </span>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-
-    } catch (error) {
-        console.error('Error updating photography display:', error);
+    // --- Initial Load ---
+    function initializeDisplay() {
+        updateDisplay();
+        setupRealtime();
+        setupPhotographySync();
+        setInterval(updateDisplay, 30000);
     }
-}
+
+    document.addEventListener('DOMContentLoaded', initializeDisplay);
 
     // --- Initial Load ---
     updateDisplay();
     setupRealtime();
+    setupPhotographySync();
 
     // به‌روزرسانی هر 30 ثانیه برای بررسی تغییر رنگ
     setInterval(updateDisplay, 30000);
