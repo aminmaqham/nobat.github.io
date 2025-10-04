@@ -81,6 +81,152 @@
     white-space: nowrap;
 }
 
+/* استایل‌های جدید برای نوتیفیکیشن با دکمه بستن */
+.popup-message {
+    background-color: white;
+    color: var(--dark-text);
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    width: 100%;
+    max-width: 400px;
+    transform: scale(0.9);
+    transition: transform 0.3s ease-in-out;
+    position: relative; /* برای قرارگیری دکمه بستن */
+}
+
+.popup-close-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.popup-close-btn:hover {
+    background-color: #f5f5f5;
+    color: #666;
+}
+
+.popup-with-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+}
+
+.popup-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.popup-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.popup-photography-btn {
+    background-color: #9C27B0;
+    color: white;
+}
+
+.popup-photography-btn:hover {
+    background-color: #7B1FA2;
+}
+
+.popup-next-btn {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.popup-next-btn:hover {
+    background-color: #2E7D32;
+}
+
+/* استایل برای نوتیفیکیشن ساده با دکمه بستن */
+.simple-popup-content {
+    padding: 10px 0;
+    position: relative;
+}
+
+.simple-popup-close-btn {
+    position: absolute;
+    top: -15px;
+    left: -15px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+.simple-popup-close-btn:hover {
+    background: #d32f2f;
+    transform: scale(1.1);
+}
+
+/* بهبود نمایش برای موبایل */
+@media (max-width: 768px) {
+    .popup-message {
+        padding: 20px;
+        margin: 10px;
+    }
+    
+    .popup-close-btn {
+        top: 5px;
+        left: 5px;
+        width: 25px;
+        height: 25px;
+        font-size: 16px;
+    }
+    
+    .simple-popup-close-btn {
+        top: -10px;
+        left: -10px;
+        width: 25px;
+        height: 25px;
+        font-size: 14px;
+    }
+    
+    .popup-buttons {
+        flex-direction: column;
+    }
+    
+    .popup-btn {
+        padding: 10px 15px;
+        font-size: 13px;
+    }
+}
+
 .status-completed {
     color: var(--primary-color);
     font-weight: 600;

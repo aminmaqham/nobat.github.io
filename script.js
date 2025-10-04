@@ -383,61 +383,96 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
-    function showAdvancedPopupNotification(ticket, htmlContent) {
-        return new Promise((resolve) => {
-            const popup = document.getElementById('popup-notification');
-            const popupText = document.getElementById('popup-text');
-            
-            popupText.innerHTML = '';
-            
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'popup-with-buttons';
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.innerHTML = htmlContent;
-            contentDiv.appendChild(messageDiv);
-            
-            const buttonsDiv = document.createElement('div');
-            buttonsDiv.className = 'popup-buttons';
-            
-            const photographyBtn = document.createElement('button');
-            photographyBtn.className = 'popup-btn popup-photography-btn';
-            photographyBtn.textContent = 'ارسال به عکاسی';
-            photographyBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('photography'), 300);
-            };
-            
-            const nextBtn = document.createElement('button');
-            nextBtn.className = 'popup-btn popup-next-btn';
-            nextBtn.textContent = 'فراخوان بعدی';
-            nextBtn.onclick = async () => {
-                closePopup();
-                setTimeout(async () => {
-                    await callNextTicketWithOptions();
-                    resolve('next');
-                }, 300);
-            };
-            
-            buttonsDiv.appendChild(photographyBtn);
-            buttonsDiv.appendChild(nextBtn);
-            contentDiv.appendChild(buttonsDiv);
-            
-            popupText.appendChild(contentDiv);
-            
-            popup.style.display = 'flex';
+// --- تابع اصلاح شده برای نوتیفیکیشن پیشرفته با دکمه‌ها و دکمه بستن ---
+function showAdvancedPopupNotification(ticket, htmlContent) {
+    return new Promise((resolve) => {
+        const popup = document.getElementById('popup-notification');
+        const popupText = document.getElementById('popup-text');
+        
+        // پاک کردن محتوای قبلی
+        popupText.innerHTML = '';
+        
+        // ایجاد محتوای جدید با دکمه‌ها
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'popup-with-buttons';
+        
+        // دکمه بستن
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'popup-close-btn';
+        closeBtn.innerHTML = '×';
+        closeBtn.title = 'بستن';
+        closeBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('close'), 300);
+        };
+        
+        // محتوای اصلی
+        const messageDiv = document.createElement('div');
+        messageDiv.innerHTML = htmlContent;
+        
+        // دکمه‌ها
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'popup-buttons';
+        
+        const photographyBtn = document.createElement('button');
+        photographyBtn.className = 'popup-btn popup-photography-btn';
+        photographyBtn.textContent = 'ارسال به عکاسی';
+        photographyBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('photography'), 300);
+        };
+        
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'popup-btn popup-next-btn';
+        nextBtn.textContent = 'فراخوان بعدی';
+        nextBtn.onclick = async () => {
+            closePopup();
+            setTimeout(async () => {
+                await callNextTicketWithOptions();
+                resolve('next');
+            }, 300);
+        };
+        
+        buttonsDiv.appendChild(photographyBtn);
+        buttonsDiv.appendChild(nextBtn);
+        
+        contentDiv.appendChild(closeBtn);
+        contentDiv.appendChild(messageDiv);
+        contentDiv.appendChild(buttonsDiv);
+        
+        popupText.appendChild(contentDiv);
+        
+        // نمایش پاپاپ
+        popup.style.display = 'flex';
+        setTimeout(() => {
+            popup.classList.add('show');
+        }, 10);
+        
+        function closePopup() {
+            popup.classList.remove('show');
             setTimeout(() => {
-                popup.classList.add('show');
-            }, 10);
-            
-            function closePopup() {
-                popup.classList.remove('show');
-                setTimeout(() => {
-                    popup.style.display = 'none';
-                }, 300);
+                popup.style.display = 'none';
+            }, 300);
+        }
+        
+        // بستن با کلیک روی background
+        const backgroundCloseHandler = function(e) {
+            if (e.target === popup) {
+                closePopup();
+                setTimeout(() => resolve('background'), 300);
             }
-        });
-    }
+        };
+        
+        popup.addEventListener('click', backgroundCloseHandler);
+        
+        // حذف event listener هنگام بسته شدن
+        const originalClosePopup = closePopup;
+        closePopup = function() {
+            popup.removeEventListener('click', backgroundCloseHandler);
+            originalClosePopup();
+        };
+    });
+}
 
     // --- تابع بهبودیافته برای فراخوانی نوبت ---
     async function callNextTicketWithOptions() {
@@ -1194,29 +1229,64 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- POPUP NOTIFICATION SYSTEM ---
-    function showPopupNotification(htmlContent) {
-        const popup = document.getElementById('popup-notification');
-        const popupText = document.getElementById('popup-text');
-        
-        popupText.innerHTML = htmlContent;
-        popup.style.display = 'flex';
-        
+// --- تابع اصلاح شده برای نوتیفیکیشن ساده با دکمه بستن ---
+function showPopupNotification(htmlContent) {
+    const popup = document.getElementById('popup-notification');
+    const popupText = document.getElementById('popup-text');
+    
+    // پاک کردن محتوای قبلی
+    popupText.innerHTML = '';
+    
+    // ایجاد محتوای جدید با دکمه بستن
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'simple-popup-content';
+    
+    // دکمه بستن
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'simple-popup-close-btn';
+    closeBtn.innerHTML = '×';
+    closeBtn.onclick = () => {
+        closePopup();
+    };
+    
+    // محتوای اصلی
+    const messageDiv = document.createElement('div');
+    messageDiv.innerHTML = htmlContent;
+    
+    contentDiv.appendChild(closeBtn);
+    contentDiv.appendChild(messageDiv);
+    popupText.appendChild(contentDiv);
+    
+    popup.style.display = 'flex';
+    
+    setTimeout(() => {
+        popup.classList.add('show');
+    }, 10);
+    
+    // بستن با کلیک روی background
+    const closeHandler = function(e) {
+        if (e.target === popup) {
+            closePopup();
+        }
+    };
+    
+    function closePopup() {
+        popup.classList.remove('show');
         setTimeout(() => {
-            popup.classList.add('show');
-        }, 10);
-        
-        const closeHandler = function(e) {
-            if (e.target === popup) {
-                popup.classList.remove('show');
-                setTimeout(() => {
-                    popup.style.display = 'none';
-                }, 300);
-                popup.removeEventListener('click', closeHandler);
-            }
-        };
-        
-        popup.addEventListener('click', closeHandler);
+            popup.style.display = 'none';
+        }, 300);
+        popup.removeEventListener('click', closeHandler);
     }
+    
+    popup.addEventListener('click', closeHandler);
+    
+    // بستن خودکار بعد از 10 ثانیه (اختیاری)
+    setTimeout(() => {
+        if (popup.style.display !== 'none') {
+            closePopup();
+        }
+    }, 10000);
+}
 
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
