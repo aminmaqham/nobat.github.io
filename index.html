@@ -45,49 +45,7 @@
             </div>
         </div>
 
-        <!-- مودال عکاسی -->
-        <div class="modal-overlay" id="photography-modal" style="display: none;">
-            <div class="modal">
-                <h2>سیستم عکاسی</h2>
-                <div class="form-group">
-                    <label for="photo-national-id">کد ملی مشتری:</label>
-                    <input type="text" id="photo-national-id" placeholder="کد ملی را وارد کنید">
-                </div>
-                <div class="form-actions" style="flex-direction: column; gap: 10px;">
-                    <button id="capture-photo-btn" class="primary-btn">ثبت عکس</button>
-                    <button id="reserve-photo-btn" class="primary-btn" style="background-color: #FF9800;">رزرو نوبت عکس</button>
-                    <button id="no-photo-btn" class="secondary-btn">بدون عکس</button>
-                    <button id="reserve-list-btn" class="primary-btn" style="background-color: #9C27B0;">لیست رزروها</button>
-                    <button id="cancel-photo-btn" class="secondary-btn">انصراف</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- مودال لیست رزرو عکاسی -->
-        <div class="modal-overlay" id="photo-reserve-list-modal" style="display: none;">
-            <div class="modal">
-                <h2>لیست رزروهای عکاسی</h2>
-                <div class="table-container">
-                    <table id="photo-reserve-table">
-                        <thead>
-                            <tr>
-                                <th>نام</th>
-                                <th>کدملی</th>
-                                <th>خدمت</th>
-                                <th>زمان رزرو</th>
-                                <th>عملیات</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div class="form-actions">
-                    <button id="close-reserve-list-btn" class="secondary-btn">بستن</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- سایر مودال‌ها و پنل‌ها بدون تغییر -->
+        <!-- سایر مودال‌ها و پنل‌ها -->
         <div class="modal-overlay" id="pass-service-modal-overlay" style="display: none;">
             <div class="modal">
                 <h2>انتخاب خدمت برای پاس نوبت</h2>
@@ -149,6 +107,12 @@
                         </div>
                         <div class="call-next-section">
                             <button id="call-next-btn" class="big-button">فراخوان نوبت بعدی</button>
+
+                            <!-- بخش ثبت دستی عکاسی -->
+                            <div class="photography-controls">
+                                <input type="text" id="manual-ticket-input" class="manual-photography-input" placeholder="شماره نوبت برای عکاسی" maxlength="4">
+                                <button id="manual-photography-btn" class="big-button send-to-photography-btn">ثبت دستی در عکاسی</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -156,14 +120,40 @@
                 <div id="current-ticket"></div>
             </div>
 
+            <!-- بخش نقش عکاسی -->
+            <div class="photography-role-section">
+                <div class="photography-role-checkbox">
+                    <input type="checkbox" id="photography-role-checkbox">
+                    <label for="photography-role-checkbox">کاربر عکاسی هستم</label>
+                </div>
+                <div class="photography-waiting-display">
+                    منتظران عکاسی: <span id="photography-waiting-count">0</span>
+                </div>
+            </div>
+
+            <!-- مودال عکاسی -->
+            <div class="photography-modal-overlay" id="photography-modal" style="display: none;">
+                <div class="photography-modal">
+                    <h2>ارسال به لیست عکاسی</h2>
+                    <div class="form-group">
+                        <label for="photography-national-id">کد ملی:</label>
+                        <input type="text" id="photography-national-id" placeholder="کد ملی را وارد کنید" maxlength="10">
+                        <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                            <strong>اطلاعات نوبت:</strong><br>
+                            شماره: <span id="photography-ticket-number">---</span><br>
+                            نام: <span id="photography-customer-name">---</span>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button id="confirm-photography-btn" class="primary-btn">تایید و ارسال</button>
+                        <button id="cancel-photography-btn" class="secondary-btn">انصراف</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="call-panel">
                 <h2>خدمات انتخابی (برای فراخوانی)</h2>
                 <div id="service-checkboxes"></div>
-                <!-- چک‌باکس عکاسی -->
-                <div class="service-checkbox" style="margin-top: 15px; padding: 12px; background-color: #e3f2fd; border: 2px solid #2196F3;">
-                    <input type="checkbox" id="photography-service-check" value="photography">
-                    <label for="photography-service-check" style="font-weight: bold; color: #1976D2;">خدمات عکاسی (اولویت با عکس)</label>
-                </div>
             </div>
 
             <div class="history">
@@ -188,27 +178,15 @@
                     </table>
                 </div>
             </div>
+        </div>
 
-            <!-- بخش جدید: تاریخچه عکاسی -->
-            <div class="history" style="margin-top: 20px;">
-                <h2>تاریخچه عکاسی</h2>
-                <div class="table-container">
-                    <table id="photography-history">
-                        <thead>
-                            <tr>
-                                <th>نام</th>
-                                <th>کدملی</th>
-                                <th>نوبت اصلی</th>
-                                <th>خدمت</th>
-                                <th>وضعیت عکس</th>
-                                <th>زمان ارسال به عکاسی</th>
-                                <th>زمان تایید عکس</th>
-                                <th>عملیات</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+        <!-- نمایشگر لیست عکاسی -->
+        <div class="photography-display" id="photography-display" style="display: none;">
+            <div class="photography-header">
+                <h2>لیست عکاسی</h2>
+            </div>
+            <div class="photography-list" id="photography-list">
+                <div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>
             </div>
         </div>
 
@@ -237,14 +215,9 @@
         </div>
     </div>
 
-    <!-- پاپاپ نوتیفیکیشن با دکمه‌های جدید -->
     <div id="popup-notification" class="popup-container" style="display: none;">
         <div class="popup-message">
             <p id="popup-text"></p>
-            <div id="popup-buttons" style="margin-top: 20px; display: flex; gap: 10px; flex-direction: column;">
-                <button id="send-to-photography-btn" class="primary-btn" style="display: none;">ارسال به عکاسی</button>
-                <button id="call-next-after-popup-btn" class="secondary-btn" style="display: none;">فراخوان بعدی</button>
-            </div>
         </div>
     </div>
 

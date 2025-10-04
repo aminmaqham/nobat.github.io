@@ -941,123 +941,417 @@ html, body {
     border-color: var(--primary-color);
     background-color: #e8f5e9;
 }
-/* استایل‌های جدید برای سیستم عکاسی */
 
-/* مودال عکاسی */
-#photography-modal .modal {
-    max-width: 500px;
-}
-
-#photography-modal .form-actions {
-    flex-direction: column;
-    gap: 10px;
-}
-
-/* دکمه‌های عکاسی */
-#capture-photo-btn {
-    background-color: #4CAF50;
-}
-
-#reserve-photo-btn {
-    background-color: #FF9800;
-}
-
-#no-photo-btn {
-    background-color: #f44336;
-}
-
-#reserve-list-btn {
-    background-color: #9C27B0;
-}
-
-/* لیست رزرو عکاسی */
-#photo-reserve-list-modal .modal {
-    max-width: 800px;
-    max-height: 80vh;
-}
-
-#photo-reserve-table {
+/* استایل‌های جدید برای مودال عکاسی */
+.photography-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    border-collapse: collapse;
-    margin: 15px 0;
-}
-
-#photo-reserve-table th,
-#photo-reserve-table td {
-    padding: 10px;
-    border: 1px solid #ddd;
-    text-align: center;
-}
-
-#photo-reserve-table th {
-    background-color: #f5f5f5;
-    font-weight: bold;
-}
-
-/* تاریخچه عکاسی */
-#photography-history {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-#photography-history th,
-#photography-history td {
-    padding: 8px;
-    border: 1px solid #ddd;
-    text-align: center;
-}
-
-#photography-history th {
-    background-color: #e3f2fd;
-    font-weight: bold;
-}
-
-/* دکمه‌های عملیات */
-.approve-photo-btn,
-.complete-reserve-btn {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.approve-photo-btn:hover,
-.complete-reserve-btn:hover {
-    background-color: #45a049;
-}
-
-/* چک‌باکس عکاسی */
-#photography-service-check {
-    transform: scale(1.2);
-    margin-left: 10px;
-}
-
-.service-checkbox[for="photography-service-check"] {
-    background-color: #e3f2fd !important;
-    border: 2px solid #2196F3 !important;
-    border-radius: 8px;
-    padding: 12px !important;
-    margin-top: 15px !important;
-}
-
-/* پاپاپ نوتیفیکیشن با دکمه‌های جدید */
-#popup-buttons {
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
     display: flex;
-    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.photography-modal {
+    background-color: white;
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 450px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.photography-modal h2 {
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--primary-color);
+    font-size: 1.3rem;
+}
+
+.photography-modal .form-group {
+    margin-bottom: 15px;
+}
+
+.photography-modal .form-actions {
+    display: flex;
     gap: 10px;
     margin-top: 20px;
 }
 
-#send-to-photography-btn {
-    background-color: #2196F3;
+.photography-modal .primary-btn,
+.photography-modal .secondary-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
 }
 
-#call-next-after-popup-btn {
-    background-color: #FF9800;
+/* استایل برای دکمه ارسال به عکاسی */
+.send-to-photography-btn {
+    background-color: #9C27B0 !important;
+    margin-top: 10px;
 }
 
-/* سایر استایل‌ها بدون تغییر باقی می‌مانند... */
+.send-to-photography-btn:hover {
+    background-color: #7B1FA2 !important;
+}
+
+/* استایل برای بخش فراخوانی از لیست عکاسی */
+.photography-call-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.photography-call-btn {
+    background-color: #FF9800 !important;
+    width: 100%;
+}
+
+.photography-call-btn:hover {
+    background-color: #F57C00 !important;
+}
+
+.photography-call-btn:disabled {
+    background-color: #ccc !important;
+    cursor: not-allowed;
+}
+
+/* استایل‌های جدید برای بخش عکاسی */
+.photography-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.manual-photography-input {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    font-family: 'Vazirmatn', sans-serif;
+    text-align: center;
+    background-color: white;
+}
+
+.manual-photography-input:focus {
+    border-color: #9C27B0;
+    outline: none;
+}
+
+.send-to-photography-btn {
+    background-color: #9C27B0 !important;
+    flex: 0 0 auto;
+    min-width: 160px;
+}
+
+.send-to-photography-btn:hover {
+    background-color: #7B1FA2 !important;
+}
+
+.photography-role-section {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    border-right: 4px solid #9C27B0;
+}
+
+.photography-role-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.photography-role-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.photography-role-checkbox label {
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+}
+
+.photography-waiting-display {
+    background-color: #e9ecef;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    color: #495057;
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* استایل برای موبایل */
+@media (max-width: 768px) {
+    .photography-controls {
+        flex-direction: column;
+    }
+    
+    .manual-photography-input {
+        order: 1;
+    }
+    
+    .send-to-photography-btn {
+        order: 2;
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .photography-role-section {
+        padding: 12px;
+    }
+}
+
+/* استایل‌های جدید برای بخش عکاسی */
+.photography-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.manual-photography-input {
+    flex: 1;
+    min-width: 150px;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    font-family: 'Vazirmatn', sans-serif;
+    text-align: center;
+    background-color: white;
+}
+
+.manual-photography-input:focus {
+    border-color: #9C27B0;
+    outline: none;
+}
+
+.send-to-photography-btn {
+    background-color: #9C27B0 !important;
+    flex: 0 0 auto;
+    min-width: 160px;
+}
+
+.send-to-photography-btn:hover {
+    background-color: #7B1FA2 !important;
+}
+
+.photography-role-section {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    border-right: 4px solid #9C27B0;
+}
+
+.photography-role-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.photography-role-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.photography-role-checkbox label {
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+}
+
+.photography-waiting-display {
+    background-color: #e9ecef;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    color: #495057;
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* استایل‌های جدید برای مودال عکاسی */
+.photography-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.photography-modal {
+    background-color: white;
+    padding: 25px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 450px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.photography-modal h2 {
+    margin-bottom: 20px;
+    text-align: center;
+    color: var(--primary-color);
+    font-size: 1.3rem;
+}
+
+.photography-modal .form-group {
+    margin-bottom: 15px;
+}
+
+.photography-modal .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.photography-modal .primary-btn,
+.photography-modal .secondary-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+}
+
+/* استایل برای موبایل */
+@media (max-width: 768px) {
+    .photography-controls {
+        flex-direction: column;
+    }
+    
+    .manual-photography-input {
+        order: 1;
+    }
+    
+    .send-to-photography-btn {
+        order: 2;
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .photography-role-section {
+        padding: 12px;
+    }
+}
+
+/* استایل‌های جدید برای نمایشگر لیست عکاسی */
+.photography-display {
+    background-color: white;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    margin-bottom: 15px;
+    box-shadow: var(--box-shadow);
+    width: 100%;
+}
+
+.photography-header {
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.photography-header h2 {
+    color: var(--primary-color);
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.photography-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.photography-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border-right: 4px solid #4CAF50;
+    transition: all 0.3s ease;
+}
+
+.photography-item.new-item {
+    background: #e8f5e9;
+    border-right-color: #4CAF50;
+    animation: highlight 2s ease;
+}
+
+.photography-item.photo-taken {
+    background: #e3f2fd;
+    border-right-color: #2196F3;
+}
+
+@keyframes highlight {
+    0% { background-color: #e8f5e9; }
+    50% { background-color: #c8e6c9; }
+    100% { background-color: #e8f5e9; }
+}
+
+.photography-number {
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: #333;
+    min-width: 30px;
+}
+
+.photography-info {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.photography-ticket {
+    font-weight: 600;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.photography-national-id {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 2px;
+}
+
+.photography-status {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: #4CAF50;
+    color: white;
+}
+
+.photography-status.photo-taken {
+    background: #2196F3;
+}
+
+.photography-empty {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+    font-style: italic;
+}

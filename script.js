@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
-    const PHOTOGRAPHY_COLLECTION_ID = '68a8d63a003a3a6afa25'; // کالکشن جدید برای عکاسی
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
 
@@ -18,6 +17,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const databases = new Databases(client);
 
     // --- DOM Elements ---
+    const photographyModal = document.getElementById('photography-modal');
+    const manualTicketInput = document.getElementById('manual-ticket-input');
+    const manualPhotographyBtn = document.getElementById('manual-photography-btn');
+    const photographyRoleCheckbox = document.getElementById('photography-role-checkbox');
+    const photographyWaitingCount = document.getElementById('photography-waiting-count');
+    const photographyTicketNumber = document.getElementById('photography-ticket-number');
+    const photographyCustomerName = document.getElementById('photography-customer-name');
+    const photographyNationalIdInput = document.getElementById('photography-national-id');
+    const confirmPhotographyBtn = document.getElementById('confirm-photography-btn');
+    const cancelPhotographyBtn = document.getElementById('cancel-photography-btn');
+    const photographyDisplay = document.getElementById('photography-display');
+    const photographyListContainer = document.getElementById('photography-list');
     const loginBtn = document.getElementById('login-btn');
     const pastTicketInput = document.getElementById('past-ticket-input');
     const callPastBtn = document.getElementById('call-past-btn');
@@ -61,30 +72,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveCounterBtn = document.getElementById('save-counter-btn');
     const cancelCounterBtn = document.getElementById('cancel-counter-btn');
 
-    // عناصر جدید برای عکاسی
-    const photographyCheckbox = document.getElementById('photography-service-check');
-    const photographyModal = document.getElementById('photography-modal');
-    const photoNationalIdInput = document.getElementById('photo-national-id');
-    const capturePhotoBtn = document.getElementById('capture-photo-btn');
-    const reservePhotoBtn = document.getElementById('reserve-photo-btn');
-    const noPhotoBtn = document.getElementById('no-photo-btn');
-    const reserveListBtn = document.getElementById('reserve-list-btn');
-    const cancelPhotoBtn = document.getElementById('cancel-photo-btn');
-    const photoReserveListModal = document.getElementById('photo-reserve-list-modal');
-    const photoReserveTable = document.querySelector('#photo-reserve-table tbody');
-    const closeReserveListBtn = document.getElementById('close-reserve-list-btn');
-    const sendToPhotographyBtn = document.getElementById('send-to-photography-btn');
-    const callNextAfterPopupBtn = document.getElementById('call-next-after-popup-btn');
-    const photographyHistoryTable = document.querySelector('#photography-history tbody');
-
     // --- Application State ---
     let currentUser = null;
     let services = [];
     let tickets = [];
     let tempSelectedServicesForPass = [];
     let lastCalledTicket = {};
-    let currentCalledTicket = null;
-    let photographyRecords = [];
+    let photographyList = [];
+    let currentTicketForPhotography = null;
+    
+
 
     // --- UTILITY FUNCTIONS ---
     function checkCodeMeli(code) {
@@ -104,37 +101,30 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         try {
             currentUser = await account.get();
-            console.log('User logged in:', currentUser.email);
             await checkAndSetCounterName();
             showLoggedInUI();
             await fetchData();
             setupRealtimeSubscriptions();
             checkAutoReset();
         } catch (error) {
-            console.log('User not logged in:', error.message);
+            console.log('User not logged in');
             showLoggedOutUI();
         }
     }
 
+    // تابع جدید برای بررسی و تنظیم شماره باجه
     async function checkAndSetCounterName() {
-        try {
-            const userPrefs = currentUser.prefs || {};
-            if (!userPrefs.counter_name) {
-                openCounterSettingsModal();
-            }
-        } catch (error) {
-            console.error('Error checking counter name:', error);
+        const userPrefs = currentUser.prefs || {};
+        if (!userPrefs.counter_name) {
+            // اگر شماره باجه تنظیم نشده، مودال تنظیمات را نشان بده
+            openCounterSettingsModal();
         }
     }
 
     async function fetchData() {
         if (!currentUser) return;
-        try {
-            await Promise.all([fetchServices(), fetchTickets(), fetchPhotographyRecords()]);
-            renderUI();
-        } catch (error) {
-            console.error('Error fetching data:', error);
-        }
+        await Promise.all([fetchServices(), fetchTickets()]);
+        renderUI();
     }
 
     async function fetchServices() {
@@ -157,18 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function fetchPhotographyRecords() {
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [
-                Query.orderDesc('$createdAt')
-            ]);
-            photographyRecords = response.documents;
-        } catch (error) {
-            console.log('Photography collection not available yet');
-            photographyRecords = [];
-        }
-    }
-
     function renderUI() {
         if (!currentUser) return;
         renderServiceButtons();
@@ -176,26 +154,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateHistoryTable();
         updateCurrentTicketDisplay();
         updateTotalWaitingCount();
-        updatePhotographyHistory();
     }
 
     // --- AUTHENTICATION & UI TOGGLES ---
     async function login() {
         try {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value.trim();
-            
-            if (!email || !password) {
-                alert('لطفاً ایمیل و رمز عبور را وارد کنید.');
-                return;
-            }
-
-            await account.createEmailSession(email, password);
-            currentUser = await account.get();
-            console.log('Login successful:', currentUser.email);
-            await initializeApp();
+            await account.createEmailSession(emailInput.value, passwordInput.value);
+            initializeApp();
         } catch (error) {
-            console.error('Login error:', error);
             alert('خطا در ورود: ' + error.message);
         }
     }
@@ -204,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await account.deleteSession('current');
             currentUser = null;
-            showLoggedOutUI();
+            window.location.reload();
         } catch (error) {
             console.error('Logout failed:', error);
         }
@@ -221,9 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.style.display = 'block';
         totalWaitingContainer.style.display = 'block';
 
-        // بررسی نقش کاربر
-        const userRole = userPrefs.role || 'user';
-        if (userRole === 'admin') {
+        if (currentUser.prefs && currentUser.prefs.role === 'admin') {
             settingsBtn.style.display = 'inline-block';
             resetAllBtn.style.display = 'inline-block';
         } else {
@@ -231,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resetAllBtn.style.display = 'none';
         }
         
+        // دکمه تنظیمات باجه همیشه نمایش داده می‌شود
         counterSettingsBtn.style.display = 'inline-block';
     }
 
@@ -239,27 +204,14 @@ document.addEventListener('DOMContentLoaded', () => {
         userInfo.style.display = 'none';
         mainContent.style.display = 'none';
         totalWaitingContainer.style.display = 'none';
-        
-        // پاک کردن فیلدها
-        emailInput.value = '';
-        passwordInput.value = '';
     }
 
     // --- REALTIME ---
     function setupRealtimeSubscriptions() {
-        try {
-            const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-            client.subscribe(ticketChannel, () => {
-                fetchData();
-            });
-            
-            const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
-            client.subscribe(serviceChannel, () => {
-                fetchData();
-            });
-        } catch (error) {
-            console.error('Error setting up realtime subscriptions:', error);
-        }
+        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+        client.subscribe(ticketChannel, () => fetchData());
+        const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
+        client.subscribe(serviceChannel, () => fetchData());
     }
 
     // --- UI RENDERING ---
@@ -317,15 +269,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 div.classList.add('disabled-service');
             }
             
-            div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
+            div.innerHTML = `<input type="checkbox" id="service-check-${service.$id}" value="${service.$id}" ${isDisabled ? '' : ''}>
                              <label for="service-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
             
             const checkbox = div.querySelector('input');
             checkbox.checked = selections[service.$id] || false;
             
             checkbox.addEventListener('change', async () => {
-                if (isDisabled) return;
-                
                 selections[service.$id] = checkbox.checked;
                 try {
                     await account.updatePrefs({ ...userPrefs, service_selections: selections });
@@ -337,28 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             serviceCheckboxes.appendChild(div);
         });
-
-        // اضافه کردن event listener برای چک‌باکس عکاسی
-        if (photographyCheckbox) {
-            photographyCheckbox.addEventListener('change', async () => {
-                const userPrefs = currentUser.prefs || {};
-                userPrefs.photography_enabled = photographyCheckbox.checked;
-                try {
-                    await account.updatePrefs(userPrefs);
-                    currentUser.prefs = await account.getPrefs();
-                } catch (e) {
-                    console.error("Failed to save photography preference", e);
-                }
-            });
-
-            // مقداردهی اولیه چک‌باکس عکاسی
-            photographyCheckbox.checked = userPrefs.photography_enabled || false;
-        }
     }
 
     function updateHistoryTable() {
-        if (!ticketHistoryTable) return;
-        
         ticketHistoryTable.innerHTML = '';
         tickets.forEach(ticket => {
             const service = services.find(s => s.$id === ticket.service_id);
@@ -379,52 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updatePhotographyHistory() {
-        if (!photographyHistoryTable) return;
-        
-        photographyHistoryTable.innerHTML = '';
-        photographyRecords.forEach(record => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${record.customer_name || '---'}</td>
-                <td>${record.national_id || '---'}</td>
-                <td>${record.original_ticket || '---'}</td>
-                <td>${record.service_name || '---'}</td>
-                <td>${getPhotoStatusText(record.photo_status)}</td>
-                <td>${formatDate(record.sent_to_photography_time)}</td>
-                <td>${formatDate(record.photo_approved_time)}</td>
-                <td>
-                    ${record.photo_status === 'sent' ? 
-                        `<button class="approve-photo-btn" data-id="${record.$id}">تایید عکس</button>` : 
-                        '---'}
-                </td>
-            `;
-            photographyHistoryTable.appendChild(row);
-        });
-
-        // اضافه کردن event listener برای دکمه‌های تایید عکس
-        document.querySelectorAll('.approve-photo-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const recordId = e.target.dataset.id;
-                approvePhoto(recordId);
-            });
-        });
-    }
-
-    function getPhotoStatusText(status) {
-        const statusMap = {
-            'sent': 'ارسال شده به عکاسی',
-            'reserved': 'رزرو شده',
-            'approved': 'تایید شده',
-            'no_photo': 'بدون عکس',
-            'completed': 'تکمیل شده'
-        };
-        return statusMap[status] || status;
-    }
-
     function updateCurrentTicketDisplay() {
-        if (!currentTicketDisplay) return;
-        
         currentTicketDisplay.innerHTML = '';
         const activeTickets = tickets
             .filter(t => t.status === 'در حال سرویس')
@@ -447,6 +333,45 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTicketDisplay.innerHTML = '<p>هیچ نوبتی در حال سرویس نیست</p>';
         }
     }
+    
+    // --- Estimation Logic ---
+    function calculateEstimatedWaitTime(serviceId) {
+        const service = services.find(s => s.$id === serviceId);
+        if (!service) return 0;
+        
+        const timePerTicket = service.manual_time;
+        const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
+        
+        return queueLength * timePerTicket;
+    }
+
+    async function checkAvailabilityAndOpenForm(serviceId) {
+        const service = services.find(s => s.$id === serviceId);
+        if (!service) return;
+
+        const isDisabled = service.disabled === true;
+        if (isDisabled) {
+            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
+            return;
+        }
+
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+        const now = new Date();
+        const endTimeParts = (service.work_hours_end || "17:00").split(':');
+        const endTime = new Date();
+        endTime.setHours(parseInt(endTimeParts[0]), parseInt(endTimeParts[1]), 0, 0);
+
+        const estimatedFinishTime = new Date(now.getTime() + estimatedWait * 60000);
+
+        if (estimatedFinishTime > endTime) {
+            const warning = `هشدار: زمان تخمینی نوبت شما (${Math.round(estimatedWait)} دقیقه) خارج از ساعت کاری (${service.work_hours_end}) این خدمت است. آیا مایل به ثبت نوبت هستید؟`;
+            if (confirm(warning)) {
+                openTicketForm('regular', service.$id);
+            }
+        } else {
+            openTicketForm('regular', service.$id);
+        }
+    }
 
     // --- TICKET LOGIC ---
     async function generateTicket(serviceId, firstName, lastName, nationalId) {
@@ -464,50 +389,49 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+        ]);
+        const lastGeneralTicket = allTickets.documents.length > 0 ? 
+            parseInt(allTickets.documents[0].general_ticket) : 0;
+        const generalNumber = lastGeneralTicket + 1;
+
+        const serviceTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.equal('service_id', serviceId),
+            Query.equal('ticket_type', 'regular'),
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+        ]);
+        const lastSpecificTicket = serviceTickets.documents.length > 0 ? 
+            parseInt(serviceTickets.documents[0].specific_ticket) : service.start_number - 1;
+        const specificNumber = lastSpecificTicket + 1;
+
+        if (specificNumber > service.end_number) {
+            showPopupNotification('<p>شماره نوبت این خدمت به حداکثر مقدار مجاز رسیده است.</p>');
+            return;
+        }
+
+        const estimatedWait = calculateEstimatedWaitTime(serviceId);
+
+        const newTicketData = {
+            service_id: serviceId,
+            specific_ticket: specificNumber,
+            general_ticket: generalNumber,
+            first_name: firstName || '---',
+            last_name: lastName || '---',
+            national_id: nationalId || '---',
+            registered_by: currentUser.$id,
+            registered_by_name: currentUser.name,
+            status: 'در حال انتظار',
+            ticket_type: 'regular'
+        };
+
         try {
-            const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.orderDesc('$createdAt'),
-                Query.limit(1)
-            ]);
-            const lastGeneralTicket = allTickets.documents.length > 0 ? 
-                parseInt(allTickets.documents[0].general_ticket) : 0;
-            const generalNumber = lastGeneralTicket + 1;
-
-            const serviceTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.equal('service_id', serviceId),
-                Query.equal('ticket_type', 'regular'),
-                Query.orderDesc('$createdAt'),
-                Query.limit(1)
-            ]);
-            const lastSpecificTicket = serviceTickets.documents.length > 0 ? 
-                parseInt(serviceTickets.documents[0].specific_ticket) : service.start_number - 1;
-            const specificNumber = lastSpecificTicket + 1;
-
-            if (specificNumber > service.end_number) {
-                showPopupNotification('<p>شماره نوبت این خدمت به حداکثر مقدار مجاز رسیده است.</p>');
-                return;
-            }
-
-            const estimatedWait = calculateEstimatedWaitTime(serviceId);
-
-            const newTicketData = {
-                service_id: serviceId,
-                specific_ticket: specificNumber,
-                general_ticket: generalNumber,
-                first_name: firstName || '---',
-                last_name: lastName || '---',
-                national_id: nationalId || '---',
-                registered_by: currentUser.$id,
-                registered_by_name: currentUser.name || currentUser.email,
-                status: 'در حال انتظار',
-                ticket_type: 'regular'
-            };
-
             const createdTicket = await databases.createDocument(
                 DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
                 [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
-            
             const popupMessage = `
                 <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
                 <p>نوبت کلی: ${createdTicket.general_ticket}</p>
@@ -522,296 +446,270 @@ document.addEventListener('DOMContentLoaded', () => {
             showPopupNotification('<p>خطا در ثبت نوبت!</p>');
         }
     }
-
-    // --- CALL LOGIC ---
-    async function callNextTicket() {
-        if (!currentUser) {
-            showPopupNotification('<p>لطفاً ابتدا وارد سیستم شوید.</p>');
+    
+    async function generatePassTicket(firstName, lastName, nationalId, delayCount) {
+        if (!firstName || !lastName) {
+            alert('برای ثبت پاس نوبت، وارد کردن نام و نام خانوادگی الزامی است.');
             return;
         }
 
-        const userPrefs = currentUser.prefs || {};
-        const selections = userPrefs.service_selections || {};
-        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-        
-        if (selectedServiceIds.length === 0) {
-            showPopupNotification('<p>لطفاً حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+        if (nationalId && !checkCodeMeli(nationalId)) {
+            alert('کد ملی وارد شده معتبر نیست.');
             return;
         }
+        if (tempSelectedServicesForPass.length === 0) return;
+
+        const allTickets = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+        ]);
+        const lastGeneralTicket = allTickets.documents.length > 0 ? 
+            parseInt(allTickets.documents[0].general_ticket) : 0;
+        const generalNumber = lastGeneralTicket + 1;
+
+        const creationPromises = tempSelectedServicesForPass.map((serviceId, index) => {
+            const service = services.find(s => s.$id === serviceId);
+            const isDisabled = service && service.disabled === true;
+            if (isDisabled) {
+                showPopupNotification('<p>یکی از خدمات انتخاب شده غیرفعال است. امکان ثبت نوبت پاس وجود ندارد.</p>');
+                return Promise.reject('Service disabled');
+            }
+            
+            const newTicketData = {
+                service_id: serviceId,
+                general_ticket: generalNumber,
+                first_name: firstName,
+                last_name: lastName,
+                national_id: nationalId || '---',
+                registered_by: currentUser.$id,
+                registered_by_name: currentUser.name,
+                status: 'در حال انتظار',
+                ticket_type: 'pass',
+                delay_count: delayCount
+            };
+            return databases.createDocument(
+                DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
+                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
+            );
+        });
 
         try {
-            const waitingTickets = tickets.filter(t => 
-                selectedServiceIds.includes(t.service_id) && 
-                t.status === 'در حال انتظار'
-            );
-
-            if (waitingTickets.length === 0) {
-                showPopupNotification('<p>نوبت جدیدی برای فراخوانی وجود ندارد.</p>');
-                return;
-            }
-
-            // مرتب‌سازی بر اساس اولویت و زمان
-            waitingTickets.sort((a, b) => {
-                if (a.ticket_type === 'regular' && b.ticket_type === 'pass') return -1;
-                if (a.ticket_type === 'pass' && b.ticket_type === 'regular') return 1;
-                return new Date(a.$createdAt) - new Date(b.$createdAt);
-            });
-
-            const nextTicket = waitingTickets[0];
-            await callTicket(nextTicket);
+            await Promise.all(creationPromises);
+            showPopupNotification(`<p>نوبت پاس شده با موفقیت ثبت شد.</p>`);
+            closeTicketForm();
         } catch (error) {
-            console.error('Error calling next ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+            console.error('Error creating pass ticket:', error);
+            if (error !== 'Service disabled') {
+                showPopupNotification('<p>خطا در ثبت نوبت پاس شده!</p>');
+            }
         }
     }
 
-    async function callTicket(ticket) {
+    async function callNextTicket() {
+        if (lastCalledTicket[currentUser.$id]) {
+            const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+            if (lastTicket && lastTicket.status === 'در حال سرویس') {
+                // No smart time update needed anymore
+            }
+        }
+
+        const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+            return;
+        }
+
+        let ticketToCall = null;
+        
+        // Include disabled services in the waiting tickets for calling
+        const waitingTickets = tickets
+            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+
+        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+        
+        if (passedTickets.length > 0) {
+            ticketToCall = passedTickets[0];
+        } else {
+            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+            if (regularTickets.length > 0) {
+                ticketToCall = regularTickets[0];
+                
+                const passedToUpdate = tickets.filter(t => 
+                    t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                    t.service_id === ticketToCall.service_id
+                );
+                const updatePromises = passedToUpdate.map(t => 
+                    databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+                );
+                if (updatePromises.length > 0) await Promise.all(updatePromises);
+            }
+        }
+
+        if (ticketToCall) {
+            try {
+                const userPrefs = currentUser.prefs || {};
+                const counterName = userPrefs.counter_name || 'باجه';
+                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                });
+                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                
+                // نمایش نام شخص در پاپاپ فراخوانی
+                const service = services.find(s => s.$id === updatedTicket.service_id);
+                const popupMessage = `
+                    <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                    <p><strong>باجه:</strong> ${counterName}</p>
+                `;
+                showPopupNotification(popupMessage);
+            } catch (error) {
+                console.error('Error calling next ticket:', error);
+                showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+            }
+        } else {
+            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
+        }
+    }
+
+    // --- فراخوانی نوبت گذشته خاص ---
+    async function callPastTicket() {
+        const ticketNumber = pastTicketInput.value.trim();
+        
+        if (!ticketNumber) {
+            showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
+            pastTicketInput.classList.add('error');
+            return;
+        }
+
+        if (!currentUser) {
+            showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
+            return;
+        }
+
         try {
+            // جستجوی نوبت گذشته (می‌تواند در هر وضعیتی باشد)
+            const pastTicket = tickets.find(t => 
+                t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
+            );
+
+            if (!pastTicket) {
+                showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
+                pastTicketInput.classList.add('error');
+                return;
+            }
+
             const userPrefs = currentUser.prefs || {};
             const counterName = userPrefs.counter_name || 'باجه';
-            const now = new Date().toISOString();
             
+            // آپدیت نوبت به وضعیت "در حال سرویس" با زمان جدید
             const updatedTicket = await databases.updateDocument(
-                DATABASE_ID, TICKETS_COLLECTION_ID, ticket.$id, {
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                pastTicket.$id, 
+                {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
                     called_by_name: currentUser.name || currentUser.email,
                     called_by_counter_name: counterName,
-                    call_time: now
+                    call_time: new Date().toISOString()
                 }
             );
-            
-            currentCalledTicket = updatedTicket;
+
             lastCalledTicket[currentUser.$id] = updatedTicket.$id;
             
-            const service = services.find(s => s.$id === ticket.service_id);
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            
+            // نمایش نوتیفیکیشن دقیقاً مانند فراخوانی عادی
             const popupMessage = `
-                <span class="ticket-number">نوبت: ${ticket.specific_ticket || 'پاس'}</span>
-                <p>نوبت کلی: ${ticket.general_ticket}</p>
-                <p>نام: ${ticket.first_name} ${ticket.last_name}</p>
-                <p>خدمت: ${service ? service.name : '---'}</p>
-                <p>باجه: ${counterName}</p>
-                <span class="call-time">زمان فراخوان: ${formatDate(now)}</span>
+                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName}</p>
             `;
+            showPopupNotification(popupMessage);
             
-            // بررسی آیا عکاسی فعال است
-            const isPhotographyEnabled = userPrefs.photography_enabled;
-            showPopupNotification(popupMessage, isPhotographyEnabled);
+            // پاک کردن input و دادن استایل موفقیت
+            pastTicketInput.value = '';
+            pastTicketInput.classList.remove('error');
+            pastTicketInput.classList.add('success');
+            setTimeout(() => pastTicketInput.classList.remove('success'), 2000);
+            
+            // به روز رسانی داده‌ها
+            await fetchData();
             
         } catch (error) {
-            console.error('Error calling ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+            console.error('Error calling past ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
+            pastTicketInput.classList.add('error');
         }
     }
-
-    // --- PHOTOGRAPHY SYSTEM ---
-    function openPhotographyModal() {
-        if (!currentCalledTicket) return;
+    
+async function resetAllTickets() {
+    if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها و لیست عکاسی برای همیشه پاک خواهند شد.')) return;
+    
+    try {
+        let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+        while (response.documents.length > 0) {
+            const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
+            await Promise.all(deletePromises);
+            response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+        }
         
-        photoNationalIdInput.value = currentCalledTicket.national_id || '';
-        photographyModal.style.display = 'flex';
-    }
-
-    function closePhotographyModal() {
-        photographyModal.style.display = 'none';
-        photoNationalIdInput.value = '';
-    }
-
-    async function handlePhotographyAction(action) {
-        if (!currentCalledTicket) return;
+        // پاک کردن لیست عکاسی
+        photographyList = [];
+        await savePhotographyList();
+        updatePhotographyUI();
+        renderPhotographyList();
         
+        showPopupNotification('<p>تمام نوبت‌ها و لیست عکاسی با موفقیت پاک شدند.</p>');
+    } catch (error) {
+        console.error('Error resetting tickets:', error);
+        showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
+    }
+}
+
+    // --- AUTO RESET FUNCTIONALITY ---
+    async function checkAutoReset() {
         try {
-            const service = services.find(s => s.$id === currentCalledTicket.service_id);
+            const today = new Date().toDateString();
+            const lastReset = localStorage.getItem('lastAutoReset');
             
-            switch (action) {
-                case 'capture':
-                    if (!validateNationalId(photoNationalIdInput.value)) {
-                        alert('کد ملی وارد شده معتبر نیست.');
-                        return;
+            if (lastReset !== today) {
+                const servicesWithAutoReset = services.filter(service => service.auto_reset === true);
+                
+                if (servicesWithAutoReset.length > 0) {
+                    const serviceIds = servicesWithAutoReset.map(service => service.$id);
+                    const ticketsToDelete = tickets.filter(ticket => 
+                        serviceIds.includes(ticket.service_id)
+                    );
+                    
+                    if (ticketsToDelete.length > 0) {
+                        const deletePromises = ticketsToDelete.map(ticket => 
+                            databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticket.$id)
+                        );
+                        await Promise.all(deletePromises);
+                        console.log(`Auto-reset completed for ${ticketsToDelete.length} tickets`);
                     }
-                    await createPhotographyRecord('sent');
-                    showPopupNotification('<p>مشتری به عکاسی ارسال شد.</p>');
-                    break;
                     
-                case 'reserve':
-                    await createPhotographyRecord('reserved');
-                    showPopupNotification('<p>نوبت عکس رزرو شد.</p>');
-                    break;
-                    
-                case 'no_photo':
-                    await createPhotographyRecord('no_photo');
-                    await completeTicketService();
-                    showPopupNotification('<p>خدمت بدون عکس تکمیل شد.</p>');
-                    break;
-                    
-                case 'reserve_list':
-                    openPhotoReserveList();
-                    return;
-            }
-            
-            closePhotographyModal();
-            closePopupNotification();
-            
-        } catch (error) {
-            console.error('Error in photography action:', error);
-            showPopupNotification('<p>خطا در انجام عملیات!</p>');
-        }
-    }
-
-    function validateNationalId(nationalId) {
-        return checkCodeMeli(nationalId);
-    }
-
-    async function createPhotographyRecord(status) {
-        const service = services.find(s => s.$id === currentCalledTicket.service_id);
-        
-        const recordData = {
-            original_ticket: currentCalledTicket.general_ticket,
-            specific_ticket: currentCalledTicket.specific_ticket || 'پاس',
-            customer_name: `${currentCalledTicket.first_name} ${currentCalledTicket.last_name}`,
-            national_id: photoNationalIdInput.value || currentCalledTicket.national_id,
-            service_id: currentCalledTicket.service_id,
-            service_name: service ? service.name : '---',
-            photo_status: status,
-            sent_to_photography_time: new Date().toISOString(),
-            called_by: currentUser.$id,
-            called_by_name: currentUser.name || currentUser.email
-        };
-        
-        try {
-            const record = await databases.createDocument(
-                DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, ID.unique(), recordData,
-                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
-            );
-            photographyRecords.push(record);
-            updatePhotographyHistory();
-        } catch (error) {
-            console.error('Error creating photography record:', error);
-            // اگر کالکشن وجود ندارد، پیام خطا نشان نده
-            if (!error.message.includes('collection')) {
-                throw error;
-            }
-        }
-    }
-
-    async function completeTicketService() {
-        if (!currentCalledTicket) return;
-        
-        try {
-            await databases.updateDocument(
-                DATABASE_ID, TICKETS_COLLECTION_ID, currentCalledTicket.$id, {
-                    status: 'تکمیل شده',
-                    completion_time: new Date().toISOString()
+                    localStorage.setItem('lastAutoReset', today);
                 }
-            );
-        } catch (error) {
-            console.error('Error completing ticket service:', error);
-        }
-    }
-
-    async function approvePhoto(recordId) {
-        try {
-            const record = photographyRecords.find(r => r.$id === recordId);
-            if (!record) return;
-            
-            await databases.updateDocument(
-                DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, recordId, {
-                    photo_status: 'approved',
-                    photo_approved_time: new Date().toISOString(),
-                    approved_by: currentUser.$id,
-                    approved_by_name: currentUser.name || currentUser.email
-                }
-            );
-            
-            await fetchPhotographyRecords();
-            showPopupNotification('<p>عکس تایید شد.</p>');
-            
-        } catch (error) {
-            console.error('Error approving photo:', error);
-            showPopupNotification('<p>خطا در تایید عکس!</p>');
-        }
-    }
-
-    function openPhotoReserveList() {
-        const reservedRecords = photographyRecords.filter(r => r.photo_status === 'reserved');
-        photoReserveTable.innerHTML = '';
-        
-        reservedRecords.forEach(record => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${record.customer_name}</td>
-                <td>${record.national_id}</td>
-                <td>${record.service_name}</td>
-                <td>${formatDate(record.sent_to_photography_time)}</td>
-                <td>
-                    <button class="complete-reserve-btn" data-id="${record.$id}">تکمیل عکس</button>
-                </td>
-            `;
-            photoReserveTable.appendChild(row);
-        });
-        
-        document.querySelectorAll('.complete-reserve-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const recordId = e.target.dataset.id;
-                completeReservedPhoto(recordId);
-            });
-        });
-        
-        photoReserveListModal.style.display = 'flex';
-        photographyModal.style.display = 'none';
-    }
-
-    async function completeReservedPhoto(recordId) {
-        try {
-            await databases.updateDocument(
-                DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, recordId, {
-                    photo_status: 'completed',
-                    photo_approved_time: new Date().toISOString()
-                }
-            );
-            
-            await fetchPhotographyRecords();
-            openPhotoReserveList();
-            showPopupNotification('<p>عکس رزرو شده تکمیل شد.</p>');
-            
-        } catch (error) {
-            console.error('Error completing reserved photo:', error);
-            showPopupNotification('<p>خطا در تکمیل عکس رزرو شده!</p>');
-        }
-    }
-
-    function closePhotoReserveList() {
-        photoReserveListModal.style.display = 'none';
-    }
-
-    // --- POPUP NOTIFICATION ---
-    function showPopupNotification(message, showButtons = false) {
-        popupText.innerHTML = message;
-        
-        sendToPhotographyBtn.style.display = showButtons ? 'block' : 'none';
-        callNextAfterPopupBtn.style.display = showButtons ? 'block' : 'none';
-        
-        popupNotification.style.display = 'flex';
-        setTimeout(() => {
-            popupNotification.classList.add('show');
-        }, 10);
-        
-        setTimeout(() => {
-            if (popupNotification.style.display !== 'none') {
-                closePopupNotification();
             }
-        }, 5000);
+        } catch (error) {
+            console.error('Error in auto-reset:', error);
+        }
     }
 
-    function closePopupNotification() {
-        popupNotification.classList.remove('show');
-        setTimeout(() => {
-            popupNotification.style.display = 'none';
-            currentCalledTicket = null;
-        }, 300);
-    }
-
-    // --- MODAL MANAGEMENT ---
+    // --- COUNTER SETTINGS LOGIC ---
     function openCounterSettingsModal() {
         const userPrefs = currentUser.prefs || {};
         counterNameInput.value = userPrefs.counter_name || '';
@@ -822,39 +720,35 @@ document.addEventListener('DOMContentLoaded', () => {
         counterSettingsModal.style.display = 'none';
     }
 
-    // --- HELPERS ---
-    function formatDate(dateString) {
-        if (!dateString) return '---';
-        try {
-            return new Date(dateString).toLocaleString('fa-IR');
-        } catch (error) {
-            return '---';
-        }
-    }
-
-    function calculateEstimatedWaitTime(serviceId) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service) return 0;
-        
-        const timePerTicket = service.manual_time || 10;
-        const queueLength = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-        
-        return queueLength * timePerTicket;
-    }
-
-    function checkAvailabilityAndOpenForm(serviceId) {
-        const service = services.find(s => s.$id === serviceId);
-        if (!service) return;
-
-        const isDisabled = service.disabled === true;
-        if (isDisabled) {
-            showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
+    async function saveCounterSettings() {
+        const counterName = counterNameInput.value.trim();
+        if (!counterName) {
+            alert('لطفا شماره یا نام باجه را وارد کنید.');
             return;
         }
 
-        openTicketForm('regular', service.$id);
+        try {
+            const userPrefs = currentUser.prefs || {};
+            await account.updatePrefs({ 
+                ...userPrefs, 
+                counter_name: counterName 
+            });
+            
+            // به‌روزرسانی اطلاعات کاربر
+            currentUser = await account.get();
+            
+            // به‌روزرسانی UI
+            userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
+            
+            showPopupNotification('<p>شماره باجه با موفقیت ذخیره شد.</p>');
+            closeCounterSettingsModal();
+        } catch (error) {
+            console.error('Error saving counter settings:', error);
+            showPopupNotification('<p>خطا در ذخیره شماره باجه!</p>');
+        }
     }
 
+    // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
         ticketForm.dataset.mode = mode;
         const passDelayGroup = document.getElementById('pass-delay-group');
@@ -865,6 +759,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (mode === 'pass') {
             ticketFormTitle.textContent = 'ثبت اطلاعات شخص پاس داده شده';
             passDelayGroup.style.display = 'block';
+            
+            // تنظیم required برای فیلدهای نام و نام خانوادگی در حالت پاس
+            document.getElementById('first-name').required = true;
+            document.getElementById('last-name').required = true;
         }
         ticketForm.style.display = 'block';
     }
@@ -874,72 +772,902 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('first-name').value = '';
         document.getElementById('last-name').value = '';
         document.getElementById('national-id').value = '';
-        document.getElementById('pass-delay-count').value = '0';
+        document.getElementById('pass-delay-count').value = 0;
+        
+        // حذف required هنگام بستن فرم
+        document.getElementById('first-name').required = false;
+        document.getElementById('last-name').required = false;
     }
 
-    // --- AUTO RESET ---
-    async function checkAutoReset() {
-        // پیاده‌سازی ساده‌شده
-        try {
-            const today = new Date().toDateString();
-            const lastReset = localStorage.getItem('lastAutoReset');
+    function openPassServiceModal() {
+        passServiceList.innerHTML = '';
+        services.forEach(service => {
+            const div = document.createElement('div');
+            div.className = 'service-checkbox';
             
-            if (lastReset !== today) {
-                localStorage.setItem('lastAutoReset', today);
+            // Check if service is disabled
+            const isDisabled = service.disabled === true;
+            if (isDisabled) {
+                div.classList.add('disabled-service');
             }
+            
+            div.innerHTML = `<input type="checkbox" id="pass-check-${service.$id}" value="${service.$id}" ${isDisabled ? 'disabled' : ''}>
+                             <label for="pass-check-${service.$id}">${service.name} ${isDisabled ? '(غیرفعال)' : ''}</label>`;
+            passServiceList.appendChild(div);
+        });
+        passServiceModalOverlay.style.display = 'flex';
+    }
+
+    // --- POPUP NOTIFICATION SYSTEM ---
+    function showPopupNotification(htmlContent) {
+        popupText.innerHTML = htmlContent;
+        popupNotification.style.display = 'flex';
+        
+        // استفاده از سیستم نوتیفیکیشن اصلی که قبلاً تعریف شده بود
+        setTimeout(() => {
+            popupNotification.classList.add('show');
+        }, 10);
+        
+        // بستن خودکار پس از 5 ثانیه
+        setTimeout(() => {
+            popupNotification.classList.remove('show');
+            setTimeout(() => {
+                popupNotification.style.display = 'none';
+            }, 300);
+        }, 5000);
+        
+        // امکان بستن با کلیک
+        popupNotification.addEventListener('click', function closeHandler(e) {
+            if (e.target === popupNotification) {
+                popupNotification.classList.remove('show');
+                setTimeout(() => {
+                    popupNotification.style.display = 'none';
+                }, 300);
+                popupNotification.removeEventListener('click', closeHandler);
+            }
+        });
+    }
+
+    // --- ADMIN PANEL LOGIC ---
+    function openAdminPanel() {
+        renderServiceSettings();
+        adminPanel.style.display = 'block';
+    }
+
+    function renderServiceSettings() {
+        serviceList.innerHTML = '';
+        services.forEach(service => {
+            const row = document.createElement('tr');
+            row.dataset.id = service.$id;
+            row.innerHTML = `
+                <td><input type="text" value="${service.name}" class="setting-name"></td>
+                <td><input type="number" value="${service.start_number}" class="setting-start"></td>
+                <td><input type="number" value="${service.end_number}" class="setting-end"></td>
+                <td><input type="number" value="${service.manual_time}" class="setting-manual-time"></td>
+                <td><input type="text" value="${service.work_hours_start || '08:00'}" class="setting-work-start"></td>
+                <td><input type="text" value="${service.work_hours_end || '17:00'}" class="setting-work-end"></td>
+                <td><input type="checkbox" ${service.disabled ? 'checked' : ''} class="setting-disabled"></td>
+                <td><input type="checkbox" ${service.auto_reset ? 'checked' : ''} class="setting-auto-reset"></td>
+                <td><button class="remove-service-btn">حذف</button></td>`;
+            serviceList.appendChild(row);
+        });
+        
+        serviceList.querySelectorAll('.remove-service-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => e.target.closest('tr').remove());
+        });
+    }
+    
+    function addNewServiceRow() {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><input type="text" placeholder="نام خدمت جدید" class="setting-name"></td>
+            <td><input type="number" value="100" class="setting-start"></td>
+            <td><input type="number" value="199" class="setting-end"></td>
+            <td><input type="number" value="10" class="setting-manual-time"></td>
+            <td><input type="text" value="08:00" class="setting-work-start"></td>
+            <td><input type="text" value="17:00" class="setting-work-end"></td>
+            <td><input type="checkbox" class="setting-disabled"></td>
+            <td><input type="checkbox" class="setting-auto-reset"></td>
+            <td><button class="remove-service-btn">حذف</button></td>`;
+        serviceList.appendChild(row);
+        row.querySelector('.remove-service-btn').addEventListener('click', () => row.remove());
+    }
+
+    async function saveSettings() {
+        const existingServiceIds = services.map(s => s.$id);
+        const uiServiceIds = [];
+        const promises = [];
+
+        serviceList.querySelectorAll('tr').forEach(row => {
+            const id = row.dataset.id;
+            if(id) uiServiceIds.push(id);
+
+            // Create data object with safe defaults
+            const data = {
+                name: row.querySelector('.setting-name').value,
+                start_number: parseInt(row.querySelector('.setting-start').value) || 100,
+                end_number: parseInt(row.querySelector('.setting-end').value) || 199,
+                manual_time: parseInt(row.querySelector('.setting-manual-time').value) || 10,
+                work_hours_start: row.querySelector('.setting-work-start').value || '08:00',
+                work_hours_end: row.querySelector('.setting-work-end').value || '17:00'
+            };
+
+            // Only add new fields if they exist in the database
+            const disabledCheckbox = row.querySelector('.setting-disabled');
+            const autoResetCheckbox = row.querySelector('.setting-auto-reset');
+            
+            if (disabledCheckbox) {
+                data.disabled = disabledCheckbox.checked;
+            }
+            
+            if (autoResetCheckbox) {
+                data.auto_reset = autoResetCheckbox.checked;
+            }
+
+            if (id) {
+                promises.push(databases.updateDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id, data));
+            } else {
+                promises.push(databases.createDocument(DATABASE_ID, SERVICES_COLLECTION_ID, ID.unique(), data));
+            }
+        });
+
+        const servicesToDelete = existingServiceIds.filter(id => !uiServiceIds.includes(id));
+        servicesToDelete.forEach(id => {
+            promises.push(databases.deleteDocument(DATABASE_ID, SERVICES_COLLECTION_ID, id));
+        });
+
+        try {
+            await Promise.all(promises);
+            showPopupNotification('<p>تنظیمات با موفقیت ذخیره شد.</p>');
+            adminPanel.style.display = 'none';
+            fetchData();
         } catch (error) {
-            console.error('Error in auto-reset:', error);
+            console.error('Error saving settings:', error);
+            showPopupNotification('<p>خطا در ذخیره تنظیمات! لطفا فیلدهای جدید را در دیتابیس اضافه کنید.</p>');
         }
     }
 
-    // --- EVENT LISTENERS ---
-    loginBtn.addEventListener('click', login);
-    logoutBtn.addEventListener('click', logout);
-    callNextBtn.addEventListener('click', callNextTicket);
-    callPastBtn.addEventListener('click', callPastTicket);
-    
-    // دکمه‌های عکاسی
-    sendToPhotographyBtn.addEventListener('click', () => {
-        closePopupNotification();
-        openPhotographyModal();
-    });
-    
-    callNextAfterPopupBtn.addEventListener('click', () => {
-        closePopupNotification();
-        callNextTicket();
-    });
+    // --- HELPERS ---
+    function formatDate(dateString) {
+        if (!dateString) return '---';
+        return new Date(dateString).toLocaleString('fa-IR');
+    }
 
-    capturePhotoBtn.addEventListener('click', () => handlePhotographyAction('capture'));
-    reservePhotoBtn.addEventListener('click', () => handlePhotographyAction('reserve'));
-    noPhotoBtn.addEventListener('click', () => handlePhotographyAction('no_photo'));
-    reserveListBtn.addEventListener('click', () => handlePhotographyAction('reserve_list'));
-    cancelPhotoBtn.addEventListener('click', closePhotographyModal);
-    closeReserveListBtn.addEventListener('click', closePhotoReserveList);
+    // --- Photography List Functions ---
+function openPhotographyModal(ticket) {
+    currentTicketForPhotography = ticket;
+    photographyNationalIdInput.value = '';
+    photographyTicketNumber.textContent = ticket.specific_ticket || 'پاس';
+    photographyCustomerName.textContent = `${ticket.first_name} ${ticket.last_name}`;
+    photographyModal.style.display = 'flex';
+    photographyNationalIdInput.focus();
+}
 
-    // سایر event listeners
-    counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
-    saveCounterBtn.addEventListener('click', async () => {
-        const counterName = counterNameInput.value.trim();
-        if (!counterName) {
-            alert('لطفاً شماره یا نام باجه را وارد کنید.');
+async function addManualToPhotographyList() {
+    const ticketNumber = manualTicketInput.value.trim();
+    const nationalId = prompt('لطفا کد ملی را وارد کنید:');
+    
+    if (!ticketNumber) {
+        alert('لطفا شماره نوبت را وارد کنید.');
+        return;
+    }
+    
+    if (!nationalId) {
+        alert('لطفا کد ملی را وارد کنید.');
+        return;
+    }
+    
+    if (!checkCodeMeli(nationalId)) {
+        alert('کد ملی وارد شده معتبر نیست.');
+        return;
+    }
+    
+    try {
+        // بررسی وجود قبلی در لیست عکاسی
+        const existingItem = photographyList.find(item => 
+            item.ticketNumber === ticketNumber
+        );
+        
+        if (existingItem) {
+            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
+            manualTicketInput.value = '';
             return;
         }
         
+        // اضافه کردن به لیست عکاسی
+        const newPhotographyItem = {
+            id: Date.now().toString(),
+            ticketId: `manual_${Date.now()}`,
+            ticketNumber: ticketNumber,
+            generalNumber: 'دستی',
+            firstName: 'ثبت دستی',
+            lastName: '',
+            nationalId: nationalId,
+            serviceId: 'manual',
+            serviceName: 'ثبت دستی',
+            addedAt: new Date().toISOString(),
+            photoTaken: false,
+            returned: false
+        };
+        
+        photographyList.unshift(newPhotographyItem);
+        await savePhotographyList();
+        updatePhotographyUI();
+        manualTicketInput.value = '';
+        
+        showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+        
+    } catch (error) {
+        console.error('Error adding manual to photography list:', error);
+        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+    }
+}
+
+function updatePhotographyUI() {
+    const waitingCount = photographyList.filter(item => !item.photoTaken).length;
+    photographyWaitingCount.textContent = waitingCount;
+    
+    // ذخیره وضعیت کاربر عکاسی
+    if (currentUser) {
+        const userPrefs = currentUser.prefs || {};
+        userPrefs.is_photography_user = isPhotographyUser;
+        account.updatePrefs(userPrefs).catch(console.error);
+    }
+}
+
+function updatePhotographyUI() {
+    const waitingCount = photographyList.filter(item => !item.photoTaken).length;
+    photographyWaitingCount.textContent = waitingCount;
+    
+    // ذخیره وضعیت کاربر عکاسی
+    const userPrefs = currentUser.prefs || {};
+    userPrefs.is_photography_user = isPhotographyUser;
+    account.updatePrefs(userPrefs).catch(console.error);
+}
+
+
+function closePhotographyModal() {
+    photographyModal.style.display = 'none';
+    currentTicketForPhotography = null;
+}
+// فقط تغییرات اصلی - حذف توابع تکراری
+
+// حذف توابع تکراری مربوط به لیست عکاسی که در display.js وجود دارند
+// نگه داشتن فقط توابعی که برای رابط کاربری اصلی ضروری هستند
+
+// تابع ساده‌شده برای افزودن به لیست عکاسی
+async function addToPhotographyList(ticket, nationalId) {
+    if (!nationalId || !checkCodeMeli(nationalId)) {
+        alert('کد ملی وارد شده معتبر نیست.');
+        return false;
+    }
+
+    try {
+        const photographyList = getPhotographyList();
+        
+        // بررسی تکراری نبودن
+        if (photographyList.find(item => item.ticketId === ticket.$id || item.nationalId === nationalId)) {
+            alert('این نوبت یا کد ملی قبلاً در لیست عکاسی ثبت شده است.');
+            return false;
+        }
+
+        const newItem = {
+            id: Date.now().toString(),
+            ticketId: ticket.$id,
+            ticketNumber: ticket.specific_ticket || 'پاس',
+            nationalId: nationalId,
+            firstName: ticket.first_name,
+            lastName: ticket.last_name,
+            addedAt: new Date().toISOString(),
+            photoTaken: false
+        };
+
+        photographyList.unshift(newItem);
+        savePhotographyList(photographyList);
+        return true;
+
+    } catch (error) {
+        console.error('Error adding to photography list:', error);
+        return false;
+    }
+}
+
+// توابع کمکی برای مدیریت لیست عکاسی
+function getPhotographyList() {
+    try {
+        const saved = localStorage.getItem('photographyList');
+        return saved ? JSON.parse(saved) : [];
+    } catch {
+        return [];
+    }
+}
+
+function savePhotographyList(list) {
+    try {
+        localStorage.setItem('photographyList', JSON.stringify(list));
+    } catch (error) {
+        console.error('Error saving photography list:', error);
+    }
+}
+
+// به‌روزرسانی تابع callNextTicket برای حذف منطق تکراری
+async function callNextTicket() {
+    if (isPhotographyUser) {
+        await processPhotographyTicket();
+        return;
+    }
+    
+    await callNextRegularTicket();
+}
+async function addManualToPhotographyList() {
+    const ticketNumber = manualTicketInput.value.trim();
+    const nationalId = prompt('لطفا کد ملی را وارد کنید:');
+    
+    if (!ticketNumber) {
+        alert('لطفا شماره نوبت را وارد کنید.');
+        return;
+    }
+    
+    if (!nationalId) {
+        alert('لطفا کد ملی را وارد کنید.');
+        return;
+    }
+    
+    if (!checkCodeMeli(nationalId)) {
+        alert('کد ملی وارد شده معتبر نیست.');
+        return;
+    }
+    
+    try {
+        // بررسی وجود قبلی در لیست عکاسی با همان شماره نوبت
+        const existingItemByTicket = photographyList.find(item => 
+            item.ticketNumber === ticketNumber
+        );
+        
+        if (existingItemByTicket) {
+            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
+            manualTicketInput.value = '';
+            return;
+        }
+        
+        // بررسی وجود کدملی تکراری در لیست عکاسی
+        const existingItemByNationalId = photographyList.find(item => 
+            item.nationalId === nationalId && !item.photoTaken
+        );
+        
+        if (existingItemByNationalId) {
+            alert(`کد ملی ${nationalId} قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItemByNationalId.ticketNumber}).`);
+            return;
+        }
+        
+        // اضافه کردن به لیست عکاسی
+        const newPhotographyItem = {
+            id: Date.now().toString(),
+            ticketId: `manual_${Date.now()}`,
+            ticketNumber: ticketNumber,
+            generalNumber: 'دستی',
+            firstName: 'ثبت دستی',
+            lastName: '',
+            nationalId: nationalId,
+            serviceId: 'manual',
+            serviceName: 'ثبت دستی',
+            addedAt: new Date().toISOString(),
+            photoTaken: false,
+            returned: false
+        };
+        
+        photographyList.unshift(newPhotographyItem);
+        await savePhotographyList();
+        updatePhotographyUI();
+        manualTicketInput.value = '';
+        
+        showPopupNotification(`<p>نوبت ${newPhotographyItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+        
+    } catch (error) {
+        console.error('Error adding manual to photography list:', error);
+        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+    }
+}
+
+function renderPhotographyList() {
+    if (photographyList.length === 0) {
+        photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+        photographyDisplay.style.display = 'none';
+        return;
+    }
+    
+    // فقط 7 آیتم اول را نشان بده
+    const displayItems = photographyList.slice(0, 7);
+    
+    photographyListContainer.innerHTML = displayItems.map((item, index) => `
+        <div class="photography-item ${item.photoTaken ? 'photo-taken' : ''} ${index === 0 && !item.photoTaken ? 'new-item' : ''}">
+            <div class="photography-number">${index + 1}</div>
+            <div class="photography-info">
+                <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
+                <div class="photography-national-id">${item.nationalId}</div>
+            </div>
+            <div class="photography-status ${item.photoTaken ? 'photo-taken' : ''}">
+                ${item.photoTaken ? 'عکس گرفته شد' : 'در انتظار'}
+            </div>
+        </div>
+    `).join('');
+    
+    photographyDisplay.style.display = 'flex';
+}
+
+async function savePhotographyList() {
+    try {
+        localStorage.setItem('photographyList', JSON.stringify(photographyList));
+    } catch (error) {
+        console.error('Error saving photography list:', error);
+    }
+}
+
+function loadPhotographyList() {
+    try {
+        const saved = localStorage.getItem('photographyList');
+        if (saved) {
+            photographyList = JSON.parse(saved);
+        }
+        renderPhotographyList();
+        
+        // نمایش لیست عکاسی اگر آیتمی وجود دارد
+        if (photographyList.length > 0) {
+            photographyDisplay.style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading photography list:', error);
+        photographyList = [];
+    }
+}
+
+async function markPhotoAsTaken(photographyItemId) {
+    const item = photographyList.find(i => i.id === photographyItemId);
+    if (item) {
+        item.photoTaken = true;
+        await savePhotographyList();
+        renderPhotographyList();
+        
+        // اگر کاربر عکاسی هست، آیتم را از لیست حذف کن
+        const userPrefs = currentUser.prefs || {};
+        if (userPrefs.role === 'photography') {
+            removeFromPhotographyList(photographyItemId);
+        }
+    }
+}
+
+async function removeFromPhotographyList(photographyItemId) {
+    photographyList = photographyList.filter(item => item.id !== photographyItemId);
+    await savePhotographyList();
+    renderPhotographyList();
+    
+    // اگر لیست خالی شد، نمایشگر را مخفی کن
+    if (photographyList.length === 0) {
+        photographyDisplay.style.display = 'none';
+    }
+}
+
+async function callFromPhotographyList() {
+    // پیدا کردن اولین آیتم در لیست عکاسی که عکس آن گرفته شده
+    const readyItem = photographyList.find(item => item.photoTaken && !item.returned);
+    
+    if (!readyItem) {
+        showPopupNotification('<p>هیچ نوبت آماده‌ای در لیست عکاسی وجود ندارد.</p>');
+        return;
+    }
+    
+    try {
+        // آپدیت وضعیت نوبت در دیتابیس
+        const userPrefs = currentUser.prefs || {};
+        const counterName = userPrefs.counter_name || 'باجه';
+        
+        const updatedTicket = await databases.updateDocument(
+            DATABASE_ID, 
+            TICKETS_COLLECTION_ID, 
+            readyItem.ticketId, 
+            {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name || currentUser.email,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            }
+        );
+        
+        // علامت‌گذاری به عنوان بازگشته
+        readyItem.returned = true;
+        await savePhotographyList();
+        renderPhotographyList();
+        
+        // نمایش نوتیفیکیشن
+        const service = services.find(s => s.$id === updatedTicket.service_id);
+        const popupMessage = `
+            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+            <p><strong>باجه:</strong> ${counterName}</p>
+            <p style="color: #4CAF50; font-weight: bold;">(بازگشته از عکاسی)</p>
+        `;
+        showPopupNotification(popupMessage);
+        
+        // حذف از لیست عکاسی پس از 2 ثانیه
+        setTimeout(() => {
+            removeFromPhotographyList(readyItem.id);
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Error calling from photography list:', error);
+        showPopupNotification('<p>خطا در فراخوانی از لیست عکاسی!</p>');
+    }
+}
+
+// --- Modified Call Next Ticket Function ---
+// --- Modified Call Next Ticket Function ---
+async function callNextTicket() {
+    // اگر کاربر عکاسی هست
+    if (isPhotographyUser) {
+        await processPhotographyTicket();
+        return;
+    }
+    
+    // کاربر عادی - منطق قبلی
+    const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
+    await callNextRegularTicket(selections);
+}
+
+async function callNextRegularTicket(selections) {
+    // بررسی وجود lastCalledTicket برای کاربر فعلی
+    if (lastCalledTicket[currentUser.$id]) {
+        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+        if (lastTicket && lastTicket.status === 'در حال سرویس') {
+            // No smart time update needed anymore
+        }
+    }
+
+    // اصلاح: بررسی اینکه selections یک آبجکت معتبر است
+    const selectedServiceIds = selections && typeof selections === 'object' ? 
+        Object.keys(selections).filter(id => selections[id]) : [];
+
+    if (selectedServiceIds.length === 0) {
+        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+        return;
+    }
+
+    let ticketToCall = null;
+    
+    // Include disabled services in the waiting tickets for calling
+    const waitingTickets = tickets
+        .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+        .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+
+    const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+    
+    if (passedTickets.length > 0) {
+        ticketToCall = passedTickets[0];
+    } else {
+        const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+        if (regularTickets.length > 0) {
+            ticketToCall = regularTickets[0];
+            
+            const passedToUpdate = tickets.filter(t => 
+                t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                t.service_id === ticketToCall.service_id
+            );
+            const updatePromises = passedToUpdate.map(t => 
+                databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+            );
+            if (updatePromises.length > 0) await Promise.all(updatePromises);
+        }
+    }
+
+    if (ticketToCall) {
         try {
             const userPrefs = currentUser.prefs || {};
-            await account.updatePrefs({ ...userPrefs, counter_name: counterName });
-            currentUser = await account.get();
-            closeCounterSettingsModal();
-            showLoggedInUI();
+            const counterName = userPrefs.counter_name || 'باجه';
+            const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            });
+            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            
+            // نمایش نام شخص در پاپاپ فراخوانی
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            const popupMessage = `
+                <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName}</p>
+            `;
+            showPopupNotification(popupMessage);
+            
+            // نمایش دکمه ارسال به عکاسی
+            showSendToPhotographyButton(updatedTicket);
+            
         } catch (error) {
-            console.error('Error saving counter name:', error);
-            alert('خطا در ذخیره شماره باجه!');
+            console.error('Error calling next ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
         }
+    } else {
+        showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
+    }
+}
+
+async function processPhotographyTicket() {
+    // پیدا کردن اولین نوبت در لیست عکاسی که عکس آن گرفته نشده
+    const nextPhotographyItem = photographyList.find(item => !item.photoTaken);
+    
+    if (!nextPhotographyItem) {
+        showPopupNotification('<p>هیچ نوبتی در لیست عکاسی وجود ندارد.</p>');
+        return;
+    }
+    
+    // نمایش اطلاعات کدملی به کاربر عکاسی
+    const confirmMessage = `نوبت: ${nextPhotographyItem.ticketNumber}\nکد ملی: ${nextPhotographyItem.nationalId}\n\nآیا عکس گرفته شد؟`;
+    
+    if (confirm(confirmMessage)) {
+        await markPhotoAsTaken(nextPhotographyItem.id);
+        showPopupNotification(`<p>عکس برای نوبت ${nextPhotographyItem.ticketNumber} ثبت شد.</p>`);
+    }
+}
+
+async function callNextRegularTicket(selections) {
+    if (lastCalledTicket[currentUser.$id]) {
+        const lastTicket = tickets.find(t => t.$id === lastCalledTicket[currentUser.$id]);
+        if (lastTicket && lastTicket.status === 'در حال سرویس') {
+            // No smart time update needed anymore
+        }
+    }
+
+    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+    if (selectedServiceIds.length === 0) {
+        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+        return;
+    }
+
+    let ticketToCall = null;
+    
+    // Include disabled services in the waiting tickets for calling
+    const waitingTickets = tickets
+        .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+        .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+
+    const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+    
+    if (passedTickets.length > 0) {
+        ticketToCall = passedTickets[0];
+    } else {
+        const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+        if (regularTickets.length > 0) {
+            ticketToCall = regularTickets[0];
+            
+            const passedToUpdate = tickets.filter(t => 
+                t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                t.service_id === ticketToCall.service_id
+            );
+            const updatePromises = passedToUpdate.map(t => 
+                databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+            );
+            if (updatePromises.length > 0) await Promise.all(updatePromises);
+        }
+    }
+
+    if (ticketToCall) {
+        try {
+            const userPrefs = currentUser.prefs || {};
+            const counterName = userPrefs.counter_name || 'باجه';
+            const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            });
+            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            
+            // نمایش نام شخص در پاپاپ فراخوانی
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            const popupMessage = `
+                <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName}</p>
+            `;
+            showPopupNotification(popupMessage);
+            
+            // نمایش دکمه ارسال به عکاسی
+            showSendToPhotographyButton(updatedTicket);
+            
+        } catch (error) {
+            console.error('Error calling next ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+        }
+    } else {
+        showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
+    }
+}
+
+function showSendToPhotographyButton(ticket) {
+    // حذف دکمه قبلی اگر وجود دارد
+    const existingButton = document.querySelector('.send-to-photography-btn');
+    if (existingButton) {
+        existingButton.remove();
+    }
+    
+    // ایجاد دکمه جدید
+    const button = document.createElement('button');
+    button.className = 'big-button send-to-photography-btn';
+    button.textContent = 'ارسال به لیست عکاسی';
+    button.addEventListener('click', () => {
+        openPhotographyModal(ticket);
     });
     
-    cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
+    // اضافه کردن دکمه به بخش ticket-actions
+    const ticketActions = document.querySelector('.ticket-actions');
+    ticketActions.appendChild(button);
+    
+    // حذف خودکار دکمه بعد از 30 ثانیه
+    setTimeout(() => {
+        if (button.parentNode) {
+            button.remove();
+        }
+    }, 30000);
+}
+// --- Modified UI for Photography Role ---
+function updateUIForPhotographyRole() {
+    const userPrefs = currentUser.prefs || {};
+    
+    if (userPrefs.role === 'photography') {
+        // مخفی کردن بخش‌های غیرضروری برای کاربر عکاسی
+        document.querySelector('.service-buttons').style.display = 'none';
+        document.querySelector('.ticket-form').style.display = 'none';
+        document.getElementById('pass-ticket-btn').style.display = 'none';
+        document.getElementById('call-past-btn').style.display = 'none';
+        
+        // تغییر متن دکمه فراخوانی
+        const callNextBtn = document.getElementById('call-next-btn');
+        callNextBtn.textContent = 'عکس بگیر و تایید کن';
+        callNextBtn.style.backgroundColor = '#9C27B0';
+        
+        // اضافه کردن دکمه فراخوانی از لیست عکاسی
+        const photographyCallSection = document.createElement('div');
+        photographyCallSection.className = 'photography-call-section';
+        photographyCallSection.innerHTML = `
+            <button id="call-from-photography-btn" class="big-button photography-call-btn" disabled>
+                فراخوانی از لیست عکاسی
+            </button>
+        `;
+        
+        const ticketActions = document.querySelector('.ticket-actions');
+        ticketActions.appendChild(photographyCallSection);
+        
+        // اضافه کردن ایونت لیستنر برای دکمه فراخوانی از لیست عکاسی
+        document.getElementById('call-from-photography-btn').addEventListener('click', callFromPhotographyList);
+        
+        // به‌روزرسانی وضعیت دکمه بر اساس وجود آیتم آماده در لیست عکاسی
+        updatePhotographyCallButton();
+    }
+}
 
-    // سایر event listeners بدون تغییر...
+function updatePhotographyCallButton() {
+    const callFromPhotographyBtn = document.getElementById('call-from-photography-btn');
+    if (callFromPhotographyBtn) {
+        const readyItem = photographyList.find(item => item.photoTaken && !item.returned);
+        callFromPhotographyBtn.disabled = !readyItem;
+    }
+}
+
+// --- Modified Show Logged In UI ---
+function showLoggedInUI() {
+    loginFields.style.display = 'none';
+    userInfo.style.display = 'flex';
+    
+    const userPrefs = currentUser.prefs || {};
+    const counterName = userPrefs.counter_name || 'تعیین نشده';
+    const roleDisplay = userPrefs.role === 'photography' ? ' (عکاسی)' : '';
+    userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName}${roleDisplay})`;
+    
+    mainContent.style.display = 'block';
+    totalWaitingContainer.style.display = 'block';
+    
+    // نمایش لیست عکاسی
+    photographyDisplay.style.display = 'flex';
+
+    if (currentUser.prefs && currentUser.prefs.role === 'admin') {
+        settingsBtn.style.display = 'inline-block';
+        resetAllBtn.style.display = 'inline-block';
+    } else {
+        settingsBtn.style.display = 'none';
+        resetAllBtn.style.display = 'none';
+    }
+    
+    // دکمه تنظیمات باجه همیشه نمایش داده می‌شود
+    counterSettingsBtn.style.display = 'inline-block';
+    
+    // به‌روزرسانی UI برای نقش عکاسی
+    updateUIForPhotographyRole();
+}
+
+// --- Event Listeners (اضافه کردن به بخش event listeners موجود) ---
+confirmPhotographyBtn.addEventListener('click', addToPhotographyList);
+cancelPhotographyBtn.addEventListener('click', closePhotographyModal);
+manualPhotographyBtn.addEventListener('click', addManualToPhotographyList);
+photographyRoleCheckbox.addEventListener('change', function() {
+    isPhotographyUser = this.checked;
+    updatePhotographyUI();
+    updateUIForUserRole();
+});
+
+manualTicketInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        addManualToPhotographyList();
+    }
+});
+
+// مدیریت input کد ملی در مودال عکاسی
+photographyNationalIdInput.addEventListener('input', function() {
+    // فقط اعداد مجاز هستند
+    this.value = this.value.replace(/[^0-9]/g, '');
+});
+
+photographyNationalIdInput.addEventListener('keypress', function(e) {
+    // اجازه دادن به کلید Enter برای تایید
+    if (e.key === 'Enter') {
+        addToPhotographyList();
+    }
+});
+
+// --- Modified Initialize App ---
+async function initializeApp() {
+    try {
+        currentUser = await account.get();
+        await checkAndSetCounterName();
+        
+        // بارگذاری وضعیت کاربر عکاسی
+        const userPrefs = currentUser.prefs || {};
+        isPhotographyUser = userPrefs.is_photography_user || false;
+        photographyRoleCheckbox.checked = isPhotographyUser;
+        
+        showLoggedInUI();
+        await fetchData();
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+        loadPhotographyList();
+        updatePhotographyUI();
+        updateUIForUserRole();
+        
+    } catch (error) {
+        console.log('User not logged in');
+        showLoggedOutUI();
+    }
+}
+
+function updateUIForUserRole() {
+    if (isPhotographyUser) {
+        // تغییر رابط برای کاربر عکاسی
+        document.getElementById('call-next-btn').textContent = 'عکس بگیر و تایید کن';
+        document.querySelector('.photography-controls').style.display = 'none';
+    } else {
+        // رابط کاربری عادی
+        document.getElementById('call-next-btn').textContent = 'فراخوان نوبت بعدی';
+        document.querySelector('.photography-controls').style.display = 'flex';
+    }
+}
+
+    // --- EVENT LISTENERS ---
+    loginBtn.addEventListener('click', login);
+    callPastBtn.addEventListener('click', callPastTicket);
+    logoutBtn.addEventListener('click', logout);
+    settingsBtn.addEventListener('click', openAdminPanel);
+    resetAllBtn.addEventListener('click', resetAllTickets);
+    callNextBtn.addEventListener('click', callNextTicket);
+    passTicketBtn.addEventListener('click', openPassServiceModal);
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
         const lastName = document.getElementById('last-name').value;
@@ -949,17 +1677,47 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mode === 'regular') {
             generateTicket(ticketForm.dataset.serviceId, firstName, lastName, nationalId);
         } else if (mode === 'pass') {
-            // پیاده‌سازی پاس نوبت
-            showPopupNotification('<p>سیستم پاس نوبت به زودی فعال خواهد شد.</p>');
+            const delayCount = parseInt(document.getElementById('pass-delay-count').value);
+            generatePassTicket(firstName, lastName, nationalId, delayCount);
         }
     });
-    
     cancelTicketBtn.addEventListener('click', closeTicketForm);
+    addServiceBtn.addEventListener('click', addNewServiceRow);
+    saveSettingsBtn.addEventListener('click', saveSettings);
+    closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
+    cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
+    confirmPassServiceBtn.addEventListener('click', () => {
+        tempSelectedServicesForPass = [];
+        passServiceList.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+            tempSelectedServicesForPass.push(cb.value);
+        });
+        if (tempSelectedServicesForPass.length === 0) {
+            alert('لطفا حداقل یک خدمت را انتخاب کنید.');
+            return;
+        }
+        passServiceModalOverlay.style.display = 'none';
+        openTicketForm('pass');
+    });
+    cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
+    counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
+    saveCounterBtn.addEventListener('click', saveCounterSettings);
+    cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
 
-    // مدیریت Enter برای لاگین
-    passwordInput.addEventListener('keypress', (e) => {
+    // مدیریت input نوبت گذشته
+    pastTicketInput.addEventListener('input', function() {
+        // فقط اعداد مجاز هستند
+        this.value = this.value.replace(/[^0-9]/g, '');
+        
+        // حذف استایل خطا هنگام تایپ
+        if (this.value.length > 0) {
+            this.classList.remove('error');
+        }
+    });
+
+    pastTicketInput.addEventListener('keypress', function(e) {
+        // اجازه دادن به کلید Enter برای فراخوانی
         if (e.key === 'Enter') {
-            login();
+            callPastTicket();
         }
     });
 

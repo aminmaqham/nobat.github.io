@@ -3,7 +3,7 @@ body {
     font-family: 'Vazirmatn', sans-serif;
     color: #333;
     margin: 0;
-    padding: 20px;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -19,79 +19,257 @@ body {
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     display: flex;
-    flex-direction: column;
-    padding: 30px;
+    padding: 20px;
     box-sizing: border-box;
+    gap: 20px;
+}
+
+/* بخش اصلی نمایش نوبت‌ها */
+.main-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 header h1 {
-    font-size: 3.5vw;
+    font-size: 2.5vw;
     font-weight: 700;
     color: #1a73e8;
+    margin-bottom: 10px;
+}
+
+.waiting-count {
+    font-size: 1.5vw;
+    color: #666;
     margin-bottom: 20px;
 }
 
-main {
-    flex-grow: 1;
+.tickets-container {
     display: flex;
-    justify-content: center;
-    align-items: center;
+    flex-direction: column;
+    gap: 15px;
+    flex: 1;
 }
 
 .ticket-card {
     background: linear-gradient(135deg, #1a73e8, #4285f4);
     color: white;
-    padding: 40px 60px;
+    padding: 25px;
     border-radius: 15px;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    width: 70%;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
 }
 
-.ticket-card.flash {
-    animation: flash-animation 1s ease;
+.ticket-card.recent {
+    background: linear-gradient(135deg, #34A853, #4CAF50);
+    animation: attention-pulse 2s ease-in-out;
 }
 
-@keyframes flash-animation {
-    0% { transform: scale(1); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); }
-    50% { transform: scale(1.05); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.5); }
-    100% { transform: scale(1); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); }
+.ticket-card.old {
+    background: linear-gradient(135deg, #EA4335, #FBBC05);
 }
 
+@keyframes attention-pulse {
+    0% { transform: scale(1); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
+    50% { transform: scale(1.02); box-shadow: 0 10px 25px rgba(52, 168, 83, 0.4); }
+    100% { transform: scale(1); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
+}
 
 .ticket-number {
-    font-size: 15vw;
+    font-size: 5vw;
     font-weight: 900;
     line-height: 1;
+    margin-bottom: 10px;
+}
+
+.ticket-info {
+    font-size: 1.8vw;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .counter-name {
-    font-size: 5vw;
-    font-weight: 700;
-    margin-top: 10px;
+    font-size: 1.5vw;
+    font-weight: 500;
+    opacity: 0.9;
 }
 
-footer {
-    border-top: 2px solid #e0e0e0;
-    padding-top: 20px;
-    margin-top: 20px;
+.ticket-time {
+    font-size: 1.2vw;
+    margin-top: 8px;
+    opacity: 0.8;
 }
 
-#history-header {
-    font-size: 2vw;
-    font-weight: 700;
-    margin-bottom: 15px;
-}
-
-#history-list {
+/* بخش لیست عکاسی */
+.photography-display {
+    width: 350px;
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 20px;
     display: flex;
-    justify-content: center;
-    gap: 20px;
+    flex-direction: column;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
-.history-item {
-    background-color: #f1f3f4;
-    border-radius: 10px;
-    padding: 15px 25px;
-    font-size: 2.5vw;
+.photography-header {
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.photography-header h2 {
+    font-size: 1.6rem;
+    color: #333;
+    margin: 0 0 5px 0;
     font-weight: 700;
+}
+
+.photography-waiting {
+    font-size: 1rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.photography-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+.photography-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.photography-table th {
+    background-color: #e9ecef;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 700;
+    color: #333;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.photography-table td {
+    padding: 15px 8px;
+    text-align: center;
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.3s ease;
+}
+
+.photography-table tr:hover td {
+    background-color: #f8f9fa;
+}
+
+.photography-row-number {
+    font-weight: 700;
+    color: #666;
+    font-size: 1rem;
+}
+
+.photography-ticket-number {
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: #1a73e8;
+}
+
+.photography-national-id {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 4px;
+}
+
+.photography-status {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.status-waiting {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-done {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.photography-empty {
+    text-align: center;
+    color: #999;
+    padding: 40px 20px;
+    font-style: italic;
+    font-size: 1rem;
+}
+
+/* استایل برای موبایل */
+@media (max-width: 1200px) {
+    .container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+    
+    .photography-display {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    header h1 {
+        font-size: 2rem;
+    }
+    
+    .waiting-count {
+        font-size: 1.2rem;
+    }
+    
+    .ticket-number {
+        font-size: 3rem;
+    }
+    
+    .ticket-info {
+        font-size: 1.2rem;
+    }
+    
+    .counter-name {
+        font-size: 1rem;
+    }
+    
+    .ticket-time {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+        gap: 15px;
+    }
+    
+    .photography-display {
+        padding: 15px;
+    }
+    
+    .photography-header h2 {
+        font-size: 1.3rem;
+    }
+    
+    .photography-ticket-number {
+        font-size: 1.5rem;
+    }
+    
+    .photography-table {
+        font-size: 0.8rem;
+    }
+    
+    .photography-table td {
+        padding: 10px 5px;
+    }
 }
