@@ -85,18 +85,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- UTILITY FUNCTIONS ---
-    function checkCodeMeli(code) {
-        if (!code) return true;
-        code = code.toString().replace(/\D/g, '');
-        if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
-        let sum = 0;
-        for (let i = 0; i < 9; i++) {
-            sum += parseInt(code.charAt(i)) * (10 - i);
-        }
-        const lastDigit = parseInt(code.charAt(9));
-        const remainder = sum % 11;
-        return (remainder < 2) ? (lastDigit === remainder) : (lastDigit === (11 - remainder));
+// --- تابع اصلاح شده برای بررسی کد ملی ---
+function checkCodeMeli(code) {
+    if (!code) return false;
+    
+    // تبدیل به رشته و حذف فاصله و کاراکترهای غیرعددی
+    code = code.toString().replace(/\s/g, '').replace(/\D/g, '');
+    
+    // بررسی طول کد ملی
+    if (code.length !== 10) return false;
+    
+    // بررسی اینکه همه ارقام یکسان نباشند
+    if (/^(\d)\1{9}$/.test(code)) return false;
+    
+    // الگوریتم بررسی کد ملی
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+        sum += parseInt(code.charAt(i)) * (10 - i);
     }
+    
+    const lastDigit = parseInt(code.charAt(9));
+    const remainder = sum % 11;
+    
+    return (remainder < 2 && lastDigit === remainder) || 
+           (remainder >= 2 && lastDigit === (11 - remainder));
+}
+
+// --- تابع کمکی برای نمایش خطای کد ملی ---
+function showNationalIdError(message) {
+    const nationalIdInput = document.getElementById('photography-national-id');
+    if (nationalIdInput) {
+        nationalIdInput.style.borderColor = 'var(--danger-color)';
+        nationalIdInput.style.backgroundColor = '#ffeaea';
+        setTimeout(() => {
+            nationalIdInput.style.borderColor = '';
+            nationalIdInput.style.backgroundColor = '';
+        }, 3000);
+    }
+    alert(message);
+}
 
     function loadPhotographyHistory() {
     try {
@@ -119,7 +146,10 @@ function savePhotographyHistory() {
     }
 }
 
+// --- تابع اصلاح شده برای افزودن به تاریخچه عکاسی ---
 function addToPhotographyHistory(item, action = 'added') {
+    const sourceText = item.source === 'manual_input' ? 'ثبت دستی' : 'ارسال به عکاسی';
+    
     const historyItem = {
         id: Date.now().toString(),
         ticketNumber: item.ticketNumber,
@@ -127,6 +157,7 @@ function addToPhotographyHistory(item, action = 'added') {
         lastName: item.lastName,
         nationalId: item.nationalId,
         action: action,
+        source: sourceText,
         timestamp: new Date().toISOString(),
         completedAt: action === 'completed' ? new Date().toISOString() : null,
         status: action === 'completed' ? 'تکمیل شده' : 'در انتظار'
@@ -148,7 +179,7 @@ function renderPhotographyHistory() {
     if (!historyBody) return;
     
     if (photographyHistory.length === 0) {
-        historyBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">هیچ رکوردی در تاریخچه عکاسی وجود ندارد</td></tr>';
+        historyBody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">هیچ رکوردی در تاریخچه عکاسی وجود ندارد</td></tr>';
         return;
     }
     
@@ -158,6 +189,7 @@ function renderPhotographyHistory() {
             <td>${item.ticketNumber}</td>
             <td>${item.firstName} ${item.lastName}</td>
             <td>${item.nationalId}</td>
+            <td>${item.source || '---'}</td>
             <td>${formatDate(item.timestamp)}</td>
             <td>${item.completedAt ? formatDate(item.completedAt) : '---'}</td>
             <td class="${item.status === 'تکمیل شده' ? 'status-completed' : 'status-pending'}">
@@ -204,6 +236,7 @@ function updatePhotographyHistory() {
 }
 
 // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
+// --- تابع اصلاح شده برای نوتیفیکیشن پیشرفته ---
 function showAdvancedPopupNotification(ticket, htmlContent) {
     return new Promise((resolve) => {
         const popup = document.getElementById('popup-notification');
@@ -230,15 +263,19 @@ function showAdvancedPopupNotification(ticket, htmlContent) {
         photographyBtn.textContent = 'ارسال به عکاسی';
         photographyBtn.onclick = () => {
             closePopup();
-            resolve('photography');
+            setTimeout(() => resolve('photography'), 300);
         };
         
         const nextBtn = document.createElement('button');
         nextBtn.className = 'popup-btn popup-next-btn';
         nextBtn.textContent = 'فراخوان بعدی';
-        nextBtn.onclick = () => {
+        nextBtn.onclick = async () => {
             closePopup();
-            resolve('next');
+            setTimeout(async () => {
+                // اجرای فراخوان بعدی
+                await callNextTicketWithOptions();
+                resolve('next');
+            }, 300);
         };
         
         buttonsDiv.appendChild(photographyBtn);
@@ -260,21 +297,13 @@ function showAdvancedPopupNotification(ticket, htmlContent) {
             }, 300);
         }
         
-        // بستن خودکار پس از 10 ثانیه
-        const autoClose = setTimeout(() => {
-            closePopup();
-            resolve('timeout');
-        }, 10000);
-        
-        // لغت بستن خودکار اگر کاربر با پاپاپ تعامل کرد
-        popup.addEventListener('click', function interactionHandler() {
-            clearTimeout(autoClose);
-            popup.removeEventListener('click', interactionHandler);
-        });
+        // حذف بستن خودکار - فقط با کلیک بسته می‌شود
+        // کاربر باید حتماً یکی از دکمه‌ها را انتخاب کند
     });
 }
 
 // --- تابع بهبودیافته برای فراخوانی نوبت ---
+// --- تابع اصلاح شده برای فراخوانی نوبت با گزینه‌ها ---
 async function callNextTicketWithOptions() {
     const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
     const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
@@ -325,6 +354,9 @@ async function callNextTicketWithOptions() {
             
             lastCalledTicket[currentUser.$id] = updatedTicket.$id;
             
+            // به‌روزرسانی لیست tickets
+            await fetchTickets();
+            
             // نمایش نوتیفیکیشن پیشرفته
             const service = services.find(s => s.$id === updatedTicket.service_id);
             const popupMessage = `
@@ -352,11 +384,18 @@ async function callNextTicketWithOptions() {
         showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
     }
 }
-
 // --- تابع بهبودیافته برای افزودن به لیست عکاسی ---
+// --- تابع اصلاح شده برای افزودن به لیست عکاسی ---
 async function addToPhotographyList(ticket, nationalId) {
-    if (!nationalId || !checkCodeMeli(nationalId)) {
-        alert('کد ملی وارد شده معتبر نیست.');
+    // بررسی وجود کد ملی
+    if (!nationalId || nationalId.trim() === '') {
+        showNationalIdError('لطفا کد ملی را وارد کنید.');
+        return false;
+    }
+
+    // بررسی صحت کد ملی
+    if (!checkCodeMeli(nationalId)) {
+        showNationalIdError('کد ملی وارد شده معتبر نیست.');
         return false;
     }
 
@@ -364,12 +403,21 @@ async function addToPhotographyList(ticket, nationalId) {
         const photographyList = getPhotographyList();
         
         // بررسی تکراری نبودن
-        const existingItem = photographyList.find(item => 
-            item.ticketId === ticket.$id || item.nationalId === nationalId
+        const existingItemByTicket = photographyList.find(item => 
+            item.ticketId === ticket.$id
         );
         
-        if (existingItem) {
-            alert(`این نوبت یا کد ملی قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItem.ticketNumber}).`);
+        if (existingItemByTicket) {
+            alert('این نوبت قبلاً در لیست عکاسی قرار گرفته است.');
+            return false;
+        }
+
+        const existingItemByNationalId = photographyList.find(item => 
+            item.nationalId === nationalId && !item.photoTaken
+        );
+        
+        if (existingItemByNationalId) {
+            alert(`کد ملی ${nationalId} قبلاً در لیست عکاسی ثبت شده است (نوبت: ${existingItemByNationalId.ticketNumber}).`);
             return false;
         }
 
@@ -385,7 +433,8 @@ async function addToPhotographyList(ticket, nationalId) {
             serviceName: services.find(s => s.$id === ticket.service_id)?.name || '---',
             addedAt: new Date().toISOString(),
             photoTaken: false,
-            returned: false
+            returned: false,
+            source: 'photography_modal' // منبع ثبت
         };
 
         photographyList.unshift(newItem);
@@ -406,7 +455,6 @@ async function addToPhotographyList(ticket, nationalId) {
         return false;
     }
 }
-
 // --- تابع بهبودیافته برای علامت‌گذاری عکس گرفته شده ---
 async function markPhotoAsTaken(photographyItemId) {
     const photographyList = getPhotographyList();
@@ -1155,34 +1203,31 @@ async function resetAllTickets() {
     }
 
     // --- POPUP NOTIFICATION SYSTEM ---
-    function showPopupNotification(htmlContent) {
-        popupText.innerHTML = htmlContent;
-        popupNotification.style.display = 'flex';
-        
-        // استفاده از سیستم نوتیفیکیشن اصلی که قبلاً تعریف شده بود
-        setTimeout(() => {
-            popupNotification.classList.add('show');
-        }, 10);
-        
-        // بستن خودکار پس از 5 ثانیه
-        setTimeout(() => {
-            popupNotification.classList.remove('show');
+// --- تابع اصلاح شده برای نوتیفیکیشن ساده ---
+function showPopupNotification(htmlContent) {
+    const popup = document.getElementById('popup-notification');
+    const popupText = document.getElementById('popup-text');
+    
+    popupText.innerHTML = htmlContent;
+    popup.style.display = 'flex';
+    
+    setTimeout(() => {
+        popup.classList.add('show');
+    }, 10);
+    
+    // فقط با کلیک بسته می‌شود
+    const closeHandler = function(e) {
+        if (e.target === popup) {
+            popup.classList.remove('show');
             setTimeout(() => {
-                popupNotification.style.display = 'none';
+                popup.style.display = 'none';
             }, 300);
-        }, 5000);
-        
-        // امکان بستن با کلیک
-        popupNotification.addEventListener('click', function closeHandler(e) {
-            if (e.target === popupNotification) {
-                popupNotification.classList.remove('show');
-                setTimeout(() => {
-                    popupNotification.style.display = 'none';
-                }, 300);
-                popupNotification.removeEventListener('click', closeHandler);
-            }
-        });
-    }
+            popup.removeEventListener('click', closeHandler);
+        }
+    };
+    
+    popup.addEventListener('click', closeHandler);
+}
 
     // --- ADMIN PANEL LOGIC ---
     function openAdminPanel() {
