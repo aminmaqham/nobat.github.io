@@ -84,45 +84,36 @@ document.addEventListener('DOMContentLoaded', () => {
     
 
 
-    // --- UTILITY FUNCTIONS ---
-// --- تابع اصلاح شده برای بررسی کد ملی ---
-function checkCodeMeli(code) {
-    if (!code) return false;
-    
-    // تبدیل به رشته و حذف فاصله و کاراکترهای غیرعددی
-    code = code.toString().replace(/\s/g, '').replace(/\D/g, '');
-    
-    // بررسی طول کد ملی
-    if (code.length !== 10) return false;
-    
-    // بررسی اینکه همه ارقام یکسان نباشند
-    if (/^(\d)\1{9}$/.test(code)) return false;
-    
-    // الگوریتم بررسی کد ملی
-    let sum = 0;
-    for (let i = 0; i < 9; i++) {
-        sum += parseInt(code.charAt(i)) * (10 - i);
-    }
-    
-    const lastDigit = parseInt(code.charAt(9));
-    const remainder = sum % 11;
-    
-    return (remainder < 2 && lastDigit === remainder) || 
-           (remainder >= 2 && lastDigit === (11 - remainder));
-}
-
-// --- تابع کمکی برای نمایش خطای کد ملی ---
+// --- تابع اصلاح شده برای نمایش خطای کد ملی ---
 function showNationalIdError(message) {
     const nationalIdInput = document.getElementById('photography-national-id');
     if (nationalIdInput) {
         nationalIdInput.style.borderColor = 'var(--danger-color)';
         nationalIdInput.style.backgroundColor = '#ffeaea';
+        nationalIdInput.focus();
+        
+        // نمایش پیام خطا به صورت toast
+        const errorToast = document.createElement('div');
+        errorToast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--danger-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: var(--border-radius);
+            z-index: 10000;
+            font-family: 'Vazirmatn', sans-serif;
+        `;
+        errorToast.textContent = message;
+        document.body.appendChild(errorToast);
+        
         setTimeout(() => {
-            nationalIdInput.style.borderColor = '';
-            nationalIdInput.style.backgroundColor = '';
+            errorToast.remove();
         }, 3000);
     }
-    alert(message);
+    console.error('National ID Error:', message);
 }
 
     function loadPhotographyHistory() {
@@ -384,12 +375,23 @@ async function callNextTicketWithOptions() {
         showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
     }
 }
-// --- تابع بهبودیافته برای افزودن به لیست عکاسی ---
+
 // --- تابع اصلاح شده برای افزودن به لیست عکاسی ---
 async function addToPhotographyList(ticket, nationalId) {
+    console.log('Adding to photography list:', { ticket, nationalId }); // برای دیباگ
+    
     // بررسی وجود کد ملی
     if (!nationalId || nationalId.trim() === '') {
         showNationalIdError('لطفا کد ملی را وارد کنید.');
+        return false;
+    }
+
+    // پاکسازی کد ملی
+    nationalId = nationalId.toString().replace(/\s/g, '').replace(/\D/g, '');
+    
+    // بررسی طول کد ملی
+    if (nationalId.length !== 10) {
+        showNationalIdError('کد ملی باید 10 رقم باشد.');
         return false;
     }
 
@@ -402,7 +404,7 @@ async function addToPhotographyList(ticket, nationalId) {
     try {
         const photographyList = getPhotographyList();
         
-        // بررسی تکراری نبودن
+        // بررسی تکراری نبودن بر اساس ticketId
         const existingItemByTicket = photographyList.find(item => 
             item.ticketId === ticket.$id
         );
@@ -412,6 +414,7 @@ async function addToPhotographyList(ticket, nationalId) {
             return false;
         }
 
+        // بررسی تکراری نبودن بر اساس کد ملی (فقط برای مواردی که عکس گرفته نشده)
         const existingItemByNationalId = photographyList.find(item => 
             item.nationalId === nationalId && !item.photoTaken
         );
@@ -434,7 +437,7 @@ async function addToPhotographyList(ticket, nationalId) {
             addedAt: new Date().toISOString(),
             photoTaken: false,
             returned: false,
-            source: 'photography_modal' // منبع ثبت
+            source: 'photography_modal'
         };
 
         photographyList.unshift(newItem);
@@ -446,7 +449,7 @@ async function addToPhotographyList(ticket, nationalId) {
         // به‌روزرسانی همه نمایشگرها
         await updateAllDisplays();
         
-        showPopupNotification(`<p>نوبت ${newItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+        showPopupNotification(`<p>نوبت ${newItem.ticketNumber} با کد ملی ${nationalId} به لیست عکاسی اضافه شد.</p>`);
         return true;
 
     } catch (error) {
@@ -476,45 +479,6 @@ async function markPhotoAsTaken(photographyItemId) {
     return false;
 }
 
-// --- تابع بهبودیافته initializeApp ---
-async function initializeApp() {
-    try {
-        currentUser = await account.get();
-        await checkAndSetCounterName();
-        
-        const userPrefs = currentUser.prefs || {};
-        isPhotographyUser = userPrefs.is_photography_user || false;
-        photographyRoleCheckbox.checked = isPhotographyUser;
-        
-        showLoggedInUI();
-        await fetchData();
-        setupRealtimeSubscriptions();
-        checkAutoReset();
-        loadPhotographyList();
-        loadPhotographyHistory(); // بارگذاری تاریخچه عکاسی
-        await updateAllDisplays(); // به‌روزرسانی اولیه همه نمایشگرها
-        updateUIForUserRole();
-        
-    } catch (error) {
-        console.log('User not logged in');
-        showLoggedOutUI();
-    }
-}
-
-    // --- INITIALIZATION ---
-    async function initializeApp() {
-        try {
-            currentUser = await account.get();
-            await checkAndSetCounterName();
-            showLoggedInUI();
-            await fetchData();
-            setupRealtimeSubscriptions();
-            checkAutoReset();
-        } catch (error) {
-            console.log('User not logged in');
-            showLoggedOutUI();
-        }
-    }
 
     // تابع جدید برای بررسی و تنظیم شماره باجه
     async function checkAndSetCounterName() {
@@ -1335,6 +1299,7 @@ function showPopupNotification(htmlContent) {
     }
 
     // --- Photography List Functions ---
+// --- تابع اصلاح شده برای باز کردن مودال عکاسی ---
 function openPhotographyModal(ticket) {
     currentTicketForPhotography = ticket;
     photographyNationalIdInput.value = '';
@@ -1342,7 +1307,78 @@ function openPhotographyModal(ticket) {
     photographyCustomerName.textContent = `${ticket.first_name} ${ticket.last_name}`;
     photographyModal.style.display = 'flex';
     photographyNationalIdInput.focus();
+    
+    // اضافه کردن event listener برای کلید Enter
+    photographyNationalIdInput.addEventListener('keypress', handlePhotographyEnter);
 }
+
+// --- تابع جدید برای مدیریت کلید Enter در مودال عکاسی ---
+function handlePhotographyEnter(e) {
+    if (e.key === 'Enter') {
+        confirmPhotography();
+    }
+}
+
+// --- تابع جدید برای نمایش وضعیت اعتبارسنجی کد ملی ---
+function validateNationalIdInput(input) {
+    const value = input.value.replace(/\D/g, '');
+    
+    if (value.length === 0) {
+        input.style.borderColor = '';
+        input.style.backgroundColor = '';
+    } else if (value.length === 10 && checkCodeMeli(value)) {
+        input.style.borderColor = 'var(--primary-color)';
+        input.style.backgroundColor = '#e8f5e9';
+    } else {
+        input.style.borderColor = 'var(--danger-color)';
+        input.style.backgroundColor = '#ffeaea';
+    }
+}
+
+// اضافه کردن event listener برای اعتبارسنجی لحظه‌ای
+photographyNationalIdInput.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+    validateNationalIdInput(this);
+});
+
+// --- تابع جدید برای تایید عکاسی ---
+async function confirmPhotography() {
+    const nationalId = photographyNationalIdInput.value.trim();
+    
+    if (!nationalId) {
+        alert('لطفا کد ملی را وارد کنید.');
+        return;
+    }
+    
+    // پاکسازی کد ملی
+    const cleanNationalId = nationalId.replace(/\s/g, '').replace(/\D/g, '');
+    
+    // بررسی طول کد ملی
+    if (cleanNationalId.length !== 10) {
+        alert('کد ملی باید 10 رقم باشد.');
+        return;
+    }
+    
+    // بررسی صحت کد ملی
+    if (!checkCodeMeli(cleanNationalId)) {
+        alert('کد ملی وارد شده معتبر نیست.');
+        return;
+    }
+    
+    if (!currentTicketForPhotography) {
+        alert('خطا در دریافت اطلاعات نوبت.');
+        return;
+    }
+    
+    const success = await addToPhotographyList(currentTicketForPhotography, cleanNationalId);
+    if (success) {
+        closePhotographyModal();
+    }
+}
+
+// --- اصلاح event listener برای دکمه تایید عکاسی ---
+// در بخش event listeners جایگزین کنید:
+confirmPhotographyBtn.addEventListener('click', confirmPhotography);
 
 async function addManualToPhotographyList() {
     const ticketNumber = manualTicketInput.value.trim();
@@ -2024,6 +2060,127 @@ photographyNationalIdInput.addEventListener('keypress', function(e) {
     }
 });
 
+// === این توابع را قبل از initializeApp قرار دهید ===
+
+// 1. تابع checkCodeMeli (اگر ندارید اضافه کنید)
+function checkCodeMeli(code) {
+    if (!code) return false;
+    code = code.toString().replace(/\s/g, '').replace(/\D/g, '');
+    if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+        sum += parseInt(code.charAt(i)) * (10 - i);
+    }
+    const lastDigit = parseInt(code.charAt(9));
+    const remainder = sum % 11;
+    return (remainder < 2 && lastDigit === remainder) || 
+           (remainder >= 2 && lastDigit === (11 - remainder));
+}
+
+// 2. توابع کمکی برای عکاسی
+function validateNationalIdInput(input) {
+    const value = input.value.replace(/\D/g, '');
+    
+    if (value.length === 0) {
+        input.style.borderColor = '';
+        input.style.backgroundColor = '';
+    } else if (value.length === 10 && checkCodeMeli(value)) {
+        input.style.borderColor = 'var(--primary-color)';
+        input.style.backgroundColor = '#e8f5e9';
+    } else {
+        input.style.borderColor = 'var(--danger-color)';
+        input.style.backgroundColor = '#ffeaea';
+    }
+}
+
+function handlePhotographyInput() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+    validateNationalIdInput(this);
+}
+
+function handlePhotographyEnter(e) {
+    if (e.key === 'Enter') {
+        confirmPhotography();
+    }
+}
+
+async function confirmPhotography() {
+    const nationalIdInput = document.getElementById('photography-national-id');
+    const nationalId = nationalIdInput ? nationalIdInput.value.trim() : '';
+    
+    if (!nationalId) {
+        alert('لطفا کد ملی را وارد کنید.');
+        return;
+    }
+    
+    const cleanNationalId = nationalId.replace(/\s/g, '').replace(/\D/g, '');
+    
+    if (cleanNationalId.length !== 10) {
+        alert('کد ملی باید 10 رقم باشد.');
+        return;
+    }
+    
+    if (!checkCodeMeli(cleanNationalId)) {
+        alert('کد ملی وارد شده معتبر نیست.');
+        return;
+    }
+    
+    if (!currentTicketForPhotography) {
+        alert('خطا در دریافت اطلاعات نوبت.');
+        return;
+    }
+    
+    const success = await addToPhotographyList(currentTicketForPhotography, cleanNationalId);
+    if (success) {
+        closePhotographyModal();
+    }
+}
+
+function setupPhotographyEventListeners() {
+    const photographyNationalIdInput = document.getElementById('photography-national-id');
+    const confirmPhotographyBtn = document.getElementById('confirm-photography-btn');
+    
+    if (photographyNationalIdInput) {
+        photographyNationalIdInput.removeEventListener('keypress', handlePhotographyEnter);
+        photographyNationalIdInput.removeEventListener('input', handlePhotographyInput);
+        photographyNationalIdInput.addEventListener('keypress', handlePhotographyEnter);
+        photographyNationalIdInput.addEventListener('input', handlePhotographyInput);
+    }
+    
+    if (confirmPhotographyBtn) {
+        confirmPhotographyBtn.removeEventListener('click', confirmPhotography);
+        confirmPhotographyBtn.addEventListener('click', confirmPhotography);
+    }
+}
+
+// 3. سپس تابع initializeApp شما
+async function initializeApp() {
+    try {
+        currentUser = await account.get();
+        await checkAndSetCounterName();
+        
+        const userPrefs = currentUser.prefs || {};
+        isPhotographyUser = userPrefs.is_photography_user || false;
+        photographyRoleCheckbox.checked = isPhotographyUser;
+        
+        showLoggedInUI();
+        await fetchData();
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+        loadPhotographyList();
+        loadPhotographyHistory();
+        await updateAllDisplays();
+        updateUIForUserRole();
+        
+        // این خط مهم را اضافه کنید
+        setupPhotographyEventListeners();
+        
+    } catch (error) {
+        console.log('User not logged in');
+        showLoggedOutUI();
+    }
+}
+
 // --- Modified Initialize App ---
 async function initializeApp() {
     try {
@@ -2042,6 +2199,38 @@ async function initializeApp() {
         loadPhotographyList();
         updatePhotographyUI();
         updateUIForUserRole();
+
+        // در بخش event listeners در initializeApp اضافه کنید:
+photographyNationalIdInput.addEventListener('input', function() {
+    // فقط اعداد مجاز هستند و حداکثر 10 رقم
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+    
+    // حذف استایل خطا هنگام تایپ
+    if (this.value.length > 0) {
+        this.style.borderColor = '';
+        this.style.backgroundColor = '';
+    }
+});
+
+// حذف event listener قبلی برای keypress و جایگزینی با تابع جدید
+photographyNationalIdInput.removeEventListener('keypress', handlePhotographyEnter);
+photographyNationalIdInput.addEventListener('keypress', handlePhotographyEnter);
+
+// در بخش event listeners در initializeApp، این کدها را اضافه/اصلاح کنید:
+
+// حذف event listenerهای قدیمی
+photographyNationalIdInput.removeEventListener('keypress', handlePhotographyEnter);
+confirmPhotographyBtn.removeEventListener('click', confirmPhotography);
+
+// اضافه کردن event listenerهای جدید
+photographyNationalIdInput.addEventListener('keypress', handlePhotographyEnter);
+confirmPhotographyBtn.addEventListener('click', confirmPhotography);
+
+// اعتبارسنجی لحظه‌ای
+photographyNationalIdInput.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+    validateNationalIdInput(this);
+});
         
     } catch (error) {
         console.log('User not logged in');
