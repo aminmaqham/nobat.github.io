@@ -189,6 +189,43 @@ function clearPhotographyList() {
     updatePhotographyDisplay();
 }
 
+// اضافه کردن تابع برای به‌روزرسانی از localStorage
+function setupPhotographySync() {
+    // گوش دادن به تغییرات localStorage
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'photographyList' || e.key === 'photographyHistory') {
+            updatePhotographyDisplay();
+            updateTotalWaitingCount();
+        }
+    });
+    
+    // به‌روزرسانی دوره‌ای
+    setInterval(() => {
+        updatePhotographyDisplay();
+        updateTotalWaitingCount();
+    }, 5000);
+}
+
+// اضافه کردن تابع به‌روزرسانی تعداد منتظران کل
+function updateTotalWaitingCount() {
+    // این تابع می‌تواند از localStorage یا از سرور داده بگیرد
+    const waitingCount = document.querySelector('.waiting-count');
+    if (waitingCount) {
+        // می‌توانید این مقدار را از سرور بگیرید یا محاسبه کنید
+        waitingCount.textContent = 'آخرین نوبت‌های فراخوانده شده';
+    }
+}
+
+// در تابع initialize نمایشگر فراخوانی کنید
+function initializeDisplay() {
+    updateDisplay();
+    setupRealtime();
+    setupPhotographySync();
+    setInterval(updateDisplay, 30000);
+}
+
+document.addEventListener('DOMContentLoaded', initializeDisplay);
+
 // تغییر در تابع updatePhotographyDisplay برای همگام‌سازی بهتر
 function updatePhotographyDisplay() {
     try {

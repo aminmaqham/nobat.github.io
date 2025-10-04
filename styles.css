@@ -18,6 +18,79 @@
     position: relative;
 }
 
+/* استایل‌های جدید برای نوتیفیکیشن با دکمه‌ها */
+.popup-with-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.popup-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.popup-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.popup-photography-btn {
+    background-color: #9C27B0;
+    color: white;
+}
+
+.popup-photography-btn:hover {
+    background-color: #7B1FA2;
+}
+
+.popup-next-btn {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.popup-next-btn:hover {
+    background-color: #2E7D32;
+}
+
+/* استایل برای تاریخچه عکاسی */
+#photography-history {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+#photography-history th,
+#photography-history td {
+    padding: 8px 6px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+}
+
+#photography-history th {
+    background-color: #f2f2f2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-completed {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.status-pending {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
 .service-btn.disabled-service:hover {
     background-color: #9e9e9e !important;
     transform: none !important;
