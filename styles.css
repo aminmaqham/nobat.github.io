@@ -8,6 +8,7 @@
   --light-text: #fff;
   --border-radius: 8px;
   --box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  --photography-color: #e91e63;
 }
 
 /* استایل برای سرویس غیرفعال */
@@ -29,6 +30,7 @@
     display: flex;
     gap: 10px;
     margin-top: 15px;
+    flex-wrap: wrap;
 }
 
 .popup-btn {
@@ -41,6 +43,7 @@
     font-size: 14px;
     font-weight: 500;
     transition: all 0.3s;
+    min-width: 120px;
 }
 
 .popup-photography-btn {
@@ -92,7 +95,7 @@
     font-size: 16px;
     font-weight: 500;
     width: 100%;
-    max-width: 400px;
+    max-width: 500px;
     transform: scale(0.9);
     transition: transform 0.3s ease-in-out;
     position: relative; /* برای قرارگیری دکمه بستن */
@@ -194,6 +197,174 @@
     transform: scale(1.1);
 }
 
+/* استایل‌های جدید برای نوتیفیکیشن عکاسی */
+.photography-popup {
+    background: linear-gradient(135deg, #e91e63, #ad1457) !important;
+    color: white !important;
+}
+
+.photography-popup .popup-buttons {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-top: 20px !important;
+}
+
+.photography-popup-btn {
+    padding: 15px 12px !important;
+    border: none !important;
+    border-radius: var(--border-radius) !important;
+    cursor: pointer !important;
+    font-family: 'Vazirmatn', sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s !important;
+    color: white !important;
+    text-align: center !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.photo-take-btn {
+    background-color: #4CAF50 !important;
+    border: 2px solid #45a049 !important;
+}
+
+.photo-take-btn:hover {
+    background-color: #45a049 !important;
+    transform: translateY(-2px) !important;
+}
+
+.photo-reserve-btn {
+    background-color: #FF9800 !important;
+    border: 2px solid #F57C00 !important;
+}
+
+.photo-reserve-btn:hover {
+    background-color: #F57C00 !important;
+    transform: translateY(-2px) !important;
+}
+
+.photo-skip-btn {
+    background-color: #f44336 !important;
+    border: 2px solid #d32f2f !important;
+}
+
+.photo-skip-btn:hover {
+    background-color: #d32f2f !important;
+    transform: translateY(-2px) !important;
+}
+
+.photo-reserve-list-btn {
+    background-color: #9C27B0 !important;
+    border: 2px solid #7B1FA2 !important;
+}
+
+.photo-reserve-list-btn:hover {
+    background-color: #7B1FA2 !important;
+    transform: translateY(-2px) !important;
+}
+
+/* استایل برای مودال رزرو */
+.reserve-list {
+    max-height: 400px !important;
+    overflow-y: auto !important;
+    margin: 20px 0 !important;
+    padding: 10px !important;
+    background: #f8f9fa !important;
+    border-radius: var(--border-radius) !important;
+}
+
+.reserve-item {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 15px !important;
+    margin-bottom: 10px !important;
+    background: white !important;
+    border-radius: var(--border-radius) !important;
+    border-right: 4px solid #FF9800 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.reserve-info {
+    flex-grow: 1 !important;
+    text-align: right !important;
+}
+
+.reserve-ticket {
+    font-weight: 700 !important;
+    color: #333 !important;
+    font-size: 16px !important;
+    margin-bottom: 5px !important;
+}
+
+.reserve-national-id {
+    font-size: 14px !important;
+    color: #666 !important;
+    margin-bottom: 3px !important;
+}
+
+.reserve-service {
+    font-size: 12px !important;
+    color: #888 !important;
+}
+
+.reserve-actions {
+    display: flex !important;
+    gap: 8px !important;
+    margin-right: 15px !important;
+}
+
+.reserve-call-btn, .reserve-remove-btn {
+    padding: 8px 16px !important;
+    border: none !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    font-family: 'Vazirmatn', sans-serif !important;
+    font-weight: 600 !important;
+    transition: all 0.3s !important;
+}
+
+.reserve-call-btn {
+    background-color: #4CAF50 !important;
+    color: white !important;
+}
+
+.reserve-call-btn:hover {
+    background-color: #45a049 !important;
+}
+
+.reserve-remove-btn {
+    background-color: #f44336 !important;
+    color: white !important;
+}
+
+.reserve-remove-btn:hover {
+    background-color: #d32f2f !important;
+}
+
+/* استایل برای آیتم‌های رزرو شده در لیست */
+.reserved-item {
+    background: #FFF3E0 !important;
+    border-right-color: #FF9800 !important;
+}
+
+.photography-reserved {
+    font-size: 11px !important;
+    color: #FF9800 !important;
+    font-weight: 600 !important;
+    margin-top: 4px !important;
+}
+
+.status-reserved {
+    background: #FF9800 !important;
+    color: white !important;
+}
+
 /* بهبود نمایش برای موبایل */
 @media (max-width: 768px) {
     .popup-message {
@@ -225,6 +396,26 @@
         padding: 10px 15px;
         font-size: 13px;
     }
+    
+    .photography-popup .popup-buttons {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .photography-popup-btn {
+        min-height: 50px !important;
+        font-size: 13px !important;
+    }
+    
+    .reserve-item {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    
+    .reserve-actions {
+        justify-content: center !important;
+        margin-right: 0 !important;
+    }
 }
 
 .status-completed {
@@ -234,6 +425,11 @@
 
 .status-pending {
     color: var(--warning-color);
+    font-weight: 600;
+}
+
+.status-reserved {
+    color: #FF9800;
     font-weight: 600;
 }
 
@@ -1292,25 +1488,15 @@ html, body {
     margin-bottom: 10px;
 }
 
-.photography-role-checkbox input[type="checkbox"] {
+.photography-role-checkbox input {
     width: 18px;
     height: 18px;
 }
 
 .photography-role-checkbox label {
-    font-weight: 600;
-    color: #333;
+    font-weight: 500;
+    color: #7B1FA2;
     cursor: pointer;
-}
-
-.photography-waiting-display {
-    background-color: #e9ecef;
-    padding: 8px 12px;
-    border-radius: var(--border-radius);
-    font-weight: 600;
-    color: #495057;
-    text-align: center;
-    margin-top: 10px;
 }
 
 /* استایل برای موبایل */
@@ -1330,15 +1516,153 @@ html, body {
     }
     
     .photography-role-section {
-        padding: 12px;
+        order: 3;
     }
 }
 
+/* استایل‌های جدید برای نمایش وضعیت عکاسی */
+.photography-status {
+    font-size: 12px;
+    margin-top: 5px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    display: inline-block;
+}
+
+.photography-status.pending {
+    background-color: #FFF3E0;
+    color: #F57C00;
+}
+
+.photography-status.completed {
+    background-color: #E8F5E9;
+    color: #2E7D32;
+}
+
+/* استایل‌های جدید برای تاریخچه عکاسی */
+.photography-history-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.photography-history-section h3 {
+    color: #7B1FA2;
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+#photography-history {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+#photography-history th,
+#photography-history td {
+    padding: 8px 6px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+}
+
+#photography-history th {
+    background-color: #f2f2f2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.photography-action-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
+}
+
+.photography-complete-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.photography-complete-btn:hover {
+    background-color: #2E7D32;
+}
+
+.photography-cancel-btn {
+    background-color: #f44336;
+    color: white;
+}
+
+.photography-cancel-btn:hover {
+    background-color: #d32f2f;
+}
+
+/* استایل برای نمایش نوبت‌های در انتظار عکاسی */
+.photography-waiting-list {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    border: 1px solid #e0e0e0;
+}
+
+.photography-waiting-list h4 {
+    color: #7B1FA2;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.photography-waiting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background-color: white;
+    border-radius: var(--border-radius);
+    border-right: 3px solid #9C27B0;
+}
+
+.photography-waiting-info {
+    flex-grow: 1;
+}
+
+.photography-waiting-ticket {
+    font-weight: 600;
+    color: #333;
+}
+
+.photography-waiting-service {
+    font-size: 11px;
+    color: #666;
+    margin-top: 2px;
+}
+
+.photography-waiting-actions {
+    display: flex;
+    gap: 5px;
+}
+
 /* استایل‌های جدید برای بخش عکاسی */
+.photography-section {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    border: 1px solid #e0e0e0;
+}
+
+.photography-section h3 {
+    color: #7B1FA2;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
 .photography-controls {
     display: flex;
     gap: 10px;
-    margin-top: 10px;
+    margin-bottom: 15px;
     flex-wrap: wrap;
 }
 
@@ -1369,90 +1693,67 @@ html, body {
     background-color: #7B1FA2 !important;
 }
 
-.photography-role-section {
+.photography-waiting-list {
     margin-top: 15px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: var(--border-radius);
-    border-right: 4px solid #9C27B0;
 }
 
-.photography-role-checkbox {
+.photography-waiting-item {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    background-color: white;
+    border-radius: var(--border-radius);
+    border-right: 3px solid #9C27B0;
 }
 
-.photography-role-checkbox input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+.photography-waiting-info {
+    flex-grow: 1;
 }
 
-.photography-role-checkbox label {
+.photography-waiting-ticket {
     font-weight: 600;
     color: #333;
+}
+
+.photography-waiting-service {
+    font-size: 12px;
+    color: #666;
+    margin-top: 2px;
+}
+
+.photography-waiting-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.photography-complete-btn,
+.photography-cancel-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    border: none;
+    border-radius: 4px;
     cursor: pointer;
+    font-family: 'Vazirmatn', sans-serif;
 }
 
-.photography-waiting-display {
-    background-color: #e9ecef;
-    padding: 8px 12px;
-    border-radius: var(--border-radius);
-    font-weight: 600;
-    color: #495057;
-    text-align: center;
-    margin-top: 10px;
+.photography-complete-btn {
+    background-color: #4CAF50;
+    color: white;
 }
 
-/* استایل‌های جدید برای مودال عکاسی */
-.photography-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
+.photography-complete-btn:hover {
+    background-color: #2E7D32;
 }
 
-.photography-modal {
-    background-color: white;
-    padding: 25px;
-    border-radius: var(--border-radius);
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    width: 100%;
-    max-width: 450px;
-    max-height: 90vh;
-    overflow-y: auto;
+.photography-cancel-btn {
+    background-color: #f44336;
+    color: white;
 }
 
-.photography-modal h2 {
-    margin-bottom: 20px;
-    text-align: center;
-    color: var(--primary-color);
-    font-size: 1.3rem;
-}
-
-.photography-modal .form-group {
-    margin-bottom: 15px;
-}
-
-.photography-modal .form-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.photography-modal .primary-btn,
-.photography-modal .secondary-btn {
-    flex: 1;
-    padding: 12px;
-    font-size: 16px;
+.photography-cancel-btn:hover {
+    background-color: #d32f2f;
 }
 
 /* استایل برای موبایل */
@@ -1471,106 +1772,13 @@ html, body {
         width: 100%;
     }
     
-    .photography-role-section {
-        padding: 12px;
+    .photography-waiting-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
     }
-}
-
-/* استایل‌های جدید برای نمایشگر لیست عکاسی */
-.photography-display {
-    background-color: white;
-    padding: 15px;
-    border-radius: var(--border-radius);
-    margin-bottom: 15px;
-    box-shadow: var(--box-shadow);
-    width: 100%;
-}
-
-.photography-header {
-    text-align: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #e0e0e0;
-}
-
-.photography-header h2 {
-    color: var(--primary-color);
-    font-size: 1.3rem;
-    margin: 0;
-}
-
-.photography-list {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.photography-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 15px;
-    margin-bottom: 8px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    border-right: 4px solid #4CAF50;
-    transition: all 0.3s ease;
-}
-
-.photography-item.new-item {
-    background: #e8f5e9;
-    border-right-color: #4CAF50;
-    animation: highlight 2s ease;
-}
-
-.photography-item.photo-taken {
-    background: #e3f2fd;
-    border-right-color: #2196F3;
-}
-
-@keyframes highlight {
-    0% { background-color: #e8f5e9; }
-    50% { background-color: #c8e6c9; }
-    100% { background-color: #e8f5e9; }
-}
-
-.photography-number {
-    font-weight: 700;
-    font-size: 1.2rem;
-    color: #333;
-    min-width: 30px;
-}
-
-.photography-info {
-    flex-grow: 1;
-    margin-right: 10px;
-}
-
-.photography-ticket {
-    font-weight: 600;
-    color: #555;
-    font-size: 0.9rem;
-}
-
-.photography-national-id {
-    font-size: 0.8rem;
-    color: #777;
-    margin-top: 2px;
-}
-
-.photography-status {
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 10px;
-    background: #4CAF50;
-    color: white;
-}
-
-.photography-status.photo-taken {
-    background: #2196F3;
-}
-
-.photography-empty {
-    text-align: center;
-    color: #999;
-    padding: 20px;
-    font-style: italic;
+    
+    .photography-waiting-actions {
+        justify-content: flex-end;
+    }
 }
