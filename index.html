@@ -3,249 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سیستم نوبت دهی هوشمند</title>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap" rel="stylesheet">
+    <title>سیستم نوبت‌دهی هوشمند</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>سیستم نوبت دهی هوشمند</h1>
-            <div id="total-waiting-container" style="display: none;">
-                کل منتظران: <span id="total-waiting-count">0</span>
+            <h1>سیستم نوبت‌دهی هوشمند</h1>
+            <div id="total-waiting-container">
+                مجموع نوبت‌های در انتظار: <span id="total-waiting-count">0</span>
             </div>
-            <div class="login-section">
-                <div id="login-fields">
-                    <input type="email" id="email" placeholder="ایمیل">
-                    <input type="password" id="password" placeholder="رمز عبور">
-                    <button id="login-btn">ورود</button>
-                </div>
-                <div id="user-info" style="display: none;">
-                    <div id="user-greeting"></div>
-                    <button id="counter-settings-btn">تنظیم باجه</button>
-                    <button id="settings-btn" style="display: none;">تنظیمات سیستم</button>
-                    <button id="reset-all-btn" class="danger-button" style="display: none;">پاک کردن همه نوبت‌ها</button>
-                    <button id="logout-btn">خروج</button>
-                </div>
+            
+            <div id="login-section" class="login-section">
+                <input type="text" id="counter-number" placeholder="شماره باجه">
+                <input type="password" id="admin-password" placeholder="رمز عبور مدیر">
+                <button id="login-btn">ورود به سیستم</button>
+            </div>
+            
+            <div id="user-info" style="display: none;">
+                <div id="user-greeting"></div>
+                <button id="counter-settings-btn">شماره باجه: 1</button>
+                <button id="settings-btn">تنظیمات سیستم</button>
+                <button id="reset-all-btn" class="danger-button">ریست همه داده‌ها</button>
+                <button id="logout-btn">خروج</button>
             </div>
         </header>
 
-        <!-- مودال تنظیمات باجه -->
-        <div class="modal-overlay" id="counter-settings-modal" style="display: none;">
-            <div class="modal">
-                <h2>تنظیم شماره باجه</h2>
-                <div class="form-group">
-                    <label for="counter-name-input">شماره یا نام باجه:</label>
-                    <input type="text" id="counter-name-input" placeholder="مثال: باجه ۱، پنجره ۲، ...">
-                </div>
-                <div class="form-actions">
-                    <button id="save-counter-btn" class="primary-btn">ذخیره</button>
-                    <button id="cancel-counter-btn" class="secondary-btn">انصراف</button>
-                </div>
-            </div>
-        </div>
+        <section class="service-buttons" id="service-buttons">
+            <!-- سرویس‌ها اینجا رندر می‌شوند -->
+        </section>
 
-        <!-- سایر مودال‌ها و پنل‌ها -->
-        <div class="modal-overlay" id="pass-service-modal-overlay" style="display: none;">
-            <div class="modal">
-                <h2>انتخاب خدمت برای پاس نوبت</h2>
-                <div id="pass-service-list"></div>
-                <div class="form-actions">
-                    <button id="confirm-pass-service" class="primary-btn">تایید و ادامه</button>
-                    <button id="cancel-pass-service" class="secondary-btn">انصراف</button>
-                </div>
+        <section class="ticket-display">
+            <h2>نوبت جاری</h2>
+            <div id="current-ticket">
+                <div class="current-ticket-item">نوبت جاری: هیچ</div>
             </div>
-        </div>
-
-        <div class="admin-panel" id="admin-panel" style="display: none;">
-            <button id="close-settings" class="close-btn">×</button>
-            <h2>تنظیمات سیستم</h2>
-            <div class="settings-container">
-                <div class="settings-section">
-                    <h3>تنظیمات خدمات</h3>
-                    <div class="table-container">
-                        <table class="services-table">
-                        <thead>
-                            <tr>
-                                <th>نام خدمت</th>
-                                <th>شماره شروع</th>
-                                <th>شماره پایان</th>
-                                <th>تخمین زمان (دقیقه)</th>
-                                <th>ساعت شروع</th>
-                                <th>ساعت پایان</th>
-                                <th>غیرفعال</th>
-                                <th>پاکسازی خودکار</th>
-                                <th>حذف</th>
-                            </tr>
-                        </thead>
-                        <tbody id="service-list">
-                            <!-- Service rows will be added here by JavaScript -->
-                        </tbody>
-                    </table>
-                    </div>
-                    <button id="add-service-btn" class="add-btn">+ افزودن خدمت جدید</button>
-                </div>
-                <div class="form-actions">
-                    <button id="save-settings-btn" class="primary-btn">ذخیره تنظیمات</button>
-                    <button id="cancel-settings-btn" class="secondary-btn">انصراف</button>
-                </div>
+            <div class="ticket-actions">
+                <button id="call-next-btn" class="big-button">فراخوانی نوبت بعدی</button>
+                <button id="pass-btn" class="big-button pass-btn" style="display: none;">پاس کردن نوبت</button>
+                <button id="complete-btn" class="big-button" style="display: none;">تکمیل نوبت</button>
             </div>
-        </div>
+        </section>
 
-        <div class="main-content" id="main-content" style="display: none;">
-            <div class="service-buttons"></div>
+        <section class="call-panel">
+            <h2>فراخوانی نوبت</h2>
             
-            <div class="ticket-display">
-                <div class="ticket-actions">
-                    <button id="pass-ticket-btn" class="big-button pass-btn">پاس نوبت</button>
-                    
-                    <!-- بخش جدید برای فراخوانی نوبت گذشته خاص -->
-                    <div class="specific-call-section">
-                        <div class="specific-call-input-group">
-                            <input type="text" id="past-ticket-input" placeholder="شماره نوبت گذشته خاص" maxlength="4">
-                            <button id="call-past-btn" class="big-button past-call-btn">فراخوان گذشته خاص</button>
-                        </div>
-                        <div class="call-next-section">
-                            <button id="call-next-btn" class="big-button">فراخوان نوبت بعدی</button>
-
-                            <!-- بخش ثبت دستی عکاسی -->
-                            <div class="photography-controls">
-                                <input type="text" id="manual-ticket-input" class="manual-photography-input" placeholder="شماره نوبت برای عکاسی" maxlength="4">
-                                <button id="manual-photography-btn" class="big-button send-to-photography-btn">ثبت دستی در عکاسی</button>
-                            </div>
-                        </div>
-                    </div>
+            <div class="specific-call-section">
+                <h3>فراخوانی نوبت خاص</h3>
+                <div class="specific-call-input-group">
+                    <input type="text" id="specific-ticket-input" placeholder="شماره نوبت را وارد کنید">
+                    <button id="specific-call-btn" class="big-button specific-call-btn">فراخوانی نوبت</button>
                 </div>
-                <h2>نوبت فعلی (آخرین ۳ نوبت)</h2>
-                <div id="current-ticket"></div>
             </div>
 
-            <!-- بخش نقش عکاسی -->
+            <div class="specific-call-section">
+                <h3>فراخوانی نوبت گذشته</h3>
+                <div class="specific-call-input-group">
+                    <input type="text" id="past-ticket-input" placeholder="شماره نوبت گذشته را وارد کنید">
+                    <button id="past-call-btn" class="big-button past-call-btn">فراخوانی مجدد</button>
+                </div>
+            </div>
+
+            <div class="call-next-section">
+                <h3>فراخوانی انتخابی سرویس‌ها</h3>
+                <div id="service-checkboxes">
+                    <!-- چک‌باکس‌های سرویس اینجا رندر می‌شوند -->
+                </div>
+                <button id="call-selected-btn" class="big-button">فراخوانی نوبت بعدی از سرویس‌های انتخاب شده</button>
+            </div>
+        </section>
+
+        <!-- بخش جدید برای عکاسی -->
+        <section class="photography-section" style="display: none;">
+            <h3>مدیریت عکاسی</h3>
+            
             <div class="photography-role-section">
                 <div class="photography-role-checkbox">
-                    <input type="checkbox" id="photography-role-checkbox">
-                    <label for="photography-role-checkbox">کاربر عکاسی هستم</label>
-                </div>
-                <div class="photography-waiting-display">
-                    منتظران عکاسی: <span id="photography-waiting-count">0</span>
+                    <input type="checkbox" id="photography-role">
+                    <label for="photography-role">من عکاس هستم</label>
                 </div>
             </div>
 
-            <!-- مودال عکاسی -->
-            <div class="photography-modal-overlay" id="photography-modal" style="display: none;">
-                <div class="photography-modal">
-                    <h2>ارسال به لیست عکاسی</h2>
-                    <div class="form-group">
-                        <label for="photography-national-id">کد ملی:</label>
-                        <input type="text" id="photography-national-id" placeholder="کد ملی را وارد کنید" maxlength="10">
-                        <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                            <strong>اطلاعات نوبت:</strong><br>
-                            شماره: <span id="photography-ticket-number">---</span><br>
-                            نام: <span id="photography-customer-name">---</span>
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button id="confirm-photography-btn" class="primary-btn">تایید و ارسال</button>
-                        <button id="cancel-photography-btn" class="secondary-btn">انصراف</button>
-                    </div>
+            <div class="photography-controls">
+                <input type="text" id="manual-photography-input" class="manual-photography-input" placeholder="شماره نوبت تکمیل شده برای عکاسی">
+                <button id="send-to-photography-btn" class="big-button send-to-photography-btn">ارسال به عکاسی</button>
+            </div>
+
+            <div class="photography-call-section">
+                <button id="photography-call-btn" class="big-button photography-call-btn">فراخوانی از لیست عکاسی</button>
+            </div>
+
+            <div class="photography-waiting-list">
+                <h4>نوبت‌های رزرو شده برای عکاسی</h4>
+                <div id="photography-waiting-list">
+                    <!-- لیست انتظار عکاسی اینجا رندر می‌شود -->
                 </div>
             </div>
 
-            <div class="call-panel">
-                <h2>خدمات انتخابی (برای فراخوانی)</h2>
-                <div id="service-checkboxes"></div>
-            </div>
-
-            <div class="history">
-                <h2>تاریخچه نوبت‌ها</h2>
+            <div class="photography-history-section">
+                <h3>تاریخچه عکاسی</h3>
                 <div class="table-container">
-                    <table id="ticket-history">
-                        <thead>
-                            <tr>
-                                <th>نوبت کلی</th>
-                                <th>نوبت خاص</th>
-                                <th>نام</th>
-                                <th>کدملی</th>
-                                <th>خدمت</th>
-                                <th>ثبت کننده</th>
-                                <th>زمان ثبت</th>
-                                <th>فراخواننده</th>
-                                <th>زمان فراخوان</th>
-                                <th>وضعیت</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-
-                        <!-- بعد از بخش تاریخچه نوبت‌ها اضافه کنید -->
-            <div class="history">
-                <h2>تاریخچه لیست عکاسی</h2>
-                <div class="table-container">
-                    <!-- اصلاح جدول تاریخچه عکاسی -->
                     <table id="photography-history">
                         <thead>
                             <tr>
-                                <th>ردیف</th>
                                 <th>شماره نوبت</th>
-                                <th>نام و نام خانوادگی</th>
-                                <th>کد ملی</th>
-                                <th>منبع ثبت</th>
-                                <th>زمان ثبت</th>
+                                <th>سرویس</th>
+                                <th>عکس گرفته شد</th>
                                 <th>زمان تکمیل</th>
-                                <th>وضعیت</th>
+                                <th>شماره باجه</th>
                             </tr>
                         </thead>
-                        <tbody id="photography-history-body"></tbody>
+                        <tbody>
+                            <!-- تاریخچه عکاسی اینجا رندر می‌شود -->
+                        </tbody>
                     </table>
                 </div>
             </div>
+        </section>
 
-        </div>
+        <section class="history">
+            <h2>تاریخچه نوبت‌ها</h2>
+            <div class="table-container">
+                <table id="ticket-history">
+                    <thead>
+                        <tr>
+                            <th>شماره نوبت</th>
+                            <th>سرویس</th>
+                            <th>زمان دریافت</th>
+                            <th>زمان تکمیل</th>
+                            <th>شماره باجه</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- تاریخچه اینجا رندر می‌شود -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
 
-        <!-- نمایشگر لیست عکاسی -->
-        <div class="photography-display" id="photography-display" style="display: none;">
-            <div class="photography-header">
-                <h2>لیست عکاسی</h2>
-            </div>
-            <div class="photography-list" id="photography-list">
-                <div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>
-            </div>
-        </div>
-
-        <div class="ticket-form" id="ticket-form" style="display: none;">
-            <h2 id="ticket-form-title"></h2>
-            <div class="form-group">
-                <label for="first-name">نام:</label>
-                <input type="text" id="first-name">
-            </div>
-            <div class="form-group">
-                <label for="last-name">نام خانوادگی:</label>
-                <input type="text" id="last-name">
-            </div>
-            <div class="form-group">
-                <label for="national-id">کد ملی:</label>
-                <input type="text" id="national-id">
-            </div>
-            <div class="form-group" id="pass-delay-group" style="display: none;">
-                <label for="pass-delay-count">فراخوانی بعد از چند نفر:</label>
-                <input type="number" id="pass-delay-count" value="0" min="0">
-            </div>
-            <div class="form-actions">
-                <button id="submit-ticket" class="primary-btn">ثبت نوبت</button>
-                <button id="cancel-ticket" class="secondary-btn">انصراف</button>
-            </div>
+    <div id="popup-container" class="popup-container">
+        <div id="popup-message" class="popup-message">
+            <!-- محتوای نوتیفیکیشن اینجا نمایش داده می‌شود -->
         </div>
     </div>
 
-    <div id="popup-notification" class="popup-container" style="display: none;">
-        <div class="popup-message">
-            <p id="popup-text"></p>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
     <script src="script.js"></script>
 </body>
 </html>
