@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
+    const PHOTOGRAPHY_COLLECTION_ID = 'photography_history';
 
     const { Client, Databases, Query } = Appwrite;
 
@@ -33,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateDisplay() {
         try {
             // دریافت ۳ نوبت آخر
-            const response = await databases.listDocuments(
+            const ticketsResponse = await databases.listDocuments(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
                 [
@@ -43,12 +44,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]
             );
 
-            const calledTickets = response.documents;
+            const calledTickets = ticketsResponse.documents;
             updateTicketsDisplay(calledTickets);
-            updatePhotographyDisplay();
+            await updatePhotographyDisplay();
 
         } catch (error) {
             console.error("Error fetching data:", error);
+        }
+    }
+
+    // --- تابع جدید برای بارگذاری تاریخچه عکاسی از Appwrite ---
+    async function updatePhotographyDisplay() {
+        try {
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                PHOTOGRAPHY_COLLECTION_ID,
+                [
+                    Query.equal('status', 'در انتظار'),
+                    Query.equal('photoTaken', false),
+                    Query.orderAsc('timestamp'),
+                    Query.limit(10)
+                ]
+            );
+            
+            updatePhotographyList(response.documents);
+
+        } catch (error) {
+            console.error("Error fetching photography history:", error);
         }
     }
 
@@ -92,35 +114,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-function updatePhotographyDisplay() {
-    try {
-        const savedHistory = localStorage.getItem('photographyHistory');
-        if (!savedHistory) {
-            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-            photographyWaiting.textContent = 'منتظران: ۰';
-            return;
-        }
-
-        const photographyHistory = JSON.parse(savedHistory);
-        
-        // فقط آیتم‌های در انتظار را بگیر
-        const waitingItems = photographyHistory.filter(item => 
-            item.status === 'در انتظار' && !item.photoTaken
-        );
-        
-        const waitingCount = waitingItems.length;
+    function updatePhotographyList(photographyItems) {
+        const waitingCount = photographyItems.length;
         
         photographyWaiting.textContent = `منتظران: ${waitingCount}`;
 
-        if (waitingItems.length === 0) {
+        if (photographyItems.length === 0) {
             photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در انتظار عکاسی وجود ندارد</div>';
             return;
         }
-
-        // مرتب‌سازی بر اساس زمان ثبت (قدیمی‌ترین اول)
-        const sortedList = [...waitingItems].sort((a, b) => 
-            new Date(a.timestamp) - new Date(b.timestamp)
-        );
         
         photographyList.innerHTML = `
             <table class="photography-table">
@@ -128,17 +130,20 @@ function updatePhotographyDisplay() {
                     <tr>
                         <th>ردیف</th>
                         <th>شماره نوبت</th>
+                        <th>نام مشتری</th>
+                        <th>کد ملی</th>
                         <th>وضعیت</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${sortedList.map((item, index) => `
+                    ${photographyItems.map((item, index) => `
                         <tr>
                             <td class="photography-row-number">${index + 1}</td>
                             <td>
                                 <div class="photography-ticket-number">${item.ticketNumber}</div>
-                                <div class="photography-national-id">${item.nationalId}</div>
                             </td>
+                            <td>${item.firstName} ${item.lastName}</td>
+                            <td class="photography-national-id">${item.nationalId}</td>
                             <td>
                                 <span class="photography-status status-waiting">
                                     در انتظار
@@ -149,11 +154,7 @@ function updatePhotographyDisplay() {
                 </tbody>
             </table>
         `;
-
-    } catch (error) {
-        console.error('Error updating photography display:', error);
     }
-}
 
     function formatTime(date) {
         return date.toLocaleTimeString('fa-IR', {
@@ -164,9 +165,11 @@ function updatePhotographyDisplay() {
 
     // --- Realtime Subscription ---
     function setupRealtime() {
-        const channel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+        const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
         
-        client.subscribe(channel, response => {
+        // گوش دادن به تغییرات نوبت‌ها
+        client.subscribe(ticketChannel, response => {
             if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
                 const updatedTicket = response.payload;
 
@@ -179,54 +182,23 @@ function updatePhotographyDisplay() {
                 }
             }
             
-            // گوش دادن به تغییرات localStorage برای تاریخچه عکاسی
-            window.addEventListener('storage', function(e) {
-                if (e.key === 'photographyHistory') {
-                    updatePhotographyDisplay();
-                }
-            });
-            
             updateDisplay();
         });
-    }
-
-    // --- تابع برای همگام‌سازی با localStorage ---
-function setupPhotographySync() {
-    // گوش دادن به تغییرات localStorage
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'photographyHistory') {
-            console.log('Display: Photography history updated');
+        
+        // گوش دادن به تغییرات تاریخچه عکاسی
+        client.subscribe(photographyChannel, response => {
+            console.log('Display: Photography history updated via real-time');
             updatePhotographyDisplay();
-        }
-    });
+        });
+    }
 
     // --- Initial Load ---
     function initializeDisplay() {
         updateDisplay();
         setupRealtime();
-        setupPhotographySync();
         setInterval(updateDisplay, 30000);
     }
 
-        // گوش دادن به eventهای سفارشی
-    window.addEventListener('photographyHistoryUpdated', function() {
-        console.log('Display: Photography history updated via event');
-        updatePhotographyDisplay();
-    });
-    
-    // به‌روزرسانی دوره‌ای
-    setInterval(() => {
-        updatePhotographyDisplay();
-    }, 1000);
-}
-
-    document.addEventListener('DOMContentLoaded', initializeDisplay);
-
-    // --- Initial Load ---
-    updateDisplay();
-    setupRealtime();
-    setupPhotographySync();
-
-    // به‌روزرسانی هر 30 ثانیه برای بررسی تغییر رنگ
-    setInterval(updateDisplay, 30000);
+    // --- Start the Display ---
+    initializeDisplay();
 });
