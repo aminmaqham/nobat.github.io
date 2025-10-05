@@ -82,31 +82,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPhotographyUser = false;
 
     // --- توابع مدیریت تاریخچه عکاسی ---
-    function loadPhotographyHistory() {
-        try {
-            const saved = localStorage.getItem('photographyHistory');
-            if (saved) {
-                photographyHistory = JSON.parse(saved);
-            }
-            renderPhotographyHistory();
-            updatePhotographyUI();
-        } catch (error) {
-            console.error('Error loading photography history:', error);
-            photographyHistory = [];
+function loadPhotographyHistory() {
+    try {
+        const saved = localStorage.getItem('photographyHistory');
+        if (saved) {
+            photographyHistory = JSON.parse(saved);
         }
+        renderPhotographyHistory();
+        updatePhotographyUI();
+    } catch (error) {
+        console.error('Error loading photography history:', error);
+        photographyHistory = [];
     }
+}
 
-    function savePhotographyHistory() {
-        try {
-            localStorage.setItem('photographyHistory', JSON.stringify(photographyHistory));
-            // به‌روزرسانی نمایشگر
-            if (typeof updatePhotographyDisplay === 'function') {
-                updatePhotographyDisplay();
-            }
-        } catch (error) {
-            console.error('Error saving photography history:', error);
+function savePhotographyHistory() {
+    try {
+        localStorage.setItem('photographyHistory', JSON.stringify(photographyHistory));
+        
+        // ایجاد یک event برای همگام‌سازی بین تب‌ها
+        const event = new Event('photographyHistoryUpdated');
+        window.dispatchEvent(event);
+        
+        // به‌روزرسانی نمایشگر
+        if (typeof updatePhotographyDisplay === 'function') {
+            updatePhotographyDisplay();
         }
+        
+        console.log('Photography history saved and synced');
+    } catch (error) {
+        console.error('Error saving photography history:', error);
     }
+}
 
     // --- تابع اصلاح شده برای نمایش خطای کد ملی ---
     function showNationalIdError(message) {
@@ -475,14 +482,20 @@ function showAdvancedPopupNotification(ticket, htmlContent) {
 }
 
     // --- تابع بهبودیافته برای فراخوانی نوبت ---
+// --- تابع بهبودیافته برای فراخوانی نوبت با اولویت عکاسی ---
 async function callNextTicketWithOptions() {
-    // اگر کاربر عکاسی است، نوبت عکاسی را فراخوانی کن
-    if (isPhotographyUser) {
+    // اولویت اول: بررسی نوبت‌های عکاسی در انتظار
+    const waitingPhotographyItems = photographyHistory.filter(item => 
+        item.status === 'در انتظار' && !item.photoTaken
+    );
+
+    if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
+        // فراخوانی نوبت عکاسی
         await processPhotographyTicket();
         return;
     }
-    
-    // در غیر این صورت نوبت عادی را فراخوانی کن
+
+    // اولویت دوم: فراخوانی نوبت‌های عادی
     const selections = (currentUser.prefs && currentUser.prefs.service_selections) || {};
     const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
 
@@ -1254,6 +1267,25 @@ async function markPhotoAsTaken(photographyItemId) {
         passServiceModalOverlay.style.display = 'flex';
     }
 
+    // --- تابع جدید برای همگام‌سازی تاریخچه عکاسی ---
+function setupPhotographyRealtimeSync() {
+    // گوش دادن به تغییرات localStorage بین تب‌های مختلف
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'photographyHistory') {
+            console.log('Photography history updated from another tab');
+            loadPhotographyHistory();
+            updatePhotographyUI();
+        }
+    });
+    
+    // به‌روزرسانی دوره‌ای برای اطمینان از همگام‌سازی
+    setInterval(() => {
+        loadPhotographyHistory();
+        updatePhotographyUI();
+    }, 2000);
+}
+
+
     // --- POPUP NOTIFICATION SYSTEM ---
 // --- تابع اصلاح شده برای نوتیفیکیشن ساده با دکمه بستن ---
 function showPopupNotification(htmlContent) {
@@ -1306,12 +1338,12 @@ function showPopupNotification(htmlContent) {
     
     popup.addEventListener('click', closeHandler);
     
-    // بستن خودکار بعد از 10 ثانیه (اختیاری)
-    setTimeout(() => {
-        if (popup.style.display !== 'none') {
-            closePopup();
-        }
-    }, 10000);
+    // حذف تایمر خودکار - نوتیفیکیشن فقط با کلیک بسته می‌شود
+    // setTimeout(() => {
+    //     if (popup.style.display !== 'none') {
+    //         closePopup();
+    //     }
+    // }, 10000);
 }
 
     // --- ADMIN PANEL LOGIC ---
@@ -1546,6 +1578,7 @@ async function processPhotographyTicket() {
         <p><strong>نام:</strong> ${nextItem.firstName} ${nextItem.lastName}</p>
         <p><strong>کد ملی:</strong> ${nextItem.nationalId}</p>
         <p><strong>منبع:</strong> ${nextItem.source === 'manual_input' ? 'ثبت دستی' : 'ارسال به عکاسی'}</p>
+        <p><strong>خدمت:</strong> ${nextItem.serviceName || '---'}</p>
     `;
     
     const userChoice = await showAdvancedPhotographyPopup(nextItem, popupMessage);
@@ -1557,11 +1590,13 @@ async function processPhotographyTicket() {
         // به‌روزرسانی UI
         updatePhotographyUI();
         
-        // ادامه فراخوانی نوبت بعدی عکاسی
-        setTimeout(() => {
-            processPhotographyTicket();
-        }, 2000);
+    } else if (userChoice === 'skip') {
+        // رد کردن این نوبت و رفتن به نوبت بعدی
+        showPopupNotification(`<p>نوبت ${nextItem.ticketNumber} رد شد.</p>`);
     }
+    
+    // در هر صورت، بعد از اتمام، UI به‌روزرسانی شود
+    updatePhotographyUI();
 }
 
 // --- تابع جدید برای نوتیفیکیشن عکاسی ---
@@ -1603,7 +1638,7 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         
         const skipBtn = document.createElement('button');
         skipBtn.className = 'popup-btn popup-next-btn';
-        skipBtn.textContent = 'رد کردن';
+        skipBtn.textContent = 'بعدی';
         skipBtn.onclick = () => {
             closePopup();
             setTimeout(() => resolve('skip'), 300);
@@ -1675,21 +1710,23 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
 
 function updateUIForUserRole() {
     if (isPhotographyUser) {
-        document.getElementById('call-next-btn').textContent = 'فراخوانی نوبت عکاسی';
-        document.querySelector('.photography-controls').style.display = 'none';
-        document.querySelector('.call-panel').style.display = 'none';
-        document.querySelector('.service-buttons').style.display = 'none';
+        document.getElementById('call-next-btn').textContent = 'فراخوانی نوبت بعدی (اولویت عکاسی)';
         
-        // نمایش بخش عکاسی
-        photographyDisplay.style.display = 'block';
+        // نمایش وضعیت عکاسی
+        const waitingCount = photographyHistory.filter(item => 
+            item.status === 'در انتظار' && !item.photoTaken
+        ).length;
+        
+        document.querySelector('.photography-waiting-display').innerHTML = `
+            منتظران عکاسی: <span id="photography-waiting-count">${waitingCount}</span>
+            ${waitingCount > 0 ? ' - اولویت با عکاسی' : ''}
+        `;
+        
     } else {
         document.getElementById('call-next-btn').textContent = 'فراخوان نوبت بعدی';
-        document.querySelector('.photography-controls').style.display = 'flex';
-        document.querySelector('.call-panel').style.display = 'block';
-        document.querySelector('.service-buttons').style.display = 'grid';
-        
-        // مخفی کردن بخش عکاسی
-        photographyDisplay.style.display = 'none';
+        document.querySelector('.photography-waiting-display').innerHTML = `
+            منتظران عکاسی: <span id="photography-waiting-count">0</span>
+        `;
     }
 }
 
@@ -1715,30 +1752,33 @@ async function updateUserPhotographyRole() {
 }
 
     // --- Initialize App ---
-    async function initializeApp() {
-        try {
-            currentUser = await account.get();
-            await checkAndSetCounterName();
-            
-            const userPrefs = currentUser.prefs || {};
-            isPhotographyUser = userPrefs.is_photography_user || false;
-            photographyRoleCheckbox.checked = isPhotographyUser;
-            
-            showLoggedInUI();
-            await fetchData();
-            setupRealtimeSubscriptions();
-            checkAutoReset();
-            loadPhotographyHistory();
-            updatePhotographyUI();
-            updateUIForUserRole();
-            
-            setupPhotographyEventListeners();
-            
-        } catch (error) {
-            console.log('User not logged in');
-            showLoggedOutUI();
-        }
+async function initializeApp() {
+    try {
+        currentUser = await account.get();
+        await checkAndSetCounterName();
+        
+        const userPrefs = currentUser.prefs || {};
+        isPhotographyUser = userPrefs.is_photography_user || false;
+        photographyRoleCheckbox.checked = isPhotographyUser;
+        
+        showLoggedInUI();
+        await fetchData();
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+        loadPhotographyHistory();
+        updatePhotographyUI();
+        updateUIForUserRole();
+        
+        // اضافه کردن همگام‌سازی لحظه‌ای
+        setupPhotographyRealtimeSync();
+        
+        setupPhotographyEventListeners();
+        
+    } catch (error) {
+        console.log('User not logged in');
+        showLoggedOutUI();
     }
+}
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);

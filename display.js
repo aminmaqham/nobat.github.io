@@ -122,30 +122,23 @@ function updatePhotographyDisplay() {
             new Date(a.timestamp) - new Date(b.timestamp)
         );
         
-        // فقط ۱۰ آیتم اول را نشان بده
-        const displayItems = sortedList.slice(0, 10);
-        
         photographyList.innerHTML = `
             <table class="photography-table">
                 <thead>
                     <tr>
                         <th>ردیف</th>
                         <th>شماره نوبت</th>
-                        <th>نام و نام خانوادگی</th>
-                        <th>کد ملی</th>
                         <th>وضعیت</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${displayItems.map((item, index) => `
+                    ${sortedList.map((item, index) => `
                         <tr>
                             <td class="photography-row-number">${index + 1}</td>
                             <td>
                                 <div class="photography-ticket-number">${item.ticketNumber}</div>
                                 <div class="photography-national-id">${item.nationalId}</div>
                             </td>
-                            <td>${item.firstName} ${item.lastName}</td>
-                            <td>${item.nationalId}</td>
                             <td>
                                 <span class="photography-status status-waiting">
                                     در انتظار
@@ -198,19 +191,14 @@ function updatePhotographyDisplay() {
     }
 
     // --- تابع برای همگام‌سازی با localStorage ---
-    function setupPhotographySync() {
-        // گوش دادن به تغییرات localStorage
-        window.addEventListener('storage', function(e) {
-            if (e.key === 'photographyHistory') {
-                updatePhotographyDisplay();
-            }
-        });
-        
-        // به‌روزرسانی دوره‌ای
-        setInterval(() => {
+function setupPhotographySync() {
+    // گوش دادن به تغییرات localStorage
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'photographyHistory') {
+            console.log('Display: Photography history updated');
             updatePhotographyDisplay();
-        }, 5000);
-    }
+        }
+    });
 
     // --- Initial Load ---
     function initializeDisplay() {
@@ -219,6 +207,18 @@ function updatePhotographyDisplay() {
         setupPhotographySync();
         setInterval(updateDisplay, 30000);
     }
+
+        // گوش دادن به eventهای سفارشی
+    window.addEventListener('photographyHistoryUpdated', function() {
+        console.log('Display: Photography history updated via event');
+        updatePhotographyDisplay();
+    });
+    
+    // به‌روزرسانی دوره‌ای
+    setInterval(() => {
+        updatePhotographyDisplay();
+    }, 1000);
+}
 
     document.addEventListener('DOMContentLoaded', initializeDisplay);
 
