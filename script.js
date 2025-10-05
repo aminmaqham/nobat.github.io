@@ -148,7 +148,7 @@ function savePhotographyHistory() {
     }
 
     // --- تابع برای افزودن به تاریخچه عکاسی ---
-    function addToPhotographyHistory(item, action = 'added') {
+    function addToPhotographyHistoryWithFallback(item, action = 'added') {
         const historyItem = {
             id: Date.now().toString(),
             ticketNumber: item.ticketNumber,
@@ -222,7 +222,7 @@ function savePhotographyHistory() {
                 serviceName: services.find(s => s.$id === ticket.service_id)?.name || '---'
             };
 
-            addToPhotographyHistory(newItem, 'added');
+            addToPhotographyHistoryWithFallback(newItem, 'added');
             
             showPopupNotification(`<p>نوبت ${newItem.ticketNumber} با کد ملی ${nationalId} به لیست عکاسی اضافه شد.</p>`);
             return true;
@@ -451,11 +451,12 @@ async function loadPhotographyHistory() {
     }
 }
 
-async function addToPhotographyHistory(item, action = 'added') {
+async function addToPhotographyHistoryWithFallback(item, action = 'added') {
     try {
         const userPrefs = currentUser.prefs || {};
         const counterName = userPrefs.counter_name || 'باجه';
 
+        // ابتدا ساختار داده را ساده کنیم تا مشکل ستون پیدا شود
         const newItemData = {
             ticketNumber: item.ticketNumber,
             nationalId: item.nationalId,
@@ -463,21 +464,30 @@ async function addToPhotographyHistory(item, action = 'added') {
             lastName: item.lastName,
             status: action === 'completed' ? 'تکمیل شده' : 'در انتظار',
             photoTaken: action === 'completed',
-            timestamp: new Date().toISOString(),
-            completedAt: action === 'completed' ? new Date().toISOString() : null,
-            serviceId: item.serviceId || '',
-            serviceName: item.serviceName || '---',
-            originalTicketId: item.originalTicketId || '',
-            ticketType: item.ticketType || 'regular',
-            addedBy: currentUser.$id,
-            addedByName: currentUser.name || currentUser.email,
-            completedBy: action === 'completed' ? currentUser.$id : null,
-            completedByName: action === 'completed' ? (currentUser.name || currentUser.email) : null,
-            counterName: counterName,
-            source: item.source || 'photography_modal' // این ستون باید در Appwrite وجود داشته باشد
+            timestamp: new Date().toISOString()
         };
 
-        console.log('Creating photography history item:', newItemData);
+        // فقط فیلدهای ضروری را اضافه کنیم
+        if (action === 'completed') {
+            newItemData.completedAt = new Date().toISOString();
+            newItemData.completedBy = currentUser.$id;
+            newItemData.completedByName = currentUser.name || currentUser.email;
+        }
+
+        // فیلدهای اختیاری را فقط اگر مقدار دارند اضافه کنیم
+        if (item.serviceId) newItemData.serviceId = item.serviceId;
+        if (item.serviceName) newItemData.serviceName = item.serviceName;
+        if (item.originalTicketId) newItemData.originalTicketId = item.originalTicketId;
+        if (item.ticketType) newItemData.ticketType = item.ticketType;
+        
+        newItemData.addedBy = currentUser.$id;
+        newItemData.addedByName = currentUser.name || currentUser.email;
+        newItemData.counterName = counterName;
+        
+        // ستون source را با مقدار پیش‌فرض اضافه کنیم
+        newItemData.source = item.source || 'photography_modal';
+
+        console.log('Creating photography history item with data:', newItemData);
 
         const createdItem = await databases.createDocument(
             DATABASE_ID, 
@@ -486,6 +496,8 @@ async function addToPhotographyHistory(item, action = 'added') {
             newItemData,
             [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
         );
+
+        console.log('Successfully created photography item:', createdItem);
 
         photographyHistory.unshift(createdItem);
         
@@ -501,8 +513,40 @@ async function addToPhotographyHistory(item, action = 'added') {
 
     } catch (error) {
         console.error('Error adding to photography history:', error);
-        console.error('Error details:', error.response);
-        showPopupNotification('<p>خطا در اضافه کردن به تاریخچه عکاسی! لطفا ستون source را در Appwrite اضافه کنید.</p>');
+        console.error('Error response:', error.response);
+        console.error('Error message:', error.message);
+        console.error('Error type:', error.type);
+        console.error('Error code:', error.code);
+        
+        // نمایش خطای دقیق‌تر
+        let errorMessage = 'خطا در اضافه کردن به تاریخچه عکاسی!';
+        if (error.message) {
+            errorMessage += ` ${error.message}`;
+        }
+        if (error.response) {
+            errorMessage += ` Response: ${JSON.stringify(error.response)}`;
+        }
+        
+        showPopupNotification(`<p>${errorMessage}</p>`);
+        return false;
+    }
+}
+
+async function debugPhotographyCollection() {
+    try {
+        console.log('Debugging photography collection structure...');
+        
+        // دریافت اطلاعات collection
+        const collection = await databases.getCollection(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID);
+        console.log('Collection details:', collection);
+        
+        // دریافت چند سند برای بررسی ساختار
+        const documents = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(1)]);
+        console.log('Sample document structure:', documents.documents[0]);
+        
+        return true;
+    } catch (error) {
+        console.error('Error debugging collection:', error);
         return false;
     }
 }
@@ -592,7 +636,7 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
             ticketType: ticket.ticket_type || 'regular'
         };
 
-        const success = await addToPhotographyHistory(newItem, 'added');
+        const success = await addToPhotographyHistoryWithFallback(newItem, 'added');
         
         if (success) {
             showPopupNotification(`<p>نوبت ${newItem.ticketNumber} با کد ملی ${nationalId} به لیست عکاسی اضافه شد.</p>`);
@@ -606,6 +650,74 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
         showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
         return false;
     }
+}
+
+// --- تابع fallback برای اضافه کردن بدون source ---
+async function addToPhotographyHistoryWithFallback(item, action = 'added') {
+    try {
+        const userPrefs = currentUser.prefs || {};
+        const counterName = userPrefs.counter_name || 'باجه';
+
+        // ساختار ساده بدون source
+        const newItemData = {
+            ticketNumber: item.ticketNumber,
+            nationalId: item.nationalId,
+            firstName: item.firstName,
+            lastName: item.lastName,
+            status: action === 'completed' ? 'تکمیل شده' : 'در انتظار',
+            photoTaken: action === 'completed',
+            timestamp: new Date().toISOString(),
+            addedBy: currentUser.$id,
+            addedByName: currentUser.name || currentUser.email,
+            counterName: counterName
+        };
+
+        if (action === 'completed') {
+            newItemData.completedAt = new Date().toISOString();
+            newItemData.completedBy = currentUser.$id;
+            newItemData.completedByName = currentUser.name || currentUser.email;
+        }
+
+        console.log('Creating photography item (fallback):', newItemData);
+
+        const createdItem = await databases.createDocument(
+            DATABASE_ID, 
+            PHOTOGRAPHY_COLLECTION_ID, 
+            ID.unique(), 
+            newItemData,
+            [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
+        );
+
+        photographyHistory.unshift(createdItem);
+        
+        if (photographyHistory.length > 100) {
+            photographyHistory = photographyHistory.slice(0, 100);
+        }
+        
+        renderPhotographyHistory();
+        updatePhotographyUI();
+        
+        return true;
+
+    } catch (error) {
+        console.error('Error in fallback method:', error);
+        showPopupNotification('<p>خطا در سیستم عکاسی! لطفا با پشتیبانی تماس بگیرید.</p>');
+        return false;
+    }
+}
+
+// --- تابع بهبودیافته با fallback ---
+async function addToPhotographyHistoryWithFallback(item, action = 'added') {
+    // ابتدا با source امتحان کن
+    let success = await addToPhotographyHistory(item, action);
+    
+    // اگر خطا داد، بدون source امتحان کن
+    if (!success) {
+        console.log('Trying fallback method without source...');
+        success = await addToPhotographyHistoryWithFallback(item, action);
+    }
+    
+    return success;
 }
 
 // --- تابع جدید برای نمایش مودال دریافت کد ملی ---
@@ -703,44 +815,58 @@ async function addManualToPhotographyList() {
         return;
     }
     
-    // ایجاد مودال برای دریافت کد ملی
-    const nationalId = await showNationalIdModal(ticketNumber);
-    
-    if (!nationalId) {
-        return; // کاربر انصراف داده
-    }
-    
-    if (!checkCodeMeli(nationalId)) {
-        alert('کد ملی وارد شده معتبر نیست.');
-        return;
-    }
-
-    // بررسی تکراری نبودن کد ملی در لیست انتظار
-    if (isNationalIdInWaitingList(nationalId)) {
-        alert(`کد ملی ${nationalId} قبلاً در لیست انتظار عکاسی ثبت شده است.`);
-        return;
-    }
-    
     try {
+        // ایجاد مودال برای دریافت کد ملی
+        const nationalId = await showNationalIdModal(ticketNumber);
+        
+        if (!nationalId) {
+            return; // کاربر انصراف داده
+        }
+
+        if (!nationalId || nationalId.trim() === '') {
+            alert('لطفا کد ملی را وارد کنید.');
+            return;
+        }
+
+        const cleanNationalId = nationalId.toString().replace(/\s/g, '').replace(/\D/g, '');
+        
+        if (cleanNationalId.length !== 10) {
+            alert('کد ملی باید 10 رقم باشد.');
+            return;
+        }
+
+        if (!checkCodeMeli(cleanNationalId)) {
+            alert('کد ملی وارد شده معتبر نیست.');
+            return;
+        }
+
+        // بررسی تکراری نبودن کد ملی در لیست انتظار
+        if (isNationalIdInWaitingList(cleanNationalId)) {
+            alert(`کد ملی ${cleanNationalId} قبلاً در لیست انتظار عکاسی ثبت شده است.`);
+            return;
+        }
+        
         const newItem = {
             ticketNumber: ticketNumber,
             firstName: 'ثبت دستی',
             lastName: '',
-            nationalId: nationalId,
+            nationalId: cleanNationalId,
             source: 'manual_input',
             serviceName: 'ثبت دستی',
             ticketType: 'manual'
         };
 
-        const success = await addToPhotographyHistory(newItem, 'added');
+        const success = await addToPhotographyHistoryWithFallback(newItem, 'added');
         
         if (success) {
             manualTicketInput.value = '';
-            showPopupNotification(`<p>نوبت ${newItem.ticketNumber} به لیست عکاسی اضافه شد.</p>`);
+            showPopupNotification(`<p>نوبت ${ticketNumber} با موفقیت به لیست عکاسی اضافه شد.</p>`);
+        } else {
+            showPopupNotification('<p>خطا در ثبت نوبت عکاسی!</p>');
         }
         
     } catch (error) {
-        console.error('Error adding manual to photography list:', error);
+        console.error('Error in manual photography addition:', error);
         showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
     }
 }
@@ -1972,7 +2098,11 @@ async function initializeApp() {
         
         showLoggedInUI();
         await fetchData();
-        await loadPhotographyHistory(); // تغییر به await
+        await loadPhotographyHistory();
+        
+        // دیباگ collection
+        await debugPhotographyCollection();
+        
         setupRealtimeSubscriptions();
         checkAutoReset();
         updatePhotographyUI();
