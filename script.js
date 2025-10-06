@@ -179,7 +179,6 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
         return false;
     }
 
-    // بررسی تکراری نبودن کد ملی در لیست انتظار
     if (isNationalIdInWaitingList(nationalId)) {
         alert(`کد ملی ${nationalId} قبلاً در لیست انتظار عکاسی ثبت شده است.`);
         return false;
@@ -188,19 +187,37 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
     try {
         const service = services.find(s => s.$id === ticket.service_id);
         
+        // مقداردهی مطابق با Appwrite
+        let ticketNumber = ticket.specific_ticket;
+        if (!ticketNumber || ticketNumber === 'undefined' || ticketNumber === 'null') {
+            ticketNumber = 'پاس';
+        }
+
+        // دریافت نام باجه مبدا از اطلاعات فراخوانی
+        const originalCounterName = ticket.called_by_counter_name || (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
+
         const newItem = {
-            ticketNumber: ticket.specific_ticket || 'پاس',
-            firstName: ticket.first_name,
-            lastName: ticket.last_name,
-            nationalId: nationalId,
+            // ticketNumber: String (همانطور که در Appwrite تعریف شده)
+            ticketNumber: String(ticketNumber),
+            
+            // nationalId: String (همانطور که در Appwrite تعریف شده)
+            nationalId: String(nationalId),
+            
+            firstName: ticket.first_name || '---',
+            lastName: ticket.last_name || '---',
             source: source,
             serviceId: ticket.service_id,
             serviceName: service?.name || '---',
-            originalTicketId: ticket.$id,
-            ticketType: ticket.ticket_type || 'regular'
+            
+            // originalTicketId: Integer (تبدیل به عدد برای تطبیق با Appwrite)
+            originalTicketId: parseInt(ticket.$id) || 0,
+            
+            ticketType: ticket.ticket_type || 'regular',
+            originalCounterName: originalCounterName
         };
 
-        // مستقیماً از تابع اصلی استفاده کن
+        console.log('Prepared photography item with Appwrite-compatible types:', newItem);
+
         const success = await addToPhotographyHistory(newItem, 'added');
         
         if (success) {
@@ -216,7 +233,6 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
         return false;
     }
 }
-
 async function addToPhotographyHistoryWithFallback(item, action = 'added') {
     try {
         return await addToPhotographyHistory(item, action);
@@ -260,34 +276,77 @@ async function addToPhotographyHistory(item, action = 'added') {
         const userPrefs = currentUser.prefs || {};
         const counterName = userPrefs.counter_name || 'باجه';
 
-        // ساختار داده‌ای ساده و مطمئن
+        // ساختار داده‌ای کاملاً منطبق با Appwrite
         const photographyData = {
-            ticketNumber: item.ticketNumber || 'پاس',
-            nationalId: item.nationalId || '',
-            firstName: item.firstName || 'ثبت دستی',
-            lastName: item.lastName || '',
+            // ticketNumber: String (Size: 256)
+            ticketNumber: String(item.ticketNumber || 'پاس').substring(0, 255),
+            
+            // nationalId: String (Size: 1073741824)
+            nationalId: String(item.nationalId || '').substring(0, 9998),
+            
+            // firstName: String (Size: 999999999)
+            firstName: String(item.firstName || 'ثبت دستی').substring(0, 9998),
+            
+            // lastName: String (Size: 999999999)  
+            lastName: String(item.lastName || '').substring(0, 9998),
+            
+            // status: String (Size: 1073741824)
             status: action === 'completed' ? 'تکمیل شده' : 'در انتظار',
+            
+            // photoTaken: Boolean
             photoTaken: action === 'completed',
+            
+            // timestamp: String (DateTime)
             timestamp: new Date().toISOString(),
+            
+            // addedBy: String (Size: 99999999)
             addedBy: currentUser.$id,
-            addedByName: currentUser.name || currentUser.email,
-            counterName: counterName
+            
+            // addedByName: String (Size: 9999999)
+            addedByName: String(currentUser.name || currentUser.email).substring(0, 9998),
+            
+            // counterName: String (Size: 888888888)
+            counterName: String(counterName).substring(0, 9998),
+            
+            // source: String (Size: 255)
+            source: String(item.source || 'photography_modal').substring(0, 254)
         };
 
-        // اضافه کردن فیلدهای اختیاری فقط اگر مقدار دارند
-        if (item.serviceId) photographyData.serviceId = item.serviceId;
-        if (item.serviceName) photographyData.serviceName = item.serviceName;
-        if (item.originalTicketId) photographyData.originalTicketId = item.originalTicketId;
-        if (item.ticketType) photographyData.ticketType = item.ticketType;
-        if (item.source) photographyData.source = item.source;
+        // فیلدهای اختیاری - تطبیق کامل با Appwrite
+        if (item.serviceId) {
+            // serviceId: String (Size: 1073741824)
+            photographyData.serviceId = String(item.serviceId).substring(0, 9998);
+        }
+        
+        if (item.serviceName) {
+            // serviceName: String (Size: 1073741824)
+            photographyData.serviceName = String(item.serviceName).substring(0, 9998);
+        }
+        
+        if (item.originalTicketId) {
+            // originalTicketId: Integer (Max: 9999)
+            // تبدیل به عدد برای تطبیق با Integer در Appwrite
+            photographyData.originalTicketId = parseInt(item.originalTicketId) || 0;
+        }
+        
+        if (item.ticketType) {
+            // ticketType: String (Size: 922145486)
+            photographyData.ticketType = String(item.ticketType).substring(0, 9998);
+        }
+        
+        if (item.originalCounterName) {
+            // originalCounterName: String (Size: 1073741824)
+            photographyData.originalCounterName = String(item.originalCounterName).substring(0, 9998);
+        }
 
+        // فیلدهای مربوط به تکمیل عکاسی
         if (action === 'completed') {
             photographyData.completedAt = new Date().toISOString();
             photographyData.completedBy = currentUser.$id;
-            photographyData.completedByName = currentUser.name || currentUser.email;
+            photographyData.completedByName = String(currentUser.name || currentUser.email).substring(0, 9998);
         }
 
-        console.log('Creating photography document with data:', photographyData);
+        console.log('Creating photography document with Appwrite-compatible structure:', photographyData);
 
         const createdItem = await databases.createDocument(
             DATABASE_ID, 
@@ -302,7 +361,6 @@ async function addToPhotographyHistory(item, action = 'added') {
         // اضافه کردن به لیست محلی
         photographyHistory.unshift(createdItem);
         
-        // فقط 100 آیتم آخر را نگه دار
         if (photographyHistory.length > 100) {
             photographyHistory = photographyHistory.slice(0, 100);
         }
@@ -315,7 +373,6 @@ async function addToPhotographyHistory(item, action = 'added') {
     } catch (error) {
         console.error('Error adding to photography history:', error);
         
-        // نمایش خطای دقیق‌تر
         let errorMessage = 'خطا در اضافه کردن به تاریخچه عکاسی! ';
         if (error.message) {
             errorMessage += error.message;
@@ -607,8 +664,9 @@ async function debugPhotographyCollection() {
 
 // --- تابع برای بررسی تکراری نبودن کد ملی در لیست انتظار ---
 function isNationalIdInWaitingList(nationalId) {
+    const nationalIdStr = String(nationalId); // تطبیق با String در Appwrite
     return photographyHistory.some(item => 
-        item.nationalId === nationalId && 
+        String(item.nationalId) === nationalIdStr && 
         item.status === 'در انتظار' &&
         !item.photoTaken
     );
