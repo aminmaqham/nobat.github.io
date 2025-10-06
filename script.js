@@ -830,14 +830,40 @@ async function callNextTicketWithOptions() {
     }
 
     // --- AUTHENTICATION & UI TOGGLES ---
-    async function login() {
-        try {
-            await account.createEmailSession(emailInput.value, passwordInput.value);
-            initializeApp();
-        } catch (error) {
-            alert('خطا در ورود: ' + error.message);
+async function login() {
+    try {
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        
+        if (!email || !password) {
+            alert('لطفا ایمیل و رمز عبور را وارد کنید.');
+            return;
         }
+        
+        console.log('Attempting login with:', email);
+        await account.createEmailSession(email, password);
+        console.log('Login successful');
+        
+        // بارگذاری مجدد صفحه برای اطمینان از تنظیم صحیح session
+        window.location.reload();
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('خطا در ورود: ' + (error.message || 'اطلاعات ورود نامعتبر است'));
     }
+}
+
+// --- تابع برای بررسی وضعیت session ---
+async function checkSessionStatus() {
+    try {
+        const user = await account.get();
+        console.log('User session is active:', user.email);
+        return true;
+    } catch (error) {
+        console.log('No active session');
+        return false;
+    }
+}
 
     async function logout() {
         try {
@@ -1992,6 +2018,7 @@ async function updateUserPhotographyRole() {
 
     // --- Initialize App ---
 
+// --- Initialize App ---
 async function initializeApp() {
     try {
         currentUser = await account.get();
@@ -2018,19 +2045,20 @@ async function initializeApp() {
         console.log('App initialized successfully');
         
     } catch (error) {
-        console.log('User not logged in');
+        console.log('User not logged in, showing login form');
         showLoggedOutUI();
     }
 }
-    // --- EVENT LISTENERS ---
+// --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
     callPastBtn.addEventListener('click', callPastTicket);
     logoutBtn.addEventListener('click', logout);
-    document.addEventListener('DOMContentLoaded', function() {
+    
     settingsBtn.addEventListener('click', openAdminPanel);
     resetAllBtn.addEventListener('click', resetAllTickets);
     callNextBtn.addEventListener('click', callNextTicketWithOptions);
     passTicketBtn.addEventListener('click', openPassServiceModal);
+    
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
         const lastName = document.getElementById('last-name').value;
@@ -2044,11 +2072,13 @@ async function initializeApp() {
             generatePassTicket(firstName, lastName, nationalId, delayCount);
         }
     });
+    
     cancelTicketBtn.addEventListener('click', closeTicketForm);
     addServiceBtn.addEventListener('click', addNewServiceRow);
     saveSettingsBtn.addEventListener('click', saveSettings);
     closeSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
     cancelSettingsBtn.addEventListener('click', () => adminPanel.style.display = 'none');
+    
     confirmPassServiceBtn.addEventListener('click', () => {
         tempSelectedServicesForPass = [];
         passServiceList.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
@@ -2061,22 +2091,25 @@ async function initializeApp() {
         passServiceModalOverlay.style.display = 'none';
         openTicketForm('pass');
     });
+    
     cancelPassServiceBtn.addEventListener('click', () => passServiceModalOverlay.style.display = 'none');
     counterSettingsBtn.addEventListener('click', openCounterSettingsModal);
     saveCounterBtn.addEventListener('click', saveCounterSettings);
     cancelCounterBtn.addEventListener('click', closeCounterSettingsModal);
+    
     manualPhotographyBtn.addEventListener('click', addManualToPhotographyList);
+    
     manualTicketInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        addManualToPhotographyList();
-    }
-});
-    photographyRoleCheckbox.addEventListener('change', function() {
-    isPhotographyUser = this.checked;
-    updateUserPhotographyRole();
-    updatePhotographyUI();
+        if (e.key === 'Enter') {
+            addManualToPhotographyList();
+        }
     });
-
+    
+    photographyRoleCheckbox.addEventListener('change', function() {
+        isPhotographyUser = this.checked;
+        updateUserPhotographyRole();
+        updatePhotographyUI();
+    });
 
     pastTicketInput.addEventListener('input', function() {
         this.value = this.value.replace(/[^0-9]/g, '');
@@ -2103,4 +2136,5 @@ async function initializeApp() {
 
     // --- INITIALIZE APP ---
     initializeApp();
-});
+
+}); // پایان اصلی - این خط باید فقط یک بار باشد
