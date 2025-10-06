@@ -37,6 +37,76 @@
     background-color: #7B1FA2 !important;
 }
 
+/* استایل‌های جدید برای نمایش وضعیت عکاسی */
+.photography-mode-active {
+    background-color: #f3e5f5 !important;
+    border: 2px solid #9C27B0 !important;
+}
+
+.photography-mode-active .photography-waiting-display {
+    background-color: #e1bee7;
+    color: #4a148c;
+    font-weight: 700;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+/* بهبود نمایش خطاها */
+.input-error {
+    border-color: var(--danger-color) !important;
+    background-color: #ffeaea !important;
+}
+
+.input-success {
+    border-color: var(--primary-color) !important;
+    background-color: #e8f5e9 !important;
+}
+
+/* استایل برای دکمه‌های مخصوص عکاسی */
+.photography-primary-btn {
+    background-color: #9C27B0 !important;
+}
+
+.photography-primary-btn:hover {
+    background-color: #7B1FA2 !important;
+}
+
+.photography-secondary-btn {
+    background-color: #FF9800 !important;
+}
+
+.photography-secondary-btn:hover {
+    background-color: #F57C00 !important;
+}
+
+/* استایل برای نمایش وضعیت در تاریخچه */
+.status-waiting {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-completed {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-pending {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
 .popup-photography-secondary {
     background-color: #FF9800 !important;
 }

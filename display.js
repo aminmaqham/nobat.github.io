@@ -20,16 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const photographyList = document.querySelector('.photography-list');
     const photographyWaiting = document.querySelector('.photography-waiting');
 
-    // --- Text-to-Speech Function ---
-    function speak(text) {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'fa-IR';
-            utterance.rate = 0.9;
-            window.speechSynthesis.speak(utterance);
-        }
-    }
-
     // --- UI Update Functions ---
     async function updateDisplay() {
         try {
@@ -53,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- تابع جدید برای بارگذاری تاریخچه عکاسی از Appwrite ---
+    // --- تابع برای بارگذاری تاریخچه عکاسی از Appwrite ---
     async function updatePhotographyDisplay() {
         try {
             const response = await databases.listDocuments(
@@ -192,11 +182,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Text-to-Speech Function ---
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'fa-IR';
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
     // --- Initial Load ---
     function initializeDisplay() {
         updateDisplay();
         setupRealtime();
-        setInterval(updateDisplay, 30000);
+        setInterval(updateDisplay, 30000); // به‌روزرسانی هر 30 ثانیه
     }
 
     // --- Start the Display ---
