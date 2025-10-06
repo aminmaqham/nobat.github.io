@@ -179,7 +179,6 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
         return false;
     }
 
-    // بررسی تکراری نبودن کد ملی در لیست انتظار
     if (isNationalIdInWaitingList(nationalId)) {
         alert(`کد ملی ${nationalId} قبلاً در لیست انتظار عکاسی ثبت شده است.`);
         return false;
@@ -188,19 +187,30 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
     try {
         const service = services.find(s => s.$id === ticket.service_id);
         
+        // مقداردهی مطمئن برای ticketNumber
+        let ticketNumber = ticket.specific_ticket;
+        if (!ticketNumber || ticketNumber === 'undefined' || ticketNumber === 'null') {
+            ticketNumber = 'پاس';
+        }
+
+        // دریافت نام باجه مبدا از اطلاعات فراخوانی
+        const originalCounterName = ticket.called_by_counter_name || (currentUser.prefs && currentUser.prefs.counter_name) || 'باجه';
+
         const newItem = {
-            ticketNumber: ticket.specific_ticket || 'پاس',
-            firstName: ticket.first_name,
-            lastName: ticket.last_name,
+            ticketNumber: ticketNumber,
+            firstName: ticket.first_name || '---',
+            lastName: ticket.last_name || '---',
             nationalId: nationalId,
             source: source,
             serviceId: ticket.service_id,
             serviceName: service?.name || '---',
             originalTicketId: ticket.$id,
-            ticketType: ticket.ticket_type || 'regular'
+            ticketType: ticket.ticket_type || 'regular',
+            originalCounterName: originalCounterName // ذخیره نام باجه مبدا
         };
 
-        // مستقیماً از تابع اصلی استفاده کن
+        console.log('Prepared photography item with counter info:', newItem);
+
         const success = await addToPhotographyHistory(newItem, 'added');
         
         if (success) {
@@ -260,18 +270,15 @@ async function addToPhotographyHistory(item, action = 'added') {
         const userPrefs = currentUser.prefs || {};
         const counterName = userPrefs.counter_name || 'باجه';
 
-        // اعتبارسنجی و مقداردهی پیش‌فرض برای ticketNumber
+        // اعتبارسنجی و مقداردهی پیش‌فرض
         let ticketNumber = item.ticketNumber;
         if (!ticketNumber || ticketNumber === 'undefined' || ticketNumber === 'null') {
             ticketNumber = 'پاس';
         }
         
-        // تبدیل به string برای اطمینان
-        ticketNumber = String(ticketNumber).substring(0, 9998);
-
-        // ساختار داده‌ای با اطلاعات باجه مبدا
+        // ساختار داده‌ای با استفاده از اسامی ستون‌های موجود
         const photographyData = {
-            ticketNumber: ticketNumber,
+            ticketNumber: String(ticketNumber).substring(0, 9998),
             nationalId: String(item.nationalId || '').substring(0, 9998),
             firstName: String(item.firstName || 'ثبت دستی').substring(0, 9998),
             lastName: String(item.lastName || '').substring(0, 9998),
@@ -280,17 +287,16 @@ async function addToPhotographyHistory(item, action = 'added') {
             timestamp: new Date().toISOString(),
             addedBy: currentUser.$id,
             addedByName: String(currentUser.name || currentUser.email).substring(0, 9998),
-            counterName: String(counterName).substring(0, 9998), // باجه فعلی
-            source: String(item.source || 'photography_modal').substring(0, 254),
-            // ذخیره اطلاعات باجه مبدا اگر از فراخوانی آمده باشد
-            originalCounterName: item.originalCounterName || counterName
+            counterName: String(counterName).substring(0, 9998),
+            source: String(item.source || 'photography_modal').substring(0, 254)
         };
 
-        // اضافه کردن فیلدهای اختیاری فقط اگر مقدار دارند
+        // اضافه کردن فیلدهای اختیاری
         if (item.serviceId) photographyData.serviceId = String(item.serviceId).substring(0, 9998);
         if (item.serviceName) photographyData.serviceName = String(item.serviceName).substring(0, 9998);
         if (item.originalTicketId) photographyData.originalTicketId = String(item.originalTicketId).substring(0, 9998);
         if (item.ticketType) photographyData.ticketType = String(item.ticketType).substring(0, 9998);
+        if (item.originalCounterName) photographyData.originalCounterName = String(item.originalCounterName).substring(0, 9998);
 
         if (action === 'completed') {
             photographyData.completedAt = new Date().toISOString();
@@ -313,7 +319,6 @@ async function addToPhotographyHistory(item, action = 'added') {
         // اضافه کردن به لیست محلی
         photographyHistory.unshift(createdItem);
         
-        // فقط 100 آیتم آخر را نگه دار
         if (photographyHistory.length > 100) {
             photographyHistory = photographyHistory.slice(0, 100);
         }
@@ -326,7 +331,6 @@ async function addToPhotographyHistory(item, action = 'added') {
     } catch (error) {
         console.error('Error adding to photography history:', error);
         
-        // نمایش خطای دقیق‌تر
         let errorMessage = 'خطا در اضافه کردن به تاریخچه عکاسی! ';
         if (error.message) {
             errorMessage += error.message;
@@ -370,7 +374,7 @@ async function markPhotoAsTaken(photographyItemId) {
 
         // اگر نوبت از یک باجه خاص آمده بود، آن را به صف آن باجه بازگردان
         if (photographyItem.originalTicketId) {
-            await returnTicketToOriginalCounter(photographyItem.originalTicketId);
+            await returnTicketToOriginalCounter(photographyItem.originalTicketId, photographyItem.originalCounterName);
         }
 
         renderPhotographyHistory();
@@ -381,6 +385,64 @@ async function markPhotoAsTaken(photographyItemId) {
     } catch (error) {
         console.error('Error marking photo as taken:', error);
         showPopupNotification('<p>خطا در ثبت عکس!</p>');
+        return false;
+    }
+}
+
+async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
+    try {
+        // دریافت اطلاعات نوبت اصلی
+        const originalTicket = await databases.getDocument(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            ticketId
+        );
+
+        if (!originalTicket) {
+            console.error('Original ticket not found:', ticketId);
+            return false;
+        }
+
+        // ایجاد یک نوبت جدید با اولویت در صف باجه مبدا
+        const newTicketData = {
+            service_id: originalTicket.service_id,
+            specific_ticket: originalTicket.specific_ticket,
+            general_ticket: originalTicket.general_ticket,
+            first_name: originalTicket.first_name,
+            last_name: originalTicket.last_name,
+            national_id: originalTicket.national_id,
+            registered_by: originalTicket.registered_by,
+            registered_by_name: originalTicket.registered_by_name,
+            status: 'در حال انتظار',
+            ticket_type: 'returned_from_photography',
+            original_ticket_id: originalTicket.$id,
+            returned_from_photography: true,
+            original_counter_name: originalCounterName || 'عکاسی'
+        };
+
+        const returnedTicket = await databases.createDocument(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            ID.unique(),
+            newTicketData,
+            [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
+        );
+
+        console.log('Ticket returned to counter:', returnedTicket);
+        
+        // نمایش نوتیفیکیشن به کاربر
+        const service = services.find(s => s.$id === originalTicket.service_id);
+        const serviceName = service ? service.name : 'خدمت';
+        
+        showPopupNotification(`
+            <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
+            <p style="font-size: 14px; color: #4CAF50;">این نوبت در اولویت قرار گرفت.</p>
+        `);
+
+        return true;
+
+    } catch (error) {
+        console.error('Error returning ticket to counter:', error);
         return false;
     }
 }
@@ -849,22 +911,8 @@ async function addManualToPhotographyList() {
         showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
     }
 }
-    // --- تابع بهبودیافته برای فراخوانی نوبت ---
-// --- تابع بهبودیافته برای فراخوانی نوبت با اولویت عکاسی ---
-async function callNextTicketWithOptions() {
-    // اولویت اول: نوبت‌های بازگشته از عکاسی
-    const returnedTickets = tickets.filter(t => 
-        t.status === 'در حال انتظار' && 
-        t.returned_from_photography === true
-    );
 
-    if (returnedTickets.length > 0) {
-        // فراخوانی نوبت بازگشته از عکاسی
-        await callSpecificTicket(returnedTickets[0]);
-        return;
-    }
-
-    async function callSpecificTicket(ticket) {
+async function callSpecificTicket(ticket) {
     try {
         const userPrefs = currentUser.prefs || {};
         const counterName = userPrefs.counter_name || 'باجه';
@@ -883,7 +931,6 @@ async function callNextTicketWithOptions() {
         );
         
         lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-        
         await fetchTickets();
         
         const service = services.find(s => s.$id === updatedTicket.service_id);
@@ -895,6 +942,8 @@ async function callNextTicketWithOptions() {
             <p><strong>باجه:</strong> ${counterName}</p>
             ${updatedTicket.returned_from_photography ? 
                 '<p style="color: #4CAF50; font-weight: bold;">✓ بازگشته از عکاسی</p>' : ''}
+            ${updatedTicket.original_counter_name ? 
+                `<p style="font-size: 14px; color: #666;">باجه مبدا: ${updatedTicket.original_counter_name}</p>` : ''}
         `;
         
         const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
@@ -902,7 +951,6 @@ async function callNextTicketWithOptions() {
         if (userChoice === 'photography') {
             openPhotographyModal(updatedTicket);
         } else if (userChoice === 'next') {
-            // فراخوانی نوبت بعدی
             setTimeout(() => {
                 callNextTicketWithOptions();
             }, 1000);
@@ -916,13 +964,27 @@ async function callNextTicketWithOptions() {
     }
 }
 
+    // --- تابع بهبودیافته برای فراخوانی نوبت ---
+// --- تابع بهبودیافته برای فراخوانی نوبت با اولویت عکاسی ---
+async function callNextTicketWithOptions() {
+    // اولویت اول: نوبت‌های بازگشته از عکاسی
+    const returnedTickets = tickets.filter(t => 
+        t.status === 'در حال انتظار' && 
+        t.returned_from_photography === true
+    );
+
+    if (returnedTickets.length > 0) {
+        // فراخوانی نوبت بازگشته از عکاسی
+        await callSpecificTicket(returnedTickets[0]);
+        return;
+    }
+
     // اولویت دوم: نوبت‌های عکاسی در انتظار
     const waitingPhotographyItems = photographyHistory.filter(item => 
         item.status === 'در انتظار' && !item.photoTaken
     );
 
     if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
-        // فراخوانی نوبت عکاسی
         await processPhotographyTicket();
         return;
     }
@@ -1970,7 +2032,7 @@ function setupPhotographyEventListeners() {
     }
 
     // --- Photography Role Functions ---
-async function processPhotographyTicket() {
+    async function processPhotographyTicket() {
     const waitingItems = photographyHistory.filter(item => 
         item.status === 'در انتظار' && !item.photoTaken
     );
@@ -1994,7 +2056,7 @@ async function processPhotographyTicket() {
         <p><strong>کد ملی:</strong> ${nextItem.nationalId}</p>
         <p><strong>خدمت:</strong> ${nextItem.serviceName || '---'}</p>
         <p><strong>منبع:</strong> ${nextItem.source === 'manual_input' ? 'ثبت دستی' : 'ارسال به عکاسی'}</p>
-        ${nextItem.counterName ? `<p><strong>باجه مبدا:</strong> ${nextItem.counterName}</p>` : ''}
+        ${nextItem.originalCounterName ? `<p><strong>باجه مبدا:</strong> ${nextItem.originalCounterName}</p>` : ''}
     `;
     
     const userChoice = await showAdvancedPhotographyPopup(nextItem, popupMessage);
@@ -2012,10 +2074,8 @@ async function processPhotographyTicket() {
         }, 2000);
     }
     
-    // در هر صورت، بعد از اتمام، UI به‌روزرسانی شود
     updatePhotographyUI();
 }
-
 
 // --- تابع جدید برای نوتیفیکیشن عکاسی ---
 function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
