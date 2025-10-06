@@ -895,6 +895,69 @@ header h1 {
     pointer-events: auto;
 }
 
+/* استایل برای نوبت‌های بازگشته از عکاسی */
+.ticket-returned-from-photography {
+    background: linear-gradient(135deg, #4CAF50, #45a049) !important;
+    border: 2px solid #388E3C !important;
+}
+
+.priority-high {
+    animation: priority-pulse 1.5s infinite;
+}
+
+@keyframes priority-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+/* استایل برای نوبت‌های بازگشته از عکاسی */
+.ticket-returned-from-photography {
+    background: linear-gradient(135deg, #4CAF50, #45a049) !important;
+    border: 2px solid #388E3C !important;
+}
+
+.priority-high {
+    animation: priority-pulse 1.5s infinite;
+}
+
+@keyframes priority-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+/* استایل برای نمایش وضعیت بازگشته از عکاسی */
+.returned-badge {
+    background-color: #4CAF50;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.original-counter-badge {
+    background-color: #2196F3;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.6rem;
+    margin-right: 3px;
+}
+
+/* استایل برای نمایش وضعیت بازگشته از عکاسی */
+.returned-badge {
+    background-color: #4CAF50;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
 .popup-message {
     background-color: rgb(253, 148, 236);
     color: var(--dark-text);
