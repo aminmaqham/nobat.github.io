@@ -1625,28 +1625,98 @@ async function callNextRegularTicket() {
         }
     }
     
-    async function resetAllTickets() {
-        if (!confirm('آیا مطمئن هستید؟ تمام نوبت‌ها و لیست عکاسی برای همیشه پاک خواهند شد.')) return;
+async function resetAllTickets() {
+    if (!confirm('⚠️ هشدار: این عمل غیرقابل بازگشت است!\n\nآیا مطمئن هستید که می‌خواهید:\n• تمام نوبت‌ها\n• تمام تاریخچه عکاسی\n• لیست انتظار عکاسی\n\nرا پاک کنید؟')) return;
+    
+    try {
+        showPopupNotification('<p>در حال پاک کردن داده‌ها... لطفا منتظر بمانید.</p>');
         
+        let deletedTicketsCount = 0;
+        let deletedPhotographyCount = 0;
+
+        // ۱. پاک کردن نوبت‌ها
         try {
-            let response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-            while (response.documents.length > 0) {
-                const deletePromises = response.documents.map(doc => databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id));
+            let ticketsResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            while (ticketsResponse.documents.length > 0) {
+                const deletePromises = ticketsResponse.documents.map(doc => 
+                    databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id)
+                );
                 await Promise.all(deletePromises);
-                response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+                deletedTicketsCount += ticketsResponse.documents.length;
+                ticketsResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
             }
-            
-            // پاک کردن تاریخچه عکاسی
-            photographyHistory = [];
-            savePhotographyHistory();
-            updatePhotographyUI();
-            
-            showPopupNotification('<p>تمام نوبت‌ها و لیست عکاسی با موفقیت پاک شدند.</p>');
-        } catch (error) {
-            console.error('Error resetting tickets:', error);
-            showPopupNotification('<p>خطا در پاک کردن نوبت‌ها.</p>');
+            console.log(`Deleted ${deletedTicketsCount} tickets`);
+        } catch (ticketError) {
+            console.error('Error deleting tickets:', ticketError);
         }
+
+        // ۲. پاک کردن تاریخچه عکاسی
+        try {
+            let photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
+            while (photographyResponse.documents.length > 0) {
+                const deletePhotographyPromises = photographyResponse.documents.map(doc => 
+                    databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
+                );
+                await Promise.all(deletePhotographyPromises);
+                deletedPhotographyCount += photographyResponse.documents.length;
+                photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
+            }
+            console.log(`Deleted ${deletedPhotographyCount} photography records`);
+        } catch (photographyError) {
+            console.error('Error deleting photography history:', photographyError);
+        }
+
+        // ۳. پاک کردن کش محلی
+        photographyHistory = [];
+        tickets = [];
+        savePhotographyHistory();
+        
+        // ۴. به‌روزرسانی کامل UI
+        updatePhotographyUI();
+        await fetchData();
+        renderUI();
+        
+        showPopupNotification(`
+            <p>✅ پاکسازی با موفقیت انجام شد:</p>
+            <p>• ${deletedTicketsCount} نوبت پاک شد</p>
+            <p>• ${deletedPhotographyCount} رکورد عکاسی پاک شد</p>
+            <p>• لیست انتظار عکاسی پاک شد</p>
+        `);
+        
+    } catch (error) {
+        console.error('Error in reset operation:', error);
+        showPopupNotification('<p>❌ خطا در پاک کردن داده‌ها. لطفا دوباره تلاش کنید.</p>');
     }
+}
+
+async function resetPhotographyHistoryOnly() {
+    if (!confirm('آیا مطمئن هستید که می‌خواهید فقط تاریخچه عکاسی را پاک کنید؟')) return;
+    
+    try {
+        let deletedCount = 0;
+        let photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
+        
+        while (photographyResponse.documents.length > 0) {
+            const deletePromises = photographyResponse.documents.map(doc => 
+                databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
+            );
+            await Promise.all(deletePromises);
+            deletedCount += photographyResponse.documents.length;
+            photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
+        }
+        
+        // پاک کردن کش محلی
+        photographyHistory = [];
+        savePhotographyHistory();
+        updatePhotographyUI();
+        
+        showPopupNotification(`<p>✅ ${deletedCount} رکورد از تاریخچه عکاسی پاک شد.</p>`);
+        
+    } catch (error) {
+        console.error('Error resetting photography history:', error);
+        showPopupNotification('<p>❌ خطا در پاک کردن تاریخچه عکاسی.</p>');
+    }
+}
 
     // --- AUTO RESET FUNCTIONALITY ---
     async function checkAutoReset() {
@@ -2316,6 +2386,15 @@ async function initializeApp() {
     resetAllBtn.addEventListener('click', resetAllTickets);
     callNextBtn.addEventListener('click', callNextTicketWithOptions);
     passTicketBtn.addEventListener('click', openPassServiceModal);
+    // در بخش event listeners اضافه کنید:
+document.getElementById('reset-photography-btn').addEventListener('click', resetPhotographyHistoryOnly);
+
+// و در تابع showLoggedInUI نمایش دهید:
+if (currentUser.prefs && currentUser.prefs.role === 'admin') {
+    settingsBtn.style.display = 'inline-block';
+    resetAllBtn.style.display = 'inline-block';
+    document.getElementById('reset-photography-btn').style.display = 'inline-block';
+}
     
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
