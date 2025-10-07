@@ -959,7 +959,7 @@ header h1 {
 }
 
 .popup-message {
-    background-color: rgb(253, 148, 236);
+    background-color: rgb(249, 252, 239);
     color: var(--dark-text);
     padding: 25px;
     border-radius: var(--border-radius);
