@@ -718,7 +718,6 @@ function playNumberSound(number) {
 }
 
 
-
 // --- تابع تکرار صوت - فقط فراخوانی به display ---
 function playCallSound(ticket) {
     if (!ticket) return Promise.resolve();
@@ -743,7 +742,6 @@ function playCallSound(ticket) {
         return Promise.resolve();
     }
 }
-
 
 function playNumberSound(number) {
     console.log('🔇 Number sound playing is handled by display page');
@@ -2375,8 +2373,7 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         }, 30000);
     }
 
-    // --- تابع پخش صوت برای فراخوانی عکاسی ---
-// --- تابع تکرار صوت برای عکاسی ---
+// --- تابع برای عکاسی - فقط فراخوانی به display ---
 function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
@@ -2384,15 +2381,19 @@ function playPhotographyCallSound(photographyItem) {
     const counterName = photographyItem.originalCounterName || 'عکاسی';
     const counterNumber = extractCounterNumber(counterName);
     
-    console.log(`🎵 Main: Playing photography sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    console.log(`🎵 Main: Requesting photography sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    soundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem)
-        .then(() => {
-            console.log('✅ Main: Photography sound play completed');
-        })
-        .catch(error => {
-            console.error('❌ Main: Photography sound play failed:', error);
-        });
+    if (window.displaySoundManager) {
+        window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem)
+            .then(() => {
+                console.log('✅ Main: Photography sound request sent to display');
+            })
+            .catch(error => {
+                console.error('❌ Main: Photography sound request failed:', error);
+            });
+    } else {
+        console.log('🔇 Display not available for photography sound');
+    }
 }
 
 // --- تابع global برای ارتباط با display ---
@@ -2422,8 +2423,6 @@ function setupDisplaySoundManager() {
 }
 
 
-
-// --- تابع استخراج شماره باجه ---
 // --- تابع استخراج شماره باجه - بهبود یافته ---
 function extractCounterNumber(counterName) {
     if (!counterName) return '1';
@@ -2457,7 +2456,9 @@ function extractCounterNumber(counterName) {
         'هفت': '7', 'هفتم': '7', '۷': '7',
         'هشت': '8', 'هشتم': '8', '۸': '8',
         'نه': '9', 'نهم': '9', '۹': '9',
-        'ده': '10', 'دهم': '10', '۱۰': '10'
+        'ده': '10', 'دهم': '10', '۱۰': '10',
+        'یازده': '11', 'یازدهم': '11', '۱۱': '11',
+        'دوازده': '12', 'دوازدهم': '12', '۱۲': '12'
     };
     
     for (const [word, num] of Object.entries(wordToNumber)) {

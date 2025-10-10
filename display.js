@@ -274,7 +274,7 @@ async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
     }
 }
 
-// ✅ پخش شماره باجه - اصلاح شده
+// ✅ پخش شماره باجه - اصلاح شده برای فایل‌های انگلیسی
 async playCounterSound(counterNumber) {
     if (!this.isAudioEnabled || !this.userInteracted) {
         throw new Error('Audio disabled or user not interacted');
@@ -293,8 +293,34 @@ async playCounterSound(counterNumber) {
         counterNum = 1;
     }
     
-    const counterFile = `${counterNum}.mp3`;
-    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (original: ${counterNumber})`);
+    // تبدیل عدد به نام انگلیسی
+    const numberToEnglish = {
+        1: 'one',
+        2: 'two', 
+        3: 'three',
+        4: 'four',
+        5: 'five',
+        6: 'six',
+        7: 'seven',
+        8: 'eight',
+        9: 'nine',
+        10: 'ten',
+        11: 'eleven',
+        12: 'twelve',
+        13: 'thirteen',
+        14: 'fourteen',
+        15: 'fifteen',
+        16: 'sixteen',
+        17: 'seventeen',
+        18: 'eighteen',
+        19: 'nineteen',
+        20: 'twenty'
+    };
+    
+    const englishName = numberToEnglish[counterNum] || 'one';
+    const counterFile = `${englishName}.mp3`;
+    
+    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${counterNum}, original: ${counterNumber})`);
     
     try {
         await this.playAudioFile(`sounds2/${counterFile}`);
@@ -303,11 +329,13 @@ async playCounterSound(counterNumber) {
         
         // فال‌بک: اگر فایل وجود نداشت، از فایل پیش‌فرض استفاده کن
         if (counterNum !== 1) {
-            console.log('🔄 Falling back to default counter sound: 1.mp3');
-            await this.playAudioFile('sounds2/1.mp3');
+            console.log('🔄 Falling back to default counter sound: one.mp3');
+            await this.playAudioFile('sounds2/one.mp3');
         }
     }
 }
+
+
 // ✅ پخش شماره نوبت - اصلاح شده
 async playNumberSound(number) {
     if (!this.isAudioEnabled || !this.userInteracted) {
@@ -466,18 +494,21 @@ async playAudioFile(filePath) {
                 });
         }
 
-        // ✅ پیش‌بارگذاری صداهای مهم
-// ✅ پیش‌بارگذاری صداهای مهم - بدون bajeh
+// ✅ پیش‌بارگذاری صداهای مهم - اصلاح شده برای فایل‌های انگلیسی
 async preloadImportantSounds() {
     if (!this.userInteracted) return;
     
     console.log('🔄 Preloading important sounds...');
     
-    // ❌ حذف bajeh.mp3
-    const importantSounds = [
-        // فقط شماره‌های باجه
-        ...Array.from({length: 20}, (_, i) => `${i + 1}.mp3`)
+    // فایل‌های انگلیسی برای شماره‌های باجه
+    const englishNumbers = [
+        'one', 'two', 'three', 'four', 'five', 
+        'six', 'seven', 'eight', 'nine', 'ten',
+        'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+        'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'
     ];
+    
+    const importantSounds = englishNumbers.map(name => `${name}.mp3`);
     
     // پیش‌بارگذاری موازی برای عملکرد بهتر
     const preloadPromises = importantSounds.map(soundFile => 
@@ -491,7 +522,6 @@ async preloadImportantSounds() {
         console.warn('⚠️ Some sounds failed to preload:', error);
     }
 }
-
         // ✅ پیش‌بارگذاری فایل صوتی
         async preloadAudioFile(filePath) {
             return new Promise((resolve) => {
@@ -693,7 +723,6 @@ async function preloadImportantSounds() {
     }
 }
 
-
 // --- تابع تست سیستم صوتی - اصلاح شده ---
 async function testSoundSystem() {
     console.log('🎵 Testing sound system...');
@@ -703,15 +732,14 @@ async function testSoundSystem() {
         await displaySoundManager.playNumberSound('1');
         await displaySoundManager.delay(1000);
         
-        // تست شماره باجه
-        await displaySoundManager.playCounterSound('5');
+        // تست شماره باجه با فایل انگلیسی
+        await displaySoundManager.playCounterSound('5'); // باید five.mp3 پخش شود
         
         console.log('✅ Sound system test completed successfully');
     } catch (error) {
         console.error('❌ Sound system test failed:', error);
     }
 }
-
 // فراخوانی تست بعد از بارگذاری کامل
 setTimeout(() => {
     if (displaySoundManager.userInteracted) {
