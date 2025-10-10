@@ -698,12 +698,6 @@ function showAdvancedPopupNotification(ticket, htmlContent) {
     });
 }
 
-// --- تابع پخش صوت برای فراخوانی عکاسی ---
-function playPhotographyCallSound(photographyItem) {
-    console.log('🔇 Photography sound playing is handled by display page');
-    return Promise.resolve();
-}
-
 
 
 // --- تابع پخش شماره نوبت ---
@@ -723,10 +717,24 @@ function playCounterSound(counterNumber) {
     return Promise.resolve();
 }
 
-// --- توابع پخش صوت (غیرفعال در صفحه اصلی) ---
+// در script.js - اضافه کردن تابع تکرار صوت
+
+// --- تابع تکرار صوت ---
 function playCallSound(ticket) {
-    console.log('🔇 Sound playing is handled by display page');
-    return Promise.resolve();
+    if (!ticket) return;
+    
+    const ticketNumber = ticket.specific_ticket || '0001';
+    const counterName = getCounterName();
+    const counterNumber = getCounterNumber();
+    
+    console.log(`🎵 Playing sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    
+    // استفاده از سیستم صوتی صفحه نمایش
+    if (window.displaySoundManager) {
+        window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket);
+    } else {
+        console.log('🔇 Display sound manager not available');
+    }
 }
 
 
@@ -2372,6 +2380,7 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
     }
 
     // --- تابع پخش صوت برای فراخوانی عکاسی ---
+// --- تابع تکرار صوت برای عکاسی ---
 function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
@@ -2381,28 +2390,24 @@ function playPhotographyCallSound(photographyItem) {
     
     console.log(`🎵 Playing photography sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    playNumberSound(ticketNumber)
-        .then(() => delay(600))
-        .then(() => playAudioFile('sounds2/bajeh.mp3'))
-        .then(() => delay(400))
-        .then(() => playCounterSound(counterNumber))
-        .catch(error => {
-            console.error('Error playing photography sound:', error);
-        });
+    // استفاده از سیستم صوتی صفحه نمایش
+    if (window.displaySoundManager) {
+        window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+    } else {
+        console.log('🔇 Display sound manager not available');
+    }
 }
 
 
-// --- تابع استخراج شماره باجه از نام ---
+// --- تابع استخراج شماره باجه ---
 function extractCounterNumber(counterName) {
     if (!counterName) return '1';
     
-    // استخراج عدد از انتهای نام
     const numbers = counterName.match(/\d+$/);
     if (numbers) {
         return numbers[0];
     }
     
-    // جستجوی کلمات عددی
     const wordToNumber = {
         'یک': '1', 'اول': '1', 'دو': '2', 'دوم': '2',
         'سه': '3', 'سوم': '3', 'چهار': '4', 'چهارم': '4',
@@ -2419,7 +2424,6 @@ function extractCounterNumber(counterName) {
     
     return '1';
 }
-
     function updateUIForUserRole() {
         if (isPhotographyUser) {
             document.getElementById('call-next-btn').textContent = 'فراخوانی نوبت بعدی (اولویت عکاسی)';
