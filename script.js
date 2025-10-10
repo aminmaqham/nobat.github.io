@@ -86,39 +86,70 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- Sound Management System (DISABLED IN MAIN PAGE) ---
 class SoundManager {
     constructor() {
-        this.isAudioEnabled = false; // غیرفعال کردن صدا
-        this.volume = 0;
+        this.isAudioEnabled = true; // فعال کردن برای ارتباط با display
+        this.volume = 0.7;
         this.audioQueue = [];
         this.isPlaying = false;
+        this.lastPlayedTicket = null;
     }
 
-    async playCallAnnouncement(ticketNumber, counterNumber) {
-        console.log('🔇 Sound disabled in main page - playing from display page');
-        return Promise.resolve();
+    async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+        console.log(`🎵 Main: Sending to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        // ارسال به display page via global function
+        if (window.displaySoundManager) {
+            return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticketData);
+        } else {
+            console.log('🔇 Display sound manager not available, playing locally');
+            return this.playLocalAnnouncement(ticketNumber, counterNumber);
+        }
     }
 
-    async playNumberSound(number) {
-        return Promise.resolve();
+    async playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+        console.log(`🎵 Main: Sending photography to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        if (window.displaySoundManager) {
+            return window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData);
+        } else {
+            console.log('🔇 Display sound manager not available');
+            return Promise.resolve();
+        }
     }
 
-    async playCounterSound(counterNumber) {
-        return Promise.resolve();
+    async playLocalAnnouncement(ticketNumber, counterNumber) {
+        // پخش محلی فقط برای مواقعی که display در دسترس نیست
+        try {
+            console.log(`🔊 Main: Playing locally - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            // اینجا می‌توانید پخش محلی را اضافه کنید اگر نیاز است
+            return Promise.resolve();
+        } catch (error) {
+            console.error('Main: Local play error:', error);
+            return Promise.resolve();
+        }
     }
 
-    async playAudioFile(filePath) {
+    async repeatLastAnnouncement() {
+        if (window.displaySoundManager) {
+            return window.displaySoundManager.repeatLastAnnouncement();
+        }
+        console.log('🔇 No display manager for repeat');
         return Promise.resolve();
     }
 
     setVolume(level) {
-        // غیرفعال
+        this.volume = level;
+        if (window.displaySoundManager) {
+            // می‌توانید volume را به display هم sync کنید
+        }
     }
 
     toggleSound(enabled) {
-        // غیرفعال
+        this.isAudioEnabled = enabled;
+        // sync با display اگر نیاز است
     }
 
     loadSettings() {
-        // غیرفعال
+        // بارگذاری تنظیمات از localStorage اگر نیاز است
     }
 }
 
@@ -711,15 +742,11 @@ function playNumberSound(number) {
     });
 }
 
-// --- تابع پخش شماره باجه ---
 
-function playCounterSound(counterNumber) {
-    return Promise.resolve();
-}
 
 // در script.js - اضافه کردن تابع تکرار صوت
 
-// --- تابع تکرار صوت ---
+// --- تابع تکرار صوت - بهبود یافته ---
 function playCallSound(ticket) {
     if (!ticket) return;
     
@@ -727,14 +754,16 @@ function playCallSound(ticket) {
     const counterName = getCounterName();
     const counterNumber = getCounterNumber();
     
-    console.log(`🎵 Playing sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    console.log(`🎵 Main: Playing sound: Ticket ${ticketNumber}, Counter ${counterNumber}, Name: ${counterName}`);
     
-    // استفاده از سیستم صوتی صفحه نمایش
-    if (window.displaySoundManager) {
-        window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket);
-    } else {
-        console.log('🔇 Display sound manager not available');
-    }
+    // استفاده از سیستم صوتی اصلی که با display ارتباط برقرار می‌کند
+    soundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
+        .then(() => {
+            console.log('✅ Main: Sound play completed');
+        })
+        .catch(error => {
+            console.error('❌ Main: Sound play failed:', error);
+        });
 }
 
 
@@ -748,31 +777,6 @@ function playCounterSound(counterNumber) {
     return Promise.resolve();
 }
 
-function playAudioFile(filePath) {
-    console.log('🔇 Audio file playing is handled by display page');
-    return Promise.resolve();
-}
-
-// --- پیدا کردن فایل صوتی مناسب برای شماره باجه ---
-function getCounterSoundFile(counterNumber) {
-    const numberMap = {
-        '1': 'one.mp3', '2': 'two.mp3', '3': 'three.mp3', '4': 'four.mp3',
-        '5': 'five.mp3', '6': 'six.mp3', '7': 'seven.mp3', '8': 'eight.mp3',
-        '9': 'nine.mp3', '10': 'ten.mp3'
-    };
-    
-    return numberMap[counterNumber] || null;
-}
-
-// --- تابع عمومی پخش فایل صوتی ---
-function playAudioFile(filePath) {
-    return Promise.resolve();
-}
-
-// --- تابع تأخیر ---
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
     // --- تابع جدید برای نمایش مودال دریافت کد ملی ---
     function showNationalIdModal(ticketNumber) {
@@ -2388,42 +2392,114 @@ function playPhotographyCallSound(photographyItem) {
     const counterName = photographyItem.originalCounterName || 'عکاسی';
     const counterNumber = extractCounterNumber(counterName);
     
-    console.log(`🎵 Playing photography sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    console.log(`🎵 Main: Playing photography sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    // استفاده از سیستم صوتی صفحه نمایش
+    soundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem)
+        .then(() => {
+            console.log('✅ Main: Photography sound play completed');
+        })
+        .catch(error => {
+            console.error('❌ Main: Photography sound play failed:', error);
+        });
+}
+
+// --- تابع global برای ارتباط با display ---
+function setupDisplaySoundManager() {
+    // اگر display page باز است، از manager آن استفاده کن
     if (window.displaySoundManager) {
-        window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
-    } else {
-        console.log('🔇 Display sound manager not available');
+        console.log('✅ Display sound manager is available');
+        return window.displaySoundManager;
     }
+    
+    // اگر نه، یک proxy ایجاد کن
+    console.log('⚠️ Display sound manager not available, using proxy');
+    return {
+        playCallAnnouncement: (ticketNumber, counterNumber, ticketData) => {
+            console.log(`🔇 Proxy: Would play - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            return Promise.resolve();
+        },
+        playPhotographyAnnouncement: (ticketNumber, counterNumber, ticketData) => {
+            console.log(`🔇 Proxy: Would play photography - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            return Promise.resolve();
+        },
+        repeatLastAnnouncement: () => {
+            console.log('🔇 Proxy: Would repeat last announcement');
+            return Promise.resolve();
+        }
+    };
 }
 
 
+
 // --- تابع استخراج شماره باجه ---
+// --- تابع استخراج شماره باجه - بهبود یافته ---
 function extractCounterNumber(counterName) {
     if (!counterName) return '1';
     
-    const numbers = counterName.match(/\d+$/);
-    if (numbers) {
-        return numbers[0];
+    console.log('🔍 Main: Extracting counter number from:', counterName);
+    
+    // روش ۱: استخراج اعداد از انتهای رشته
+    const numbersFromEnd = counterName.match(/\d+$/);
+    if (numbersFromEnd) {
+        const num = numbersFromEnd[0];
+        console.log(`✅ Main: Counter number extracted from end: ${num}`);
+        return num;
     }
     
+    // روش ۲: استخراج اولین عدد در رشته
+    const numbersAnywhere = counterName.match(/\d+/);
+    if (numbersAnywhere) {
+        const num = numbersAnywhere[0];
+        console.log(`✅ Main: Counter number extracted from anywhere: ${num}`);
+        return num;
+    }
+    
+    // روش ۳: جستجوی کلمات فارسی
     const wordToNumber = {
-        'یک': '1', 'اول': '1', 'دو': '2', 'دوم': '2',
-        'سه': '3', 'سوم': '3', 'چهار': '4', 'چهارم': '4',
-        'پنج': '5', 'پنجم': '5', 'شش': '6', 'ششم': '6',
-        'هفت': '7', 'هفتم': '7', 'هشت': '8', 'هشتم': '8',
-        'نه': '9', 'نهم': '9', 'ده': '10', 'دهم': '10'
+        'یک': '1', 'اول': '1', '۱': '1',
+        'دو': '2', 'دوم': '2', '۲': '2',
+        'سه': '3', 'سوم': '3', '۳': '3', 
+        'چهار': '4', 'چهارم': '4', '۴': '4',
+        'پنج': '5', 'پنجم': '5', '۵': '5',
+        'شش': '6', 'ششم': '6', '۶': '6',
+        'هفت': '7', 'هفتم': '7', '۷': '7',
+        'هشت': '8', 'هشتم': '8', '۸': '8',
+        'نه': '9', 'نهم': '9', '۹': '9',
+        'ده': '10', 'دهم': '10', '۱۰': '10'
     };
     
     for (const [word, num] of Object.entries(wordToNumber)) {
         if (counterName.includes(word)) {
+            console.log(`✅ Main: Counter number extracted from word "${word}": ${num}`);
             return num;
         }
     }
     
+    console.log('❌ Main: No counter number found, using default: 1');
     return '1';
 }
+
+
+// --- تست ارتباط با display ---
+function testDisplayConnection() {
+    console.log('🔄 Testing display connection...');
+    
+    if (window.displaySoundManager) {
+        console.log('✅ Display connection: ACTIVE');
+        
+        // تست سریع
+        window.displaySoundManager.playCallAnnouncement('9999', '1')
+            .then(() => console.log('✅ Display test: SUCCESS'))
+            .catch(err => console.error('❌ Display test: FAILED', err));
+    } else {
+        console.log('❌ Display connection: INACTIVE');
+        console.log('💡 Please make sure display.html is open in another tab');
+    }
+}
+
+// تست بعد از ۳ ثانیه
+setTimeout(testDisplayConnection, 3000);
+
     function updateUIForUserRole() {
         if (isPhotographyUser) {
             document.getElementById('call-next-btn').textContent = 'فراخوانی نوبت بعدی (اولویت عکاسی)';
@@ -2473,35 +2549,39 @@ function extractCounterNumber(counterName) {
     }
 
     // --- Initialize App ---
-    async function initializeApp() {
-        try {
-            currentUser = await account.get();
-            
-            const userPrefs = getUserPrefs();
-            isPhotographyUser = userPrefs.is_photography_user || false;
-            photographyRoleCheckbox.checked = isPhotographyUser;
-            
-            showLoggedInUI();
-            await fetchData();
-            await loadPhotographyHistory();
-            
-            // تنظیمات باجه فقط بعد از لاگین چک شود
-            await checkAndSetCounterName();
-            
-            setupRealtimeSubscriptions();
-            checkAutoReset();
-            updatePhotographyUI();
-            updateUIForUserRole();
-            
-            setupPhotographyEventListeners();
-            
-            console.log('App initialized successfully');
-            
-        } catch (error) {
-            console.log('User not logged in, showing login form');
-            showLoggedOutUI();
-        }
+// فراخوانی در initialization
+async function initializeApp() {
+    try {
+        currentUser = await account.get();
+        
+        const userPrefs = getUserPrefs();
+        isPhotographyUser = userPrefs.is_photography_user || false;
+        photographyRoleCheckbox.checked = isPhotographyUser;
+        
+        showLoggedInUI();
+        await fetchData();
+        await loadPhotographyHistory();
+        
+        // تنظیمات باجه فقط بعد از لاگین چک شود
+        await checkAndSetCounterName();
+        
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+        updatePhotographyUI();
+        updateUIForUserRole();
+        
+        setupPhotographyEventListeners();
+        
+        // راه‌اندازی ارتباط با display
+        setupDisplaySoundManager();
+        
+        console.log('App initialized successfully');
+        
+    } catch (error) {
+        console.log('User not logged in, showing login form');
+        showLoggedOutUI();
     }
+}
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);

@@ -218,55 +218,45 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ✅ پخش یک اعلان کامل برای نوبت عادی
-        async playSingleAnnouncement(ticketNumber, counterNumber) {
-            try {
-                // پخش شماره نوبت
-                console.log(`🔢 Display: Playing ticket number: ${ticketNumber}`);
-                await this.playNumberSound(ticketNumber);
-                
-                await this.delay(800);
-                
-                // پخش "به باجه"
-                console.log('🏢 Display: Playing "به باجه"');
-                await this.playAudioFile('sounds2/bajeh.mp3');
-                
-                await this.delay(600);
-                
-                // پخش شماره باجه
-                console.log(`🔢 Display: Playing counter number: ${counterNumber}`);
-                await this.playCounterSound(counterNumber);
-                
-            } catch (error) {
-                console.error('Display: Error in single announcement:', error);
-                throw error;
-            }
-        }
-
+// ✅ پخش یک اعلان کامل برای نوبت عادی - بدون bajeh
+async playSingleAnnouncement(ticketNumber, counterNumber) {
+    try {
+        // پخش شماره نوبت
+        console.log(`🔢 Display: Playing ticket number: ${ticketNumber}`);
+        await this.playNumberSound(ticketNumber);
+        
+        await this.delay(800);
+        
+        // ❌ حذف بخش "به باجه"
+        // مستقیم به سراغ پخش شماره باجه برو
+        console.log(`🔢 Display: Playing counter number: ${counterNumber}`);
+        await this.playCounterSound(counterNumber);
+        
+    } catch (error) {
+        console.error('Display: Error in single announcement:', error);
+        throw error;
+    }
+}
         // ✅ پخش یک اعلان کامل برای نوبت عکاسی
-        async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
-            try {
-                // پخش شماره نوبت
-                console.log(`🔢 Display: Playing photography ticket number: ${ticketNumber}`);
-                await this.playNumberSound(ticketNumber);
-                
-                await this.delay(800);
-                
-                // پخش "به باجه"
-                console.log('🏢 Display: Playing "به باجه"');
-                await this.playAudioFile('sounds2/bajeh.mp3');
-                
-                await this.delay(600);
-                
-                // پخش شماره باجه
-                console.log(`🔢 Display: Playing photography counter number: ${counterNumber}`);
-                await this.playCounterSound(counterNumber);
-                
-            } catch (error) {
-                console.error('Display: Error in photography announcement:', error);
-                throw error;
-            }
-        }
+// ✅ پخش یک اعلان کامل برای نوبت عکاسی - بدون bajeh
+async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
+    try {
+        // پخش شماره نوبت
+        console.log(`🔢 Display: Playing photography ticket number: ${ticketNumber}`);
+        await this.playNumberSound(ticketNumber);
+        
+        await this.delay(800);
+        
+        // ❌ حذف بخش "به باجه"
+        // مستقیم به سراغ پخش شماره باجه برو
+        console.log(`🔢 Display: Playing photography counter number: ${counterNumber}`);
+        await this.playCounterSound(counterNumber);
+        
+    } catch (error) {
+        console.error('Display: Error in photography announcement:', error);
+        throw error;
+    }
+}
 
         // ✅ پخش شماره باجه - بهبود یافته با فایل‌های جدید
         async playCounterSound(counterNumber) {
@@ -419,20 +409,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // ✅ پیش‌بارگذاری صداهای مهم
-        async preloadImportantSounds() {
-            if (!this.userInteracted) return;
-            
-            console.log('🔄 Preloading important sounds...');
-            
-            const importantSounds = ['bajeh.mp3'];
-            
-            // پیش‌بارگذاری شماره‌های باجه ۱ تا ۱۰
-            for (let i = 1; i <= 10; i++) {
-                await this.preloadAudioFile(`sounds2/${i}.mp3`);
-            }
-            
-            console.log('✅ Important sounds preloaded');
-        }
+// ✅ پیش‌بارگذاری صداهای مهم - بدون bajeh
+async preloadImportantSounds() {
+    if (!this.userInteracted) return;
+    
+    console.log('🔄 Preloading important sounds...');
+    
+    // ❌ حذف bajeh.mp3
+    const importantSounds = [
+        // فقط شماره‌های باجه
+        ...Array.from({length: 20}, (_, i) => `${i + 1}.mp3`)
+    ];
+    
+    // پیش‌بارگذاری موازی برای عملکرد بهتر
+    const preloadPromises = importantSounds.map(soundFile => 
+        this.preloadAudioFile(`sounds2/${soundFile}`)
+    );
+    
+    try {
+        await Promise.all(preloadPromises);
+        console.log('✅ Important sounds preloaded');
+    } catch (error) {
+        console.warn('⚠️ Some sounds failed to preload:', error);
+    }
+}
 
         // ✅ پیش‌بارگذاری فایل صوتی
         async preloadAudioFile(filePath) {
@@ -636,7 +636,7 @@ async function preloadImportantSounds() {
 }
 
 
-// --- تابع تست سیستم صوتی ---
+// --- تابع تست سیستم صوتی - بدون bajeh ---
 async function testSoundSystem() {
     console.log('🎵 Testing sound system...');
     
@@ -645,11 +645,8 @@ async function testSoundSystem() {
         await displaySoundManager.playNumberSound('1234');
         await displaySoundManager.delay(1000);
         
-        // تست "به باجه"
-        await displaySoundManager.playAudioFile('sounds2/bajeh.mp3');
-        await displaySoundManager.delay(1000);
-        
-        // تست شماره باجه
+        // ❌ حذف تست bajeh.mp3
+        // مستقیم تست شماره باجه
         await displaySoundManager.playCounterSound('5');
         
         console.log('✅ Sound system test completed successfully');
@@ -657,7 +654,6 @@ async function testSoundSystem() {
         console.error('❌ Sound system test failed:', error);
     }
 }
-
 // فراخوانی تست بعد از بارگذاری کامل
 setTimeout(() => {
     if (displaySoundManager.userInteracted) {
