@@ -44,10 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
         async playCounterSound(counterNumber) {
             if (!this.isAudioEnabled) return;
             
-            // پخش "به باجه"
-            await this.playAudioFile('sounds2/bajeh.mp3');
-            
-            // پخش شماره باجه
             const counterFile = this.getCounterSoundFile(counterNumber);
             if (counterFile) {
                 await this.playAudioFile(`sounds2/${counterFile}`);
@@ -66,13 +62,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 '7': 'seven.mp3',
                 '8': 'eight.mp3',
                 '9': 'nine.mp3',
-                '10': 'ten.mp3'
+                '10': 'ten.mp3',
+                '11': 'eleven.mp3',
+                '12': 'twelve.mp3',
+                '13': 'thirteen.mp3',
+                '14': 'fourteen.mp3',
+                '15': 'fifteen.mp3',
+                '16': 'sixteen.mp3',
+                '17': 'seventeen.mp3',
+                '18': 'eighteen.mp3',
+                '19': 'nineteen.mp3',
+                '20': 'twenty.mp3'
             };
             
             return numberMap[counterNumber] || null;
         }
 
-        // ✅ پخش اعلان کامل با صف‌بندی و تاخیر بهبود یافته
+        // ✅ پخش اعلان کامل با صف‌بندی و تاخیر
         async playCallAnnouncement(ticketNumber, counterNumber) {
             if (!this.isAudioEnabled) return;
             
@@ -95,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await this.processAudioQueue();
         }
 
-        // ✅ پردازش صف صداها - بهبود یافته
+        // ✅ پردازش صف صداها
         async processAudioQueue() {
             if (this.isPlaying || this.audioQueue.length === 0) return;
 
@@ -109,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`Playing announcement for ticket ${audioItem.ticketNumber}`);
                     await this.playSingleAnnouncement(audioItem.ticketNumber, audioItem.counterNumber);
                     
-                    // تأثیر کوتاه‌تر بین اعلان‌های مختلف
-                    await this.delay(1500);
+                    // تأثیر بین اعلان‌های مختلف
+                    await this.delay(2000);
                     
                 } catch (error) {
                     console.error('Error playing audio announcement:', error);
@@ -124,28 +130,22 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Audio queue processing completed');
         }
 
-        // ✅ پخش یک اعلان کامل - بهبود یافته
+        // ✅ پخش یک اعلان کامل
         async playSingleAnnouncement(ticketNumber, counterNumber) {
             try {
                 console.log(`Starting single announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                 
-                // پخش شماره نوبت (رقم به رقم)
-                const ticketStr = String(ticketNumber).padStart(4, '0');
-                console.log(`Playing ticket digits: ${ticketStr}`);
+                // پخش شماره نوبت
+                console.log(`Playing ticket number: ${ticketNumber}`);
+                await this.playNumberSound(ticketNumber);
                 
-                for (let i = 0; i < ticketStr.length; i++) {
-                    const digit = parseInt(ticketStr[i]);
-                    await this.playNumberSound(digit);
-                    await this.delay(400); // ✅ تأثیر کمتر بین ارقام
-                }
-                
-                await this.delay(600); // ✅ تأثیر قبل از "به باجه"
+                await this.delay(800); // ✅ تأثیر قبل از "به باجه"
                 
                 // پخش "به باجه"
                 console.log('Playing "به باجه"');
                 await this.playAudioFile('sounds2/bajeh.mp3');
                 
-                await this.delay(400); // ✅ تأثیر قبل از شماره باجه
+                await this.delay(500); // ✅ تأثیر قبل از شماره باجه
                 
                 // پخش شماره باجه
                 console.log(`Playing counter number: ${counterNumber}`);
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.currentAudio = null;
                         resolve();
                     }
-                }, 5000); // افزایش timeout به 5 ثانیه
+                }, 5000);
 
                 // Load the audio
                 audio.load();
@@ -254,6 +254,19 @@ document.addEventListener('DOMContentLoaded', () => {
             this.audioQueue = [];
             this.isPlaying = false;
             console.log('All sounds stopped');
+        }
+
+        // فعال/غیرفعال کردن صدا
+        toggleSound(enabled) {
+            this.isAudioEnabled = enabled;
+            if (!enabled) {
+                this.stopAllSounds();
+            }
+        }
+
+        // تنظیم حجم صدا
+        setVolume(level) {
+            this.volume = Math.max(0, Math.min(1, level));
         }
     }
 
@@ -421,12 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
                     
                     displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber);
-                    
-                    // اعلام صوتی
-                    const numberToSpeak = updatedTicket.specific_ticket || 'نوبت پاس شده';
-                    const counterName = updatedTicket.called_by_counter_name || 'باجه';
-                    const textToSpeak = `شماره ${numberToSpeak} به ${counterName}`;
-                    speak(textToSpeak);
                 }
             }
             
@@ -437,16 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Display: Photography history updated via real-time');
             updatePhotographyDisplay();
         });
-    }
-
-    // --- Text-to-Speech Function ---
-    function speak(text) {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'fa-IR';
-            utterance.rate = 0.9;
-            window.speechSynthesis.speak(utterance);
-        }
     }
 
     // --- Initial Load ---
