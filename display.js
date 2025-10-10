@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.isPlaying = false;
             this.audioQueue = [];
             this.userInteracted = false;
+            this.currentAnnouncement = null;
             this.setupUserInteraction();
         }
 
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!this.userInteracted) {
                         console.log('✅ User interaction detected - audio enabled');
                         this.userInteracted = true;
+                        this.hideAudioPrompt();
                     }
                 }, { once: true });
             });
@@ -45,7 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // نمایش پیام برای تعامل کاربر
         showAudioPrompt() {
+            if (document.getElementById('audio-prompt')) return;
+
             const prompt = document.createElement('div');
+            prompt.id = 'audio-prompt';
             prompt.style.cssText = `
                 position: fixed;
                 top: 50%;
@@ -69,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             prompt.addEventListener('click', () => {
                 this.userInteracted = true;
-                document.body.removeChild(prompt);
+                this.hideAudioPrompt();
                 console.log('✅ Audio system activated by user');
             });
 
@@ -77,10 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // حذف خودکار پس از 10 ثانیه
             setTimeout(() => {
-                if (document.body.contains(prompt)) {
-                    document.body.removeChild(prompt);
-                }
+                this.hideAudioPrompt();
             }, 10000);
+        }
+
+        hideAudioPrompt() {
+            const prompt = document.getElementById('audio-prompt');
+            if (prompt && document.body.contains(prompt)) {
+                document.body.removeChild(prompt);
+            }
         }
 
         // تبدیل شماره به فرمت 4 رقمی برای نام فایل
@@ -90,7 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // پخش صدا برای یک عدد خاص
         async playNumberSound(number) {
-            if (!this.isAudioEnabled || !this.userInteracted) return;
+            if (!this.isAudioEnabled || !this.userInteracted) {
+                throw new Error('Audio disabled or no user interaction');
+            }
             
             const fileName = this.formatNumberForFile(number);
             const audioPath = `sounds/${fileName}.mp3`;
@@ -100,7 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // پخش صدا برای باجه
         async playCounterSound(counterNumber) {
-            if (!this.isAudioEnabled || !this.userInteracted) return;
+            if (!this.isAudioEnabled || !this.userInteracted) {
+                throw new Error('Audio disabled or no user interaction');
+            }
             
             const counterFile = this.getCounterSoundFile(counterNumber);
             if (counterFile) {
@@ -137,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // پخش اعلان کامل برای فراخوانی نوبت
-        async playCallAnnouncement(ticketNumber, counterNumber) {
+        async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
             if (!this.isAudioEnabled) return;
             
             if (!this.userInteracted) {
@@ -147,8 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log(`🎵 Playing announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
+            // ذخیره اطلاعات اعلان فعلی برای امکان تکرار
+            this.currentAnnouncement = { ticketNumber, counterNumber, ticketData };
+            
             // اضافه به صف برای جلوگیری از همپوشانی
-            this.audioQueue.push({ ticketNumber, counterNumber });
+            this.audioQueue.push({ ticketNumber, counterNumber, ticketData });
             
             if (this.isPlaying) {
                 console.log('Audio already playing, added to queue');
@@ -158,29 +175,53 @@ document.addEventListener('DOMContentLoaded', () => {
             await this.processQueue();
         }
 
-        // پردازش صف صداها
+        // تکرار اعلان آخر
+        async repeatLastAnnouncement() {
+            if (!this.currentAnnouncement || !this.userInteracted) return;
+            
+            const { ticketNumber, counterNumber, ticketData } = this.currentAnnouncement;
+            console.log(`🔁 Repeating announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            
+            // اضافه به ابتدای صف برای پخش فوری
+            this.audioQueue.unshift({ ticketNumber, counterNumber, ticketData });
+            
+            if (!this.isPlaying) {
+                await this.processQueue();
+            }
+        }
+
+        // پردازش صف صداها با مدیریت خطا
         async processQueue() {
             if (this.isPlaying || this.audioQueue.length === 0) return;
             
             this.isPlaying = true;
             
             while (this.audioQueue.length > 0) {
-                const { ticketNumber, counterNumber } = this.audioQueue[0];
+                const { ticketNumber, counterNumber, ticketData } = this.audioQueue[0];
                 
                 try {
+                    console.log(`🔊 Processing: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                     await this.playSingleAnnouncement(ticketNumber, counterNumber);
-                    await this.delay(1000); // تأثیر بین اعلان‌ها
+                    console.log(`✅ Completed: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                 } catch (error) {
-                    console.error('Error in announcement:', error);
+                    console.error(`❌ Failed: Ticket ${ticketNumber}, Counter ${counterNumber}`, error);
+                    // در صورت خطا، بقیه صداها را ادامه نده
+                    break;
                 }
                 
                 this.audioQueue.shift();
+                
+                // تأثیر بین اعلان‌های مختلف
+                if (this.audioQueue.length > 0) {
+                    await this.delay(1000);
+                }
             }
             
             this.isPlaying = false;
+            console.log('🎵 Audio queue processing completed');
         }
 
-        // پخش یک اعلان کامل
+        // پخش یک اعلان کامل با مدیریت خطا
         async playSingleAnnouncement(ticketNumber, counterNumber) {
             try {
                 // پخش شماره نوبت
@@ -201,15 +242,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 
             } catch (error) {
                 console.error('Error in single announcement:', error);
+                throw error; // خطا را به سطح بالا منتقل کن
             }
         }
 
-        // پخش یک فایل صوتی با مدیریت بهتر
+        // پخش یک فایل صوتی با مدیریت خطا
         async playAudioFile(filePath) {
             return new Promise((resolve, reject) => {
                 if (!this.isAudioEnabled || !this.userInteracted) {
-                    console.log('🔇 Audio disabled or no user interaction');
-                    resolve();
+                    reject(new Error('Audio disabled or no user interaction'));
                     return;
                 }
 
@@ -218,8 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const audio = new Audio(filePath);
                 audio.volume = this.volume;
                 audio.preload = 'auto';
-                
-                // برای حل مشکل CORS
                 audio.crossOrigin = 'anonymous';
 
                 let hasResolved = false;
@@ -235,50 +274,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rejectOnce = (error) => {
                     if (!hasResolved) {
                         hasResolved = true;
-                        console.warn(`❌ Audio error for ${filePath}:`, error);
-                        resolve(); // حتی با خطا ادامه بده
+                        console.error(`❌ Audio error for ${filePath}:`, error);
+                        reject(error);
                     }
                 };
 
-                audio.addEventListener('canplaythrough', () => {
+                const onCanPlay = () => {
                     console.log(`✅ Audio ready: ${filePath}`);
                     const playPromise = audio.play();
                     
-                    if (playPromise !== undefined) {
-                        playPromise
-                            .then(() => {
-                                console.log(`🎵 Audio playing: ${filePath}`);
-                                audio.addEventListener('ended', resolveOnce, { once: true });
-                                audio.addEventListener('error', rejectOnce, { once: true });
-                            })
-                            .catch(error => {
-                                if (error.name === 'NotAllowedError') {
-                                    console.log('🔇 Audio blocked - waiting for user interaction');
-                                    this.userInteracted = false;
-                                    this.showAudioPrompt();
-                                }
-                                rejectOnce(error);
-                            });
-                    } else {
-                        // Fallback for older browsers
-                        audio.addEventListener('ended', resolveOnce, { once: true });
-                        audio.addEventListener('error', rejectOnce, { once: true });
-                        audio.play().catch(rejectOnce);
-                    }
-                });
+                    playPromise
+                        .then(() => {
+                            console.log(`🎵 Audio playing: ${filePath}`);
+                            audio.addEventListener('ended', resolveOnce, { once: true });
+                            audio.addEventListener('error', rejectOnce, { once: true });
+                        })
+                        .catch(error => {
+                            if (error.name === 'NotAllowedError') {
+                                console.log('🔇 Audio blocked - waiting for user interaction');
+                                this.userInteracted = false;
+                                this.showAudioPrompt();
+                            }
+                            rejectOnce(error);
+                        });
+                };
 
-                audio.addEventListener('error', (e) => {
-                    console.warn(`❌ Audio load error: ${filePath}`, e);
+                const onError = (e) => {
+                    console.error(`❌ Audio load error: ${filePath}`, e);
                     rejectOnce(e);
-                });
+                };
+
+                audio.addEventListener('canplaythrough', onCanPlay, { once: true });
+                audio.addEventListener('error', onError, { once: true });
 
                 // Fallback timeout
                 setTimeout(() => {
                     if (!hasResolved) {
-                        console.log(`⏰ Audio timeout: ${filePath}`);
-                        resolveOnce();
+                        console.warn(`⏰ Audio timeout: ${filePath}`);
+                        rejectOnce(new Error('Audio load timeout'));
                     }
-                }, 3000);
+                }, 5000);
 
                 // شروع بارگذاری
                 audio.load();
@@ -295,14 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.audioQueue = [];
             this.isPlaying = false;
         }
-
-        // فعال/غیرفعال کردن صدا
-        toggleSound(enabled) {
-            this.isAudioEnabled = enabled;
-            if (!enabled) {
-                this.stopAllSounds();
-            }
-        }
     }
 
     const displaySoundManager = new DisplaySoundManager();
@@ -315,7 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- UI Update Functions ---
     async function updateDisplay() {
         try {
-            // دریافت ۳ نوبت آخر
             const ticketsResponse = await databases.listDocuments(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
@@ -335,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- تابع برای بارگذاری تاریخچه عکاسی از Appwrite ---
     async function updatePhotographyDisplay() {
         try {
             const response = await databases.listDocuments(
@@ -398,7 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePhotographyList(photographyItems) {
         const waitingCount = photographyItems.length;
-        
         photographyWaiting.textContent = `منتظران: ${waitingCount}`;
 
         if (photographyItems.length === 0) {
@@ -445,16 +469,141 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // استخراج شماره باجه از نام باجه
+    // استخراج شماره باجه از نام باجه - نسخه بهبود یافته
     function extractCounterNumber(counterName) {
         if (!counterName) return '1';
         
-        // استخراج اعداد از نام باجه
-        const numbers = counterName.match(/\d+/);
-        return numbers ? numbers[0] : '1';
+        console.log('🔍 Extracting counter number from:', counterName);
+        
+        // روش‌های مختلف استخراج شماره
+        const methods = [
+            // استخراج از انتهای نام (مثلاً "باجه ۵" -> "5")
+            () => {
+                const numbers = counterName.match(/\d+$/);
+                return numbers ? numbers[0] : null;
+            },
+            // استخراج اولین عدد (مثلاً "باجه شماره ۳" -> "3")
+            () => {
+                const numbers = counterName.match(/\d+/);
+                return numbers ? numbers[0] : null;
+            },
+            // جستجوی کلمات خاص
+            () => {
+                const wordToNumber = {
+                    'یک': '1', 'اول': '1',
+                    'دو': '2', 'دوم': '2',
+                    'سه': '3', 'سوم': '3', 
+                    'چهار': '4', 'چهارم': '4',
+                    'پنج': '5', 'پنجم': '5',
+                    'شش': '6', 'ششم': '6',
+                    'هفت': '7', 'هفتم': '7',
+                    'هشت': '8', 'هشتم': '8',
+                    'نه': '9', 'نهم': '9',
+                    'ده': '10', 'دهم': '10'
+                };
+                
+                for (const [word, num] of Object.entries(wordToNumber)) {
+                    if (counterName.includes(word)) {
+                        return num;
+                    }
+                }
+                return null;
+            }
+        ];
+        
+        for (const method of methods) {
+            const result = method();
+            if (result) {
+                console.log(`✅ Counter number extracted: ${result}`);
+                return result;
+            }
+        }
+        
+        console.log('❌ No counter number found, using default: 1');
+        return '1';
     }
 
-    // --- Realtime Subscription با پخش صدا ---
+    // نمایش نوتیفیکیشن با گزینه تکرار
+    function showAnnouncementNotification(ticket, counterNumber) {
+        // حذف نوتیفیکیشن قبلی اگر وجود دارد
+        const existingNotification = document.getElementById('announcement-notification');
+        if (existingNotification) {
+            document.body.removeChild(existingNotification);
+        }
+
+        const notification = document.createElement('div');
+        notification.id = 'announcement-notification';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2196F3;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-family: 'Vazirmatn', sans-serif;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            min-width: 300px;
+        `;
+
+        const serviceName = 'خدمت'; // می‌توانید از دیتابیس دریافت کنید
+        const actualCounterNumber = extractCounterNumber(ticket.called_by_counter_name);
+
+        notification.innerHTML = `
+            <div style="margin-bottom: 10px;">
+                <strong>🔊 فراخوانی نوبت</strong>
+            </div>
+            <div style="font-size: 14px; margin-bottom: 10px;">
+                <div>شماره نوبت: <strong>${ticket.specific_ticket || 'پاس'}</strong></div>
+                <div>باجه: <strong>${ticket.called_by_counter_name || 'باجه'} (شماره ${actualCounterNumber})</strong></div>
+                <div>نام: <strong>${ticket.first_name} ${ticket.last_name}</strong></div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: space-between;">
+                <button id="repeat-sound-btn" style="
+                    flex: 1;
+                    padding: 8px 12px;
+                    background: #FF9800;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-family: 'Vazirmatn', sans-serif;
+                ">تکرار صوت</button>
+                <button id="close-notification-btn" style="
+                    flex: 1;
+                    padding: 8px 12px;
+                    background: #f44336;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-family: 'Vazirmatn', sans-serif;
+                ">بستن</button>
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+
+        // رویدادهای دکمه‌ها
+        document.getElementById('repeat-sound-btn').addEventListener('click', () => {
+            console.log('🔁 User requested sound repetition');
+            displaySoundManager.repeatLastAnnouncement();
+        });
+
+        document.getElementById('close-notification-btn').addEventListener('click', () => {
+            document.body.removeChild(notification);
+        });
+
+        // حذف خودکار پس از 10 ثانیه
+        setTimeout(() => {
+            if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+            }
+        }, 10000);
+    }
+
+    // --- Realtime Subscription ---
     function setupRealtime() {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
         const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
@@ -468,12 +617,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (updatedTicket.status === 'در حال سرویس') {
                     console.log('New ticket called:', updatedTicket);
                     
-                    // پخش صدای فراخوانی
                     const ticketNumber = updatedTicket.specific_ticket || '0001';
                     const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
                     
                     console.log(`Triggering sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber);
+                    
+                    // نمایش نوتیفیکیشن
+                    showAnnouncementNotification(updatedTicket, counterNumber);
+                    
+                    // پخش صدا
+                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
                 }
             }
             
@@ -492,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateDisplay();
         setupRealtime();
-        setInterval(updateDisplay, 30000); // به‌روزرسانی هر 30 ثانیه
+        setInterval(updateDisplay, 30000);
         
         console.log('✅ Display system initialized');
     }
