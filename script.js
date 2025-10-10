@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTicketForPhotography = null;
     let isCallingInProgress = false;
 
-// --- Sound Management System ---
+// --- Sound Management System (DISABLED IN MAIN PAGE) ---
 class SoundManager {
     constructor() {
         this.isAudioEnabled = false; // غیرفعال کردن صدا
@@ -94,7 +94,7 @@ class SoundManager {
 
     async playCallAnnouncement(ticketNumber, counterNumber) {
         console.log('🔇 Sound disabled in main page - playing from display page');
-        return Promise.resolve(); // هیچ صدایی پخش نشود
+        return Promise.resolve();
     }
 
     async playNumberSound(number) {
@@ -123,6 +123,7 @@ class SoundManager {
 }
 
 const soundManager = new SoundManager();
+
 
     // --- توابع کمکی برای دسترسی امن ---
     function getUserPrefs() {
@@ -728,10 +729,6 @@ function playCallSound(ticket) {
     return Promise.resolve();
 }
 
-function playPhotographyCallSound(photographyItem) {
-    console.log('🔇 Photography sound playing is handled by display page');
-    return Promise.resolve();
-}
 
 function playNumberSound(number) {
     console.log('🔇 Number sound playing is handled by display page');
