@@ -84,55 +84,51 @@ document.addEventListener('DOMContentLoaded', () => {
     let isCallingInProgress = false;
     let lastCalledTicketData = null; // برای ذخیره اطلاعات نوبت فراخوانی شده
 
-    // --- Sound Management System ---
-    class SoundManager {
-        constructor() {
-            this.isAudioEnabled = true;
-            this.volume = 0.7;
-        }
-
-        // ✅ پخش اعلان از طریق نمایشگر
-        async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
-            if (!this.isAudioEnabled) return;
-            
-            console.log(`🎵 Requesting display to play: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-            
-            // ذخیره اطلاعات نوبت برای استفاده در دکمه تکرار
-            lastCalledTicketData = { ticketNumber, counterNumber, ticketData };
-            
-            // نمایشگر به صورت خودکار از طریق real-time صدا را پخش می‌کند
-            // این تابع فقط برای سازگاری و ثبت اطلاعات استفاده می‌شود
-            return Promise.resolve();
-        }
-
-        // ✅ تکرار صوت آخرین نوبت
-        async repeatLastAnnouncement() {
-            if (!this.isAudioEnabled || !lastCalledTicketData) {
-                console.log('❌ No recent announcement to repeat');
-                return;
-            }
-            
-            const { ticketNumber, counterNumber, ticketData } = lastCalledTicketData;
-            console.log(`🔁 Repeating announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-            
-            // نمایشگر از طریق real-time صدا را تکرار می‌کند
-            // این فقط یک درخواست برای نمایشگر است
-            return Promise.resolve();
-        }
-
-        setVolume(level) {
-            this.volume = Math.max(0, Math.min(1, level));
-        }
-
-        toggleSound(enabled) {
-            this.isAudioEnabled = enabled;
-            console.log(`🔊 Sound ${enabled ? 'enabled' : 'disabled'}`);
-        }
-
-        loadSettings() {
-            // تنظیمات صدا فقط برای نمایشگر
-        }
+   
+// --- Sound Management System ---
+class SoundManager {
+    constructor() {
+        this.isAudioEnabled = true;
+        this.volume = 0.7;
     }
+
+    // ✅ پخش اعلان از طریق نمایشگر
+    async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+        if (!this.isAudioEnabled) return;
+        
+        console.log(`🎵 Requesting display to play: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        lastCalledTicketData = { ticketNumber, counterNumber, ticketData };
+        
+        return Promise.resolve();
+    }
+
+    // ✅ تکرار صوت آخرین نوبت
+    async repeatLastAnnouncement() {
+        if (!this.isAudioEnabled || !lastCalledTicketData) {
+            console.log('❌ No recent announcement to repeat');
+            return;
+        }
+        
+        const { ticketNumber, counterNumber, ticketData } = lastCalledTicketData;
+        console.log(`🔁 Repeating announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        return Promise.resolve();
+    }
+
+    setVolume(level) {
+        this.volume = Math.max(0, Math.min(1, level));
+    }
+
+    toggleSound(enabled) {
+        this.isAudioEnabled = enabled;
+        console.log(`🔊 Sound ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    loadSettings() {
+        // تنظیمات صدا فقط برای نمایشگر
+    }
+}
 
     const soundManager = new SoundManager();
 

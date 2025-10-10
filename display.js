@@ -22,18 +22,31 @@ document.addEventListener('DOMContentLoaded', () => {
             this.volume = 0.7;
             this.isPlaying = false;
             this.audioQueue = [];
-            this.userInteracted = true; // ✅ خودکار فعال شده
+            this.userInteracted = true;
             this.currentAnnouncement = null;
-            this.audioCache = new Map(); // ✅ کش برای فایل‌های صوتی
+            this.audioCache = new Map();
+            
+            // ✅ تنظیم مسیرهای صوتی با آدرس GitHub شما
+            this.soundsBasePath = 'https://raw.githubusercontent.com/aminmaqham/nobat.github.io/main/sounds/';
+            this.sounds2BasePath = 'https://raw.githubusercontent.com/aminmaqham/nobat.github.io/main/sounds2/';
+            
             this.setupAutoInteraction();
         }
 
-        // ✅ تنظیم خودکار تعامل - بدون نیاز به کلیک کاربر
+        // ✅ تبدیل مسیر نسبی به مطلق
+        convertToAbsolutePath(relativePath) {
+            if (relativePath.startsWith('sounds/')) {
+                return this.soundsBasePath + relativePath.replace('sounds/', '');
+            } else if (relativePath.startsWith('sounds2/')) {
+                return this.sounds2BasePath + relativePath.replace('sounds2/', '');
+            }
+            return relativePath;
+        }
+
+        // ✅ تنظیم خودکار تعامل
         setupAutoInteraction() {
             console.log('✅ Audio system auto-activated');
             this.userInteracted = true;
-            
-            // پیش‌بارگذاری صداهای مهم
             this.preloadImportantSounds();
         }
 
@@ -41,12 +54,18 @@ document.addEventListener('DOMContentLoaded', () => {
         async preloadImportantSounds() {
             const importantSounds = ['bajeh.mp3'];
             for (let i = 1; i <= 20; i++) {
-                importantSounds.push(this.getCounterSoundFile(i.toString()));
+                const soundFile = this.getCounterSoundFile(i.toString());
+                if (soundFile) {
+                    importantSounds.push(soundFile);
+                }
             }
+            
+            console.log('🔊 Preloading important sounds:', importantSounds);
             
             for (const sound of importantSounds) {
                 if (sound) {
-                    await this.preloadAudioFile(`sounds2/${sound}`);
+                    const filePath = sound.includes('.mp3') ? `sounds2/${sound}` : `sounds/${sound}`;
+                    await this.preloadAudioFile(filePath);
                 }
             }
         }
@@ -54,8 +73,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // ✅ پیش‌بارگذاری فایل صوتی
         async preloadAudioFile(filePath) {
             return new Promise((resolve) => {
-                const audio = new Audio(filePath);
+                const absolutePath = this.convertToAbsolutePath(filePath);
+                const audio = new Audio(absolutePath);
                 audio.preload = 'auto';
+                audio.crossOrigin = 'anonymous';
                 audio.load();
                 
                 audio.addEventListener('canplaythrough', () => {
@@ -64,32 +85,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     resolve();
                 }, { once: true });
                 
-                audio.addEventListener('error', () => {
-                    console.warn(`❌ Failed to preload: ${filePath}`);
+                audio.addEventListener('error', (e) => {
+                    console.warn(`❌ Failed to preload: ${filePath}`, e);
                     resolve();
                 }, { once: true });
                 
-                // تایم‌اوت برای جلوگیری از مسدود شدن
-                setTimeout(resolve, 1000);
+                setTimeout(resolve, 2000);
             });
         }
 
-        // ✅ پخش اعلان کامل با مدیریت بهتر
+        // ✅ پخش اعلان کامل
         async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
             if (!this.isAudioEnabled) return;
             
             console.log(`🎵 Playing announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
-            // ذخیره اطلاعات اعلان فعلی
             this.currentAnnouncement = { ticketNumber, counterNumber, ticketData };
             
-            // بررسی وجود نوبت در انتظار
             if (!this.hasWaitingTickets(ticketData)) {
                 console.log('🔇 No waiting tickets, skipping announcement');
                 return;
             }
             
-            // اضافه به صف
             this.audioQueue.push({ ticketNumber, counterNumber, ticketData });
             
             if (this.isPlaying) {
@@ -102,12 +119,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ✅ بررسی وجود نوبت در انتظار
         hasWaitingTickets(ticketData) {
-            // در اینجا می‌توانید منطق بررسی نوبت‌های در انتظار را اضافه کنید
-            // برای نمونه، همیشه true برمی‌گرداند
             return true;
         }
 
-        // ✅ پردازش صف با مدیریت بهتر
+        // ✅ پردازش صف
         async processQueue() {
             if (this.isPlaying || this.audioQueue.length === 0) return;
             
@@ -122,15 +137,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`✅ Completed: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                 } catch (error) {
                     console.error(`❌ Failed: Ticket ${ticketNumber}, Counter ${counterNumber}`, error);
-                    // در صورت خطا، ادامه نده
                     break;
                 }
                 
                 this.audioQueue.shift();
                 
-                // تأثیر بین اعلان‌ها
                 if (this.audioQueue.length > 0) {
-                    await this.delay(1500); // ✅ افزایش تأثیر برای جلوگیری از همپوشانی
+                    await this.delay(1500);
                 }
             }
             
@@ -141,19 +154,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // ✅ پخش یک اعلان کامل
         async playSingleAnnouncement(ticketNumber, counterNumber) {
             try {
-                // پخش شماره نوبت
                 console.log(`🔢 Playing ticket number: ${ticketNumber}`);
                 await this.playNumberSound(ticketNumber);
                 
-                await this.delay(600); // ✅ افزایش تأثیر
+                await this.delay(600);
                 
-                // پخش "به باجه"
                 console.log('🏢 Playing "به باجه"');
                 await this.playAudioFile('sounds2/bajeh.mp3');
                 
-                await this.delay(400); // ✅ افزایش تأثیر
+                await this.delay(400);
                 
-                // پخش شماره باجه
                 console.log(`🔢 Playing counter number: ${counterNumber}`);
                 await this.playCounterSound(counterNumber);
                 
@@ -175,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await this.playAudioFile(audioPath);
         }
 
-        // ✅ پخش شماره باجه - بهبود یافته
+        // ✅ پخش شماره باجه
         async playCounterSound(counterNumber) {
             if (!this.isAudioEnabled) {
                 throw new Error('Audio disabled');
@@ -186,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await this.playAudioFile(`sounds2/${counterFile}`);
             } else {
                 console.warn(`No sound file found for counter: ${counterNumber}`);
+                throw new Error(`No sound file for counter: ${counterNumber}`);
             }
         }
 
@@ -211,19 +222,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                console.log(`🔊 Loading audio: ${filePath}`);
+                const absolutePath = this.convertToAbsolutePath(filePath);
+                console.log(`🔊 Loading audio: ${absolutePath}`);
 
                 // بررسی کش
                 if (this.audioCache.has(filePath)) {
                     const cachedAudio = this.audioCache.get(filePath);
                     console.log(`✅ Using cached audio: ${filePath}`);
-                    
                     this.playCachedAudio(cachedAudio, resolve, reject);
                     return;
                 }
 
                 // بارگذاری جدید
-                const audio = new Audio(filePath);
+                const audio = new Audio(absolutePath);
                 audio.volume = this.volume;
                 audio.preload = 'auto';
                 audio.crossOrigin = 'anonymous';
@@ -242,7 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!hasResolved) {
                         hasResolved = true;
                         console.error(`❌ Audio error for ${filePath}:`, error);
-                        reject(error);
+                        
+                        // تلاش با مسیر مستقیم
+                        this.tryDirectPlay(absolutePath, resolve, reject);
                     }
                 };
 
@@ -256,7 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             audio.addEventListener('ended', resolveOnce, { once: true });
                             audio.addEventListener('error', rejectOnce, { once: true });
                             
-                            // ذخیره در کش
                             this.audioCache.set(filePath, audio.cloneNode());
                         })
                         .catch(error => {
@@ -273,17 +285,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 audio.addEventListener('canplaythrough', onCanPlay, { once: true });
                 audio.addEventListener('error', onError, { once: true });
 
-                // تایم‌اوت
                 setTimeout(() => {
                     if (!hasResolved) {
                         console.warn(`⏰ Audio timeout: ${filePath}`);
                         rejectOnce(new Error('Audio load timeout'));
                     }
-                }, 3000); // ✅ کاهش تایم‌اوت
+                }, 5000);
 
-                // شروع بارگذاری
                 audio.load();
             });
+        }
+
+        // ✅ تلاش با پخش مستقیم
+        async tryDirectPlay(absolutePath, resolve, reject) {
+            console.log(`🔄 Trying direct play: ${absolutePath}`);
+            
+            try {
+                const audio = new Audio(absolutePath);
+                audio.volume = this.volume;
+                
+                await new Promise((resolve, reject) => {
+                    audio.addEventListener('canplaythrough', () => {
+                        audio.play()
+                            .then(() => {
+                                audio.addEventListener('ended', resolve, { once: true });
+                            })
+                            .catch(reject);
+                    }, { once: true });
+                    
+                    audio.addEventListener('error', reject, { once: true });
+                });
+                
+                console.log(`✅ Direct play succeeded: ${absolutePath}`);
+                resolve();
+            } catch (error) {
+                console.error(`❌ Direct play failed: ${absolutePath}`, error);
+                reject(error);
+            }
         }
 
         // ✅ پخش صدا از کش
@@ -465,25 +503,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // استخراج شماره باجه از نام باجه - نسخه بهبود یافته
+    // استخراج شماره باجه از نام باجه
     function extractCounterNumber(counterName) {
         if (!counterName) return '1';
         
         console.log('🔍 Extracting counter number from:', counterName);
         
-        // روش‌های مختلف استخراج شماره
         const methods = [
-            // استخراج از انتهای نام (مثلاً "باجه ۵" -> "5")
             () => {
                 const numbers = counterName.match(/\d+$/);
                 return numbers ? numbers[0] : null;
             },
-            // استخراج اولین عدد (مثلاً "باجه شماره ۳" -> "3")
             () => {
                 const numbers = counterName.match(/\d+/);
                 return numbers ? numbers[0] : null;
             },
-            // جستجوی کلمات خاص
             () => {
                 const wordToNumber = {
                     'یک': '1', 'اول': '1',
@@ -538,7 +572,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     console.log(`Triggering sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                     
-                    // بررسی اولویت برای نوبت‌های بازگشته از عکاسی
                     const isHighPriority = updatedTicket.priority === 'high' || 
                                          updatedTicket.returned_from_photography === true;
                     
@@ -546,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log('🚨 High priority ticket - immediate announcement');
                     }
                     
-                    // پخش صدا از طریق نمایشگر
                     displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
                 }
             }
