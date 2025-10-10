@@ -258,129 +258,171 @@ async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
     }
 }
 
-        // ✅ پخش شماره باجه - بهبود یافته با فایل‌های جدید
-        async playCounterSound(counterNumber) {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                throw new Error('Audio disabled or user not interacted');
+// ✅ پخش شماره باجه - اصلاح شده
+async playCounterSound(counterNumber) {
+    if (!this.isAudioEnabled || !this.userInteracted) {
+        throw new Error('Audio disabled or user not interacted');
+    }
+    
+    // تبدیل به عدد و اعتبارسنجی
+    let counterNum;
+    if (counterNumber === 'عکاسی' || !counterNumber) {
+        counterNum = 1; // پیش‌فرض برای عکاسی
+    } else {
+        counterNum = parseInt(counterNumber.toString().replace(/^0+/, '') || '1');
+    }
+    
+    if (isNaN(counterNum) || counterNum < 1 || counterNum > 99) {
+        console.warn(`⚠️ Invalid counter number: ${counterNumber}, using default: 1`);
+        counterNum = 1;
+    }
+    
+    const counterFile = `${counterNum}.mp3`;
+    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (original: ${counterNumber})`);
+    
+    try {
+        await this.playAudioFile(`sounds2/${counterFile}`);
+    } catch (error) {
+        console.error(`❌ Error playing counter sound ${counterFile}:`, error);
+        
+        // فال‌بک: اگر فایل وجود نداشت، از فایل پیش‌فرض استفاده کن
+        if (counterNum !== 1) {
+            console.log('🔄 Falling back to default counter sound: 1.mp3');
+            await this.playAudioFile('sounds2/1.mp3');
+        }
+    }
+}
+// ✅ پخش شماره نوبت - اصلاح شده
+async playNumberSound(number) {
+    if (!this.isAudioEnabled || !this.userInteracted) {
+        throw new Error('Audio disabled or user not interacted');
+    }
+    
+    // تبدیل شماره به فرمت 4 رقمی صحیح
+    let formattedNumber;
+    if (number === 'پاس' || !number) {
+        formattedNumber = '0001'; // استفاده از فایل پیش‌فرض برای پاس
+    } else {
+        // حذف صفرهای ابتدایی و تبدیل به عدد
+        const num = parseInt(number.toString().replace(/^0+/, '') || '1');
+        formattedNumber = String(num).padStart(4, '0');
+    }
+    
+    const audioPath = `sounds/${formattedNumber}.mp3`;
+    console.log(`🔊 Playing number sound: ${audioPath} (original: ${number})`);
+    
+    try {
+        await this.playAudioFile(audioPath);
+    } catch (error) {
+        console.error(`❌ Error playing number sound ${audioPath}:`, error);
+        
+        // فال‌بک: استفاده از فایل پیش‌فرض
+        if (formattedNumber !== '0001') {
+            console.log('🔄 Falling back to default number sound: 0001.mp3');
+            await this.playAudioFile('sounds/0001.mp3');
+        }
+    }
+}
+
+
+// ✅ پخش فایل صوتی - مقاوم در برابر خطا
+async playAudioFile(filePath) {
+    return new Promise((resolve, reject) => {
+        if (!this.isAudioEnabled || !this.userInteracted) {
+            reject(new Error('Audio disabled or user not interacted'));
+            return;
+        }
+
+        console.log(`🔊 Display: Loading audio: ${filePath}`);
+
+        // بررسی کش
+        if (this.audioCache.has(filePath)) {
+            const cachedAudio = this.audioCache.get(filePath);
+            console.log(`✅ Display: Using cached audio: ${filePath}`);
+            this.playCachedAudio(cachedAudio, resolve, reject);
+            return;
+        }
+
+        // بارگذاری جدید
+        const audio = new Audio();
+        audio.volume = this.volume;
+        audio.preload = 'auto';
+        
+        let hasResolved = false;
+        let loadTimeout;
+
+        const resolveOnce = () => {
+            if (!hasResolved) {
+                hasResolved = true;
+                clearTimeout(loadTimeout);
+                console.log(`✅ Display: Audio completed: ${filePath}`);
+                resolve();
             }
-            
-            // استفاده از فایل‌های جدید (1.mp3, 2.mp3, ...)
-            const counterFile = `${counterNumber}.mp3`;
-            console.log(`🔊 Looking for counter file: sounds2/${counterFile}`);
-            
-            await this.playAudioFile(`sounds2/${counterFile}`);
-        }
+        };
 
-        // ✅ پخش شماره نوبت
-        async playNumberSound(number) {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                throw new Error('Audio disabled or user not interacted');
+        const rejectOnce = (error) => {
+            if (!hasResolved) {
+                hasResolved = true;
+                clearTimeout(loadTimeout);
+                console.error(`❌ Display: Audio error for ${filePath}:`, error);
+                reject(error);
             }
+        };
+
+        const onCanPlay = () => {
+            console.log(`✅ Display: Audio ready: ${filePath}`);
             
-            const formattedNumber = String(number).padStart(4, '0');
-            const audioPath = `sounds/${formattedNumber}.mp3`;
-            console.log(`🔊 Playing number sound: ${audioPath}`);
-            await this.playAudioFile(audioPath);
-        }
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log(`🎵 Display: Audio playing: ${filePath}`);
+                        audio.addEventListener('ended', resolveOnce, { once: true });
+                        audio.addEventListener('error', rejectOnce, { once: true });
+                        
+                        // ذخیره در کش
+                        if (!this.audioCache.has(filePath)) {
+                            const audioClone = new Audio();
+                            audioClone.src = audio.src;
+                            audioClone.preload = 'auto';
+                            this.audioCache.set(filePath, audioClone);
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`❌ Display: Play error for ${filePath}:`, error);
+                        
+                        if (error.name === 'NotAllowedError') {
+                            console.log('🔇 Play not allowed, waiting for user interaction');
+                            this.userInteracted = false;
+                            this.showAudioPrompt();
+                        }
+                        
+                        rejectOnce(error);
+                    });
+            }
+        };
 
-        // ✅ پخش فایل صوتی - بهبود یافته
-        async playAudioFile(filePath) {
-            return new Promise((resolve, reject) => {
-                if (!this.isAudioEnabled || !this.userInteracted) {
-                    reject(new Error('Audio disabled or user not interacted'));
-                    return;
-                }
+        const onError = (e) => {
+            console.error(`❌ Display: Audio load error: ${filePath}`, e);
+            rejectOnce(new Error(`File not found: ${filePath}`));
+        };
 
-                console.log(`🔊 Display: Loading audio: ${filePath}`);
+        audio.addEventListener('canplaythrough', onCanPlay, { once: true });
+        audio.addEventListener('error', onError, { once: true });
 
-                // بررسی کش
-                if (this.audioCache.has(filePath)) {
-                    const cachedAudio = this.audioCache.get(filePath);
-                    console.log(`✅ Display: Using cached audio: ${filePath}`);
-                    this.playCachedAudio(cachedAudio, resolve, reject);
-                    return;
-                }
+        // تایم‌اوت کوتاه‌تر برای خطاهای 404
+        loadTimeout = setTimeout(() => {
+            if (!hasResolved) {
+                console.warn(`⏰ Display: Audio timeout: ${filePath}`);
+                rejectOnce(new Error('Audio load timeout'));
+            }
+        }, 2000); // کاهش از 3 ثانیه به 2 ثانیه
 
-                // بارگذاری جدید
-                const audio = new Audio();
-                audio.volume = this.volume;
-                audio.preload = 'auto';
-                
-                let hasResolved = false;
-                let loadTimeout;
-
-                const resolveOnce = () => {
-                    if (!hasResolved) {
-                        hasResolved = true;
-                        clearTimeout(loadTimeout);
-                        console.log(`✅ Display: Audio completed: ${filePath}`);
-                        resolve();
-                    }
-                };
-
-                const rejectOnce = (error) => {
-                    if (!hasResolved) {
-                        hasResolved = true;
-                        clearTimeout(loadTimeout);
-                        console.error(`❌ Display: Audio error for ${filePath}:`, error);
-                        reject(error);
-                    }
-                };
-
-                const onCanPlay = () => {
-                    console.log(`✅ Display: Audio ready: ${filePath}`);
-                    
-                    const playPromise = audio.play();
-                    
-                    if (playPromise !== undefined) {
-                        playPromise
-                            .then(() => {
-                                console.log(`🎵 Display: Audio playing: ${filePath}`);
-                                audio.addEventListener('ended', resolveOnce, { once: true });
-                                audio.addEventListener('error', rejectOnce, { once: true });
-                                
-                                // ذخیره در کش
-                                if (!this.audioCache.has(filePath)) {
-                                    const audioClone = new Audio();
-                                    audioClone.src = audio.src;
-                                    audioClone.preload = 'auto';
-                                    this.audioCache.set(filePath, audioClone);
-                                }
-                            })
-                            .catch(error => {
-                                console.error(`❌ Display: Play error for ${filePath}:`, error);
-                                
-                                if (error.name === 'NotAllowedError') {
-                                    console.log('🔇 Play not allowed, waiting for user interaction');
-                                    this.userInteracted = false;
-                                    this.showAudioPrompt();
-                                }
-                                
-                                rejectOnce(error);
-                            });
-                    }
-                };
-
-                const onError = (e) => {
-                    console.error(`❌ Display: Audio load error: ${filePath}`, e);
-                    rejectOnce(e);
-                };
-
-                audio.addEventListener('canplaythrough', onCanPlay, { once: true });
-                audio.addEventListener('error', onError, { once: true });
-
-                // تایم‌اوت
-                loadTimeout = setTimeout(() => {
-                    if (!hasResolved) {
-                        console.warn(`⏰ Display: Audio timeout: ${filePath}`);
-                        rejectOnce(new Error('Audio load timeout'));
-                    }
-                }, 3000);
-
-                // تنظیم src و شروع بارگذاری
-                audio.src = filePath;
-            });
-        }
+        // تنظیم src و شروع بارگذاری
+        audio.src = filePath;
+    });
+}
 
         // ✅ پخش صدا از کش
         playCachedAudio(audio, resolve, reject) {
@@ -636,17 +678,16 @@ async function preloadImportantSounds() {
 }
 
 
-// --- تابع تست سیستم صوتی - بدون bajeh ---
+// --- تابع تست سیستم صوتی - اصلاح شده ---
 async function testSoundSystem() {
     console.log('🎵 Testing sound system...');
     
     try {
-        // تست شماره نوبت
-        await displaySoundManager.playNumberSound('1234');
+        // تست شماره نوبت (با فرمت صحیح)
+        await displaySoundManager.playNumberSound('1');
         await displaySoundManager.delay(1000);
         
-        // ❌ حذف تست bajeh.mp3
-        // مستقیم تست شماره باجه
+        // تست شماره باجه
         await displaySoundManager.playCounterSound('5');
         
         console.log('✅ Sound system test completed successfully');
@@ -654,6 +695,7 @@ async function testSoundSystem() {
         console.error('❌ Sound system test failed:', error);
     }
 }
+
 // فراخوانی تست بعد از بارگذاری کامل
 setTimeout(() => {
     if (displaySoundManager.userInteracted) {
@@ -661,12 +703,21 @@ setTimeout(() => {
     }
 }, 5000);
 
-    // استخراج شماره باجه از نام باجه
-// --- تابع استخراج شماره باجه - بهبود یافته ---
+// --- تابع استخراج شماره باجه - کاملاً اصلاح شده ---
 function extractCounterNumber(counterName) {
-    if (!counterName) return '1';
+    if (!counterName) {
+        console.log('❌ No counter name provided, using default: 1');
+        return '1';
+    }
     
     console.log('🔍 Extracting counter number from:', counterName);
+    
+    // اگر شماره مستقیم داده شده
+    if (/^\d+$/.test(counterName)) {
+        const num = counterName;
+        console.log(`✅ Counter number is direct: ${num}`);
+        return num;
+    }
     
     // روش ۱: استخراج اعداد از انتهای رشته
     const numbersFromEnd = counterName.match(/\d+$/);
@@ -684,9 +735,8 @@ function extractCounterNumber(counterName) {
         return num;
     }
     
-    // روش ۳: جستجوی کلمات فارسی و انگلیسی
+    // روش ۳: جستجوی کلمات فارسی
     const wordToNumber = {
-        // فارسی
         'یک': '1', 'اول': '1', '۱': '1',
         'دو': '2', 'دوم': '2', '۲': '2',
         'سه': '3', 'سوم': '3', '۳': '3', 
@@ -697,10 +747,8 @@ function extractCounterNumber(counterName) {
         'هشت': '8', 'هشتم': '8', '۸': '8',
         'نه': '9', 'نهم': '9', '۹': '9',
         'ده': '10', 'دهم': '10', '۱۰': '10',
-        // انگلیسی
-        'one': '1', 'two': '2', 'three': '3', 'four': '4',
-        'five': '5', 'six': '6', 'seven': '7', 'eight': '8',
-        'nine': '9', 'ten': '10'
+        'یازده': '11', 'یازدهم': '11', '۱۱': '11',
+        'دوازده': '12', 'دوازدهم': '12', '۱۲': '12'
     };
     
     const lowerCaseName = counterName.toLowerCase();
@@ -709,6 +757,12 @@ function extractCounterNumber(counterName) {
             console.log(`✅ Counter number extracted from word "${word}": ${num}`);
             return num;
         }
+    }
+    
+    // روش ۴: برای نام‌های خاص
+    if (counterName.includes('عکاسی')) {
+        console.log('✅ Counter is photography, using: 1');
+        return '1';
     }
     
     console.log('❌ No counter number found, using default: 1');
