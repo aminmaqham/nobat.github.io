@@ -229,16 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 '8': 'eight.mp3',
                 '9': 'nine.mp3', 
                 '10': 'ten.mp3',
-                '11': 'eleven.mp3', 
-                '12': 'twelve.mp3', 
-                '13': 'thirteen.mp3', 
-                '14': 'fourteen.mp3',
-                '15': 'fifteen.mp3', 
-                '16': 'sixteen.mp3', 
-                '17': 'seventeen.mp3', 
-                '18': 'eighteen.mp3',
-                '19': 'nineteen.mp3', 
-                '20': 'twenty.mp3'
+
             };
             
             return numberMap[counterNumber] || null;
