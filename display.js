@@ -610,55 +610,114 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // استخراج شماره باجه از نام باجه
-    function extractCounterNumber(counterName) {
-        if (!counterName) return '1';
-        
-        console.log('🔍 Extracting counter number from:', counterName);
-        
-        const methods = [
-            () => {
-                const numbers = counterName.match(/\d+$/);
-                return numbers ? numbers[0] : null;
-            },
-            () => {
-                const numbers = counterName.match(/\d+/);
-                return numbers ? numbers[0] : null;
-            },
-            () => {
-                const wordToNumber = {
-                    'یک': '1', 'اول': '1', '۱': '1',
-                    'دو': '2', 'دوم': '2', '۲': '2',
-                    'سه': '3', 'سوم': '3', '۳': '3', 
-                    'چهار': '4', 'چهارم': '4', '۴': '4',
-                    'پنج': '5', 'پنجم': '5', '۵': '5',
-                    'شش': '6', 'ششم': '6', '۶': '6',
-                    'هفت': '7', 'هفتم': '7', '۷': '7',
-                    'هشت': '8', 'هشتم': '8', '۸': '8',
-                    'نه': '9', 'نهم': '9', '۹': '9',
-                    'ده': '10', 'دهم': '10', '۱۰': '10'
-                };
-                
-                for (const [word, num] of Object.entries(wordToNumber)) {
-                    if (counterName.includes(word)) {
-                        return num;
-                    }
-                }
-                return null;
-            }
-        ];
-        
-        for (const method of methods) {
-            const result = method();
-            if (result) {
-                console.log(`✅ Counter number extracted: ${result}`);
-                return result;
-            }
-        }
-        
-        console.log('❌ No counter number found, using default: 1');
-        return '1';
+    // ✅ پیش‌بارگذاری صداهای مهم - بهبود یافته
+async function preloadImportantSounds() {
+    if (!this.userInteracted) return;
+    
+    console.log('🔄 Preloading important sounds...');
+    
+    const importantSounds = [
+        'bajeh.mp3',
+        // پیش‌بارگذاری شماره‌های باجه ۱ تا ۲۰
+        ...Array.from({length: 20}, (_, i) => `${i + 1}.mp3`)
+    ];
+    
+    // پیش‌بارگذاری موازی برای عملکرد بهتر
+    const preloadPromises = importantSounds.map(soundFile => 
+        this.preloadAudioFile(`sounds2/${soundFile}`)
+    );
+    
+    try {
+        await Promise.all(preloadPromises);
+        console.log('✅ Important sounds preloaded');
+    } catch (error) {
+        console.warn('⚠️ Some sounds failed to preload:', error);
     }
+}
+
+
+// --- تابع تست سیستم صوتی ---
+async function testSoundSystem() {
+    console.log('🎵 Testing sound system...');
+    
+    try {
+        // تست شماره نوبت
+        await displaySoundManager.playNumberSound('1234');
+        await displaySoundManager.delay(1000);
+        
+        // تست "به باجه"
+        await displaySoundManager.playAudioFile('sounds2/bajeh.mp3');
+        await displaySoundManager.delay(1000);
+        
+        // تست شماره باجه
+        await displaySoundManager.playCounterSound('5');
+        
+        console.log('✅ Sound system test completed successfully');
+    } catch (error) {
+        console.error('❌ Sound system test failed:', error);
+    }
+}
+
+// فراخوانی تست بعد از بارگذاری کامل
+setTimeout(() => {
+    if (displaySoundManager.userInteracted) {
+        testSoundSystem();
+    }
+}, 5000);
+
+    // استخراج شماره باجه از نام باجه
+// --- تابع استخراج شماره باجه - بهبود یافته ---
+function extractCounterNumber(counterName) {
+    if (!counterName) return '1';
+    
+    console.log('🔍 Extracting counter number from:', counterName);
+    
+    // روش ۱: استخراج اعداد از انتهای رشته
+    const numbersFromEnd = counterName.match(/\d+$/);
+    if (numbersFromEnd) {
+        const num = numbersFromEnd[0];
+        console.log(`✅ Counter number extracted from end: ${num}`);
+        return num;
+    }
+    
+    // روش ۲: استخراج اولین عدد در رشته
+    const numbersAnywhere = counterName.match(/\d+/);
+    if (numbersAnywhere) {
+        const num = numbersAnywhere[0];
+        console.log(`✅ Counter number extracted from anywhere: ${num}`);
+        return num;
+    }
+    
+    // روش ۳: جستجوی کلمات فارسی و انگلیسی
+    const wordToNumber = {
+        // فارسی
+        'یک': '1', 'اول': '1', '۱': '1',
+        'دو': '2', 'دوم': '2', '۲': '2',
+        'سه': '3', 'سوم': '3', '۳': '3', 
+        'چهار': '4', 'چهارم': '4', '۴': '4',
+        'پنج': '5', 'پنجم': '5', '۵': '5',
+        'شش': '6', 'ششم': '6', '۶': '6',
+        'هفت': '7', 'هفتم': '7', '۷': '7',
+        'هشت': '8', 'هشتم': '8', '۸': '8',
+        'نه': '9', 'نهم': '9', '۹': '9',
+        'ده': '10', 'دهم': '10', '۱۰': '10',
+        // انگلیسی
+        'one': '1', 'two': '2', 'three': '3', 'four': '4',
+        'five': '5', 'six': '6', 'seven': '7', 'eight': '8',
+        'nine': '9', 'ten': '10'
+    };
+    
+    const lowerCaseName = counterName.toLowerCase();
+    for (const [word, num] of Object.entries(wordToNumber)) {
+        if (lowerCaseName.includes(word)) {
+            console.log(`✅ Counter number extracted from word "${word}": ${num}`);
+            return num;
+        }
+    }
+    
+    console.log('❌ No counter number found, using default: 1');
+    return '1';
+}
 
     // --- Realtime Subscription ---
     function setupRealtime() {
@@ -717,6 +776,38 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePhotographyDisplay();
         });
     }
+
+    // --- تابع پخش شماره باجه - بهبود یافته ---
+async function playCounterSound(counterNumber) {
+    if (!this.isAudioEnabled || !this.userInteracted) {
+        throw new Error('Audio disabled or user not interacted');
+    }
+    
+    // تبدیل به عدد و اعتبارسنجی
+    const counterNum = parseInt(counterNumber);
+    if (isNaN(counterNum) || counterNum < 1 || counterNum > 99) {
+        console.warn(`⚠️ Invalid counter number: ${counterNumber}, using default: 1`);
+        counterNumber = '1';
+    } else {
+        counterNumber = counterNum.toString();
+    }
+    
+    // استفاده از فایل‌های جدید (1.mp3, 2.mp3, ...)
+    const counterFile = `${counterNumber}.mp3`;
+    console.log(`🔊 Looking for counter file: sounds2/${counterFile}`);
+    
+    try {
+        await this.playAudioFile(`sounds2/${counterFile}`);
+    } catch (error) {
+        console.error(`❌ Error playing counter sound ${counterFile}:`, error);
+        
+        // فال‌بک: اگر فایل وجود نداشت، از فایل پیش‌فرض استفاده کن
+        if (counterNumber !== '1') {
+            console.log('🔄 Falling back to default counter sound: 1.mp3');
+            await this.playAudioFile('sounds2/1.mp3');
+        }
+    }
+}
 
     // --- Initial Load ---
     function initializeDisplay() {
