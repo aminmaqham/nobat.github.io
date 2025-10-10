@@ -72,9 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return numberMap[counterNumber] || null;
         }
 
-        // ✅ پخش اعلان کامل با صف‌بندی و تاخیر
+        // ✅ پخش اعلان کامل با صف‌بندی و تاخیر بهبود یافته
         async playCallAnnouncement(ticketNumber, counterNumber) {
             if (!this.isAudioEnabled) return;
+            
+            console.log(`Adding to audio queue: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
             // اضافه کردن به صف
             this.audioQueue.push({
@@ -93,20 +95,22 @@ document.addEventListener('DOMContentLoaded', () => {
             await this.processAudioQueue();
         }
 
-        // ✅ پردازش صف صداها
+        // ✅ پردازش صف صداها - بهبود یافته
         async processAudioQueue() {
             if (this.isPlaying || this.audioQueue.length === 0) return;
 
             this.isPlaying = true;
+            console.log(`Processing audio queue, ${this.audioQueue.length} items`);
 
             while (this.audioQueue.length > 0) {
                 const audioItem = this.audioQueue[0];
                 
                 try {
+                    console.log(`Playing announcement for ticket ${audioItem.ticketNumber}`);
                     await this.playSingleAnnouncement(audioItem.ticketNumber, audioItem.counterNumber);
                     
-                    // تأثیر بین اعلان‌های مختلف
-                    await this.delay(2000);
+                    // تأثیر کوتاه‌تر بین اعلان‌های مختلف
+                    await this.delay(1500);
                     
                 } catch (error) {
                     console.error('Error playing audio announcement:', error);
@@ -117,34 +121,44 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             this.isPlaying = false;
+            console.log('Audio queue processing completed');
         }
 
-        // ✅ پخش یک اعلان کامل
+        // ✅ پخش یک اعلان کامل - بهبود یافته
         async playSingleAnnouncement(ticketNumber, counterNumber) {
             try {
+                console.log(`Starting single announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                
                 // پخش شماره نوبت (رقم به رقم)
                 const ticketStr = String(ticketNumber).padStart(4, '0');
+                console.log(`Playing ticket digits: ${ticketStr}`);
+                
                 for (let i = 0; i < ticketStr.length; i++) {
                     const digit = parseInt(ticketStr[i]);
                     await this.playNumberSound(digit);
-                    await this.delay(500); // ✅ تأثیر بیشتر بین ارقام
+                    await this.delay(400); // ✅ تأثیر کمتر بین ارقام
                 }
                 
-                await this.delay(800); // ✅ تأثیر قبل از "به باجه"
+                await this.delay(600); // ✅ تأثیر قبل از "به باجه"
                 
                 // پخش "به باجه"
+                console.log('Playing "به باجه"');
                 await this.playAudioFile('sounds2/bajeh.mp3');
                 
-                await this.delay(500); // ✅ تأثیر قبل از شماره باجه
+                await this.delay(400); // ✅ تأثیر قبل از شماره باجه
                 
                 // پخش شماره باجه
+                console.log(`Playing counter number: ${counterNumber}`);
                 const counterFile = this.getCounterSoundFile(counterNumber);
                 if (counterFile) {
                     await this.playAudioFile(`sounds2/${counterFile}`);
                 }
                 
+                console.log('Single announcement completed successfully');
+                
             } catch (error) {
                 console.error('Error in single call announcement:', error);
+                throw error;
             }
         }
 
@@ -155,6 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     resolve();
                     return;
                 }
+
+                console.log(`Attempting to play audio: ${filePath}`);
 
                 // توقف صداهای قبلی
                 if (this.currentAudio) {
@@ -168,55 +184,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 audio.volume = this.volume;
                 audio.preload = 'auto';
 
-                audio.addEventListener('loadeddata', () => {
-                    console.log('Audio loaded:', filePath);
-                });
+                let resolved = false;
 
-                audio.addEventListener('canplaythrough', () => {
-                    console.log('Audio can play through:', filePath);
+                const onEnded = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        console.log(`Audio ended normally: ${filePath}`);
+                        this.currentAudio = null;
+                        resolve();
+                    }
+                };
+
+                const onError = (error) => {
+                    if (!resolved) {
+                        resolved = true;
+                        console.warn(`Audio file error: ${filePath}`, error);
+                        this.currentAudio = null;
+                        resolve(); // resolve instead of reject to continue queue
+                    }
+                };
+
+                const onCanPlayThrough = () => {
+                    console.log(`Audio can play through: ${filePath}`);
                     const playPromise = audio.play();
                     
                     if (playPromise !== undefined) {
                         playPromise
                             .then(() => {
-                                console.log('Audio playing:', filePath);
-                                audio.addEventListener('ended', () => {
-                                    console.log('Audio ended:', filePath);
-                                    this.currentAudio = null;
-                                    resolve();
-                                });
+                                console.log(`Audio playing: ${filePath}`);
+                                audio.addEventListener('ended', onEnded);
+                                audio.addEventListener('error', onError);
                             })
                             .catch(error => {
-                                console.warn('Audio play failed:', filePath, error);
-                                this.currentAudio = null;
-                                resolve();
+                                console.warn(`Audio play failed: ${filePath}`, error);
+                                onError(error);
                             });
                     }
-                });
+                };
 
-                audio.addEventListener('error', (e) => {
-                    console.warn(`Audio file error: ${filePath}`, e);
-                    this.currentAudio = null;
-                    resolve();
-                });
+                audio.addEventListener('canplaythrough', onCanPlayThrough);
+                audio.addEventListener('error', onError);
 
-                // Fallback
+                // Fallback timeout
                 setTimeout(() => {
-                    if (audio.readyState >= 3) {
-                        const playPromise = audio.play();
-                        if (playPromise !== undefined) {
-                            playPromise
-                                .then(() => {
-                                    audio.addEventListener('ended', resolve);
-                                })
-                                .catch(() => resolve());
-                        } else {
-                            resolve();
-                        }
-                    } else {
+                    if (!resolved) {
+                        console.log(`Audio fallback timeout: ${filePath}`);
+                        resolved = true;
+                        this.currentAudio = null;
                         resolve();
                     }
-                }, 500);
+                }, 5000); // افزایش timeout به 5 ثانیه
+
+                // Load the audio
+                audio.load();
             });
         }
 
@@ -233,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             this.audioQueue = [];
             this.isPlaying = false;
+            console.log('All sounds stopped');
         }
     }
 

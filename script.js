@@ -81,20 +81,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let photographyHistory = [];
     let isPhotographyUser = false;
     let currentTicketForPhotography = null;
-    let isCallingInProgress = false; // ✅ جلوگیری از کلیک همزمان
+    let isCallingInProgress = false;
 
     // --- Sound Management System ---
     class SoundManager {
         constructor() {
-            this.isAudioEnabled = false; // ✅ غیرفعال در script.js
+            this.isAudioEnabled = false;
             this.volume = 0.7;
             this.audioQueue = [];
             this.isPlaying = false;
         }
 
-        // ✅ غیرفعال کردن کامل صدا در script.js
         async playCallAnnouncement(ticketNumber, counterNumber) {
-            return Promise.resolve(); // هیچ صدا پخش نمی‌شود
+            return Promise.resolve();
         }
 
         async playNumberSound(number) {
@@ -430,8 +429,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- تابع بهبود یافته برای بازگشت نوبت به باجه مبدا ---
     async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
         try {
+            console.log(`Returning ticket ${ticketId} to counter: ${originalCounterName}`);
+            
             const originalTicket = await databases.getDocument(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
@@ -443,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             }
 
+            // ایجاد نوبت جدید با اولویت بالا
             const newTicketData = {
                 service_id: originalTicket.service_id,
                 specific_ticket: originalTicket.specific_ticket,
@@ -456,7 +459,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ticket_type: 'returned_from_photography',
                 original_ticket_id: originalTicket.$id,
                 returned_from_photography: true,
-                original_counter_name: originalCounterName || 'عکاسی'
+                original_counter_name: originalCounterName || 'عکاسی',
+                priority: 'high', // اضافه کردن فیلد اولویت
+                created_at: new Date().toISOString() // زمان جدید برای اولویت
             };
 
             const returnedTicket = await databases.createDocument(
@@ -467,20 +472,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
 
-            console.log('Ticket returned to counter:', returnedTicket);
+            console.log('Ticket returned to counter with high priority:', returnedTicket);
             
             const service = services.find(s => s.$id === originalTicket.service_id);
             const serviceName = service ? service.name : 'خدمت';
             
             showPopupNotification(`
                 <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
-                <p style="font-size: 14px; color: #4CAF50;">این نوبت در اولویت قرار گرفت.</p>
+                <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت بالا قرار گرفت.</p>
             `);
 
             return true;
 
         } catch (error) {
             console.error('Error returning ticket to counter:', error);
+            showPopupNotification('<p>خطا در بازگرداندن نوبت به باجه!</p>');
             return false;
         }
     }
@@ -891,18 +897,42 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // اولویت اول: نوبت‌های بازگشته از عکاسی
+        const selections = getServiceSelections();
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+            return;
+        }
+
+        // اولویت اول: نوبت‌های بازگشته از عکاسی با اولویت بالا
+        const highPriorityReturnedTickets = tickets.filter(t => 
+            t.status === 'در حال انتظار' && 
+            t.returned_from_photography === true &&
+            t.priority === 'high' &&
+            selectedServiceIds.includes(t.service_id)
+        ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        if (highPriorityReturnedTickets.length > 0) {
+            console.log('Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
+            await callSpecificTicket(highPriorityReturnedTickets[0]);
+            return;
+        }
+
+        // اولویت دوم: نوبت‌های بازگشته از عکاسی عادی
         const returnedTickets = tickets.filter(t => 
             t.status === 'در حال انتظار' && 
-            t.returned_from_photography === true
-        );
+            t.returned_from_photography === true &&
+            selectedServiceIds.includes(t.service_id)
+        ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
         if (returnedTickets.length > 0) {
+            console.log('Calling returned ticket:', returnedTickets[0]);
             await callSpecificTicket(returnedTickets[0]);
             return;
         }
 
-        // اولویت دوم: نوبت‌های عکاسی در انتظار
+        // اولویت سوم: نوبت‌های عکاسی در انتظار
         const waitingPhotographyItems = photographyHistory.filter(item => 
             item.status === 'در انتظار' && !item.photoTaken
         );
@@ -912,15 +942,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // اولویت سوم: فراخوانی نوبت‌های عادی
+        // اولویت چهارم: فراخوانی نوبت‌های عادی
         await callNextRegularTicket();
     }
 
     // تابع جدید برای بررسی و تنظیم شماره باجه
     async function checkAndSetCounterName() {
         const userPrefs = getUserPrefs();
-        if (!userPrefs.counter_name || !userPrefs.counter_number) {
-            openCounterSettingsModal();
+        
+        // فقط اگر کاربر لاگین کرده و تنظیمات کامل نیست، مودال نمایش داده شود
+        if (currentUser && (!userPrefs.counter_name || !userPrefs.counter_number)) {
+            // تأخیر کوتاه برای اطمینان از بارگذاری کامل UI
+            setTimeout(() => {
+                openCounterSettingsModal();
+            }, 1000);
         }
     }
 
@@ -1664,11 +1699,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!counterName) {
             alert('لطفا نام باجه را وارد کنید.');
+            counterNameInput.focus();
             return;
         }
 
-        if (!counterNumber || isNaN(counterNumber)) {
-            alert('لطفا شماره باجه را به صورت عدد وارد کنید.');
+        if (!counterNumber || isNaN(counterNumber) || counterNumber < 1 || counterNumber > 99) {
+            alert('لطفا شماره باجه را به صورت عدد بین 1 تا 99 وارد کنید.');
+            counterNumberInput.focus();
             return;
         }
 
@@ -1686,6 +1723,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             showPopupNotification('<p>تنظیمات باجه با موفقیت ذخیره شد.</p>');
             closeCounterSettingsModal();
+            
+            // به‌روزرسانی UI
+            updateUIForUserRole();
+            
         } catch (error) {
             console.error('Error saving counter settings:', error);
             showPopupNotification('<p>خطا در ذخیره تنظیمات باجه!</p>');
@@ -2256,7 +2297,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         try {
             currentUser = await account.get();
-            await checkAndSetCounterName();
             
             const userPrefs = getUserPrefs();
             isPhotographyUser = userPrefs.is_photography_user || false;
@@ -2266,7 +2306,9 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetchData();
             await loadPhotographyHistory();
             
-            // ❌ حذف تنظیمات صدا از script.js
+            // تنظیمات باجه فقط بعد از لاگین چک شود
+            await checkAndSetCounterName();
+            
             setupRealtimeSubscriptions();
             checkAutoReset();
             updatePhotographyUI();

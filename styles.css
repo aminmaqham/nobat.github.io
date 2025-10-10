@@ -1163,6 +1163,34 @@ header h1 {
     cursor: pointer;
     border: none;
 }
+
+/* اضافه کردن به styles.css */
+.priority-high {
+    background-color: #fff3cd !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+.returned-ticket {
+    background-color: #d4edda !important;
+    border-left: 4px solid #28a745 !important;
+}
+
+.photography-origin {
+    font-size: 12px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* استایل برای نوبت‌های بازگشته از عکاسی */
+.ticket-returned {
+    animation: pulse-returned 2s infinite;
+}
+
+@keyframes pulse-returned {
+    0% { background-color: #d4edda; }
+    50% { background-color: #c3e6cb; }
+    100% { background-color: #d4edda; }
+}
   
   .service-btn .waiting-count {
     font-size: 12px;
