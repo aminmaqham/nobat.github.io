@@ -183,40 +183,56 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ✅ پردازش صف - بهبود یافته
-        async processQueue() {
-            if (this.isPlaying || this.audioQueue.length === 0) return;
-            
-            this.isPlaying = true;
-            
-            // فقط اولین آیتم در صف را پردازش کن
-            const { ticketNumber, counterNumber, ticketData, type } = this.audioQueue[0];
-            
-            try {
-                console.log(`🔊 Display: Processing: Ticket ${ticketNumber}, Counter ${counterNumber}, Type: ${type}`);
-                
-                if (type === 'photography') {
-                    await this.playPhotographySingleAnnouncement(ticketNumber, counterNumber);
-                } else {
-                    await this.playSingleAnnouncement(ticketNumber, counterNumber);
-                }
-                
-                console.log(`✅ Display: Completed: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-            } catch (error) {
-                console.error(`❌ Display: Failed: Ticket ${ticketNumber}, Counter ${counterNumber}`, error);
-            }
-            
-            // حذف آیتم پردازش شده
-            this.audioQueue.shift();
-            this.isPlaying = false;
-            
-            // اگر آیتم دیگری در صف هست، پردازش کن
-            if (this.audioQueue.length > 0) {
-                setTimeout(() => {
-                    this.processQueue();
-                }, 100);
-            }
+// ✅ پردازش صف - بهبود یافته برای جلوگیری از همپوشانی
+async processQueue() {
+    if (this.isPlaying || this.audioQueue.length === 0) return;
+    
+    this.isPlaying = true;
+    
+    // فقط اولین آیتم در صف را پردازش کن
+    const { ticketNumber, counterNumber, ticketData, type } = this.audioQueue[0];
+    
+    try {
+        console.log(`🔊 Display: Processing: Ticket ${ticketNumber}, Counter ${counterNumber}, Type: ${type}`);
+        
+        // توقف هر پخش قبلی
+        this.stopAllAudio();
+        
+        if (type === 'photography') {
+            await this.playPhotographySingleAnnouncement(ticketNumber, counterNumber);
+        } else {
+            await this.playSingleAnnouncement(ticketNumber, counterNumber);
         }
+        
+        console.log(`✅ Display: Completed: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    } catch (error) {
+        console.error(`❌ Display: Failed: Ticket ${ticketNumber}, Counter ${counterNumber}`, error);
+    }
+    
+    // حذف آیتم پردازش شده
+    this.audioQueue.shift();
+    this.isPlaying = false;
+    
+    // اگر آیتم دیگری در صف هست، پردازش کن
+    if (this.audioQueue.length > 0) {
+        setTimeout(() => {
+            this.processQueue();
+        }, 500); // افزایش تأخیر بین پخش‌ها
+    }
+}
+
+// ✅ توقف تمام صداهای در حال پخش
+stopAllAudio() {
+    // توقف تمام audio elements
+    document.querySelectorAll('audio').forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+    });
+    
+    // پاک کردن کش برای جلوگیری از استفاده مجدد
+    this.audioCache.clear();
+}
+
 
 // ✅ پخش یک اعلان کامل برای نوبت عادی - بدون bajeh
 async playSingleAnnouncement(ticketNumber, counterNumber) {
@@ -791,14 +807,14 @@ function setupRealtime() {
                 
                 lastProcessedTicketId = updatedTicket.$id;
                 
-                console.log('Display: New ticket called:', updatedTicket);
+                console.log('Display: New ticket called via real-time:', updatedTicket);
                 
                 const ticketNumber = updatedTicket.specific_ticket || '0001';
                 const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
                 
-                console.log(`Display: Triggering sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                console.log(`🎵 Display: Auto-playing via real-time: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                 
-                // پخش صدا برای همه انواع نوبت‌ها
+                // ✅ پخش صدا از طریق real-time (فقط در display)
                 displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
             }
         }
@@ -826,7 +842,6 @@ function setupRealtime() {
         updatePhotographyDisplay();
     });
 }
-
     // --- تابع پخش شماره باجه - بهبود یافته ---
 async function playCounterSound(counterNumber) {
     if (!this.isAudioEnabled || !this.userInteracted) {
@@ -878,3 +893,7 @@ async function playCounterSound(counterNumber) {
         displaySoundManager.repeatLastAnnouncement();
     };
 });
+// --- در انتهای فایل display.js ---
+// ✅ قرار دادن displaySoundManager در global scope برای دسترسی از script.js
+window.displaySoundManager = displaySoundManager;
+console.log('✅ Display sound manager exposed to global scope');

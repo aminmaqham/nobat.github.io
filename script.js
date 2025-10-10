@@ -83,47 +83,31 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTicketForPhotography = null;
     let isCallingInProgress = false;
 
-// --- Sound Management System (DISABLED IN MAIN PAGE) ---
+// --- Sound Management System (ONLY FORWARD TO DISPLAY) ---
 class SoundManager {
     constructor() {
-        this.isAudioEnabled = true; // فعال کردن برای ارتباط با display
-        this.volume = 0.7;
-        this.audioQueue = [];
-        this.isPlaying = false;
-        this.lastPlayedTicket = null;
+        this.isAudioEnabled = true;
     }
 
     async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
-        console.log(`🎵 Main: Sending to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        console.log(`🎵 Main: Forwarding to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
         
-        // ارسال به display page via global function
+        // فقط ارسال به display page
         if (window.displaySoundManager) {
             return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticketData);
-        } else {
-            console.log('🔇 Display sound manager not available, playing locally');
-            return this.playLocalAnnouncement(ticketNumber, counterNumber);
-        }
-    }
-
-    async playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData = null) {
-        console.log(`🎵 Main: Sending photography to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
-        
-        if (window.displaySoundManager) {
-            return window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData);
         } else {
             console.log('🔇 Display sound manager not available');
             return Promise.resolve();
         }
     }
 
-    async playLocalAnnouncement(ticketNumber, counterNumber) {
-        // پخش محلی فقط برای مواقعی که display در دسترس نیست
-        try {
-            console.log(`🔊 Main: Playing locally - Ticket ${ticketNumber}, Counter ${counterNumber}`);
-            // اینجا می‌توانید پخش محلی را اضافه کنید اگر نیاز است
-            return Promise.resolve();
-        } catch (error) {
-            console.error('Main: Local play error:', error);
+    async playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+        console.log(`🎵 Main: Forwarding photography to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        if (window.displaySoundManager) {
+            return window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData);
+        } else {
+            console.log('🔇 Display sound manager not available');
             return Promise.resolve();
         }
     }
@@ -136,25 +120,16 @@ class SoundManager {
         return Promise.resolve();
     }
 
-    setVolume(level) {
-        this.volume = level;
-        if (window.displaySoundManager) {
-            // می‌توانید volume را به display هم sync کنید
-        }
-    }
-
-    toggleSound(enabled) {
-        this.isAudioEnabled = enabled;
-        // sync با display اگر نیاز است
-    }
-
-    loadSettings() {
-        // بارگذاری تنظیمات از localStorage اگر نیاز است
-    }
+    // سایر توابع فقط برای سازگاری
+    async playLocalAnnouncement() { return Promise.resolve(); }
+    async playNumberSound() { return Promise.resolve(); }
+    async playCounterSound() { return Promise.resolve(); }
+    setVolume() { /* انجام nothing */ }
+    toggleSound() { /* انجام nothing */ }
+    loadSettings() { /* انجام nothing */ }
 }
 
 const soundManager = new SoundManager();
-
 
     // --- توابع کمکی برای دسترسی امن ---
     function getUserPrefs() {
@@ -744,24 +719,29 @@ function playNumberSound(number) {
 
 
 
-// --- تابع تکرار صوت - بهبود یافته ---
+// --- تابع تکرار صوت - فقط فراخوانی به display ---
 function playCallSound(ticket) {
-    if (!ticket) return;
+    if (!ticket) return Promise.resolve();
     
     const ticketNumber = ticket.specific_ticket || '0001';
     const counterName = getCounterName();
     const counterNumber = getCounterNumber();
     
-    console.log(`🎵 Main: Playing sound: Ticket ${ticketNumber}, Counter ${counterNumber}, Name: ${counterName}`);
+    console.log(`🎵 Main: Requesting sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    // استفاده از سیستم صوتی اصلی که با display ارتباط برقرار می‌کند
-    return soundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
-        .then(() => {
-            console.log('✅ Main: Sound play completed');
-        })
-        .catch(error => {
-            console.error('❌ Main: Sound play failed:', error);
-        });
+    // فقط درخواست به display ارسال شود، نه پخش مستقیم
+    if (window.displaySoundManager) {
+        return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
+            .then(() => {
+                console.log('✅ Main: Sound request sent to display');
+            })
+            .catch(error => {
+                console.error('❌ Main: Sound request failed:', error);
+            });
+    } else {
+        console.log('🔇 Display not available for sound');
+        return Promise.resolve();
+    }
 }
 
 
@@ -923,7 +903,6 @@ function playCounterSound(counterNumber) {
         }
     }
 
-
 // --- تابع بهبودیافته برای فراخوانی نوبت ---
 async function callSpecificTicket(ticket) {
     // ✅ جلوگیری از فراخوانی همزمان
@@ -960,9 +939,11 @@ async function callSpecificTicket(ticket) {
         // ✅ بستن پیام انتظار
         closeWaitingNotification(waitingPopup);
         
-        // ✅ پخش صوت فراخوانی برای همه نوبت‌ها
-        console.log(`🎵 Main: Calling ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
-        await playCallSound(updatedTicket);
+        // ✅ فقط درخواست پخش صدا به display (بدون انتظار)
+        console.log(`🎵 Main: Requesting sound from display for ticket ${updatedTicket.specific_ticket}`);
+        playCallSound(updatedTicket).catch(error => {
+            console.error('Main: Sound request error (non-blocking):', error);
+        });
         
         const service = services.find(s => s.$id === updatedTicket.service_id);
         const popupMessage = `
@@ -1004,6 +985,7 @@ async function callSpecificTicket(ticket) {
         isCallingInProgress = false;
     }
 }
+
 // --- تابع بهبودیافته برای فراخوانی نوبت ---
 async function callNextTicketWithOptions() {
     // ✅ جلوگیری از فراخوانی همزمان
