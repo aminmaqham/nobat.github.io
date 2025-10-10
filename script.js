@@ -82,55 +82,47 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPhotographyUser = false;
     let currentTicketForPhotography = null;
     let isCallingInProgress = false;
-    let lastCalledTicketData = null; // برای ذخیره اطلاعات نوبت فراخوانی شده
 
-   
 // --- Sound Management System ---
 class SoundManager {
     constructor() {
-        this.isAudioEnabled = true;
-        this.volume = 0.7;
+        this.isAudioEnabled = false; // غیرفعال کردن صدا
+        this.volume = 0;
+        this.audioQueue = [];
+        this.isPlaying = false;
     }
 
-    // ✅ پخش اعلان از طریق نمایشگر
-    async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
-        if (!this.isAudioEnabled) return;
-        
-        console.log(`🎵 Requesting display to play: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-        
-        lastCalledTicketData = { ticketNumber, counterNumber, ticketData };
-        
+    async playCallAnnouncement(ticketNumber, counterNumber) {
+        console.log('🔇 Sound disabled in main page - playing from display page');
+        return Promise.resolve(); // هیچ صدایی پخش نشود
+    }
+
+    async playNumberSound(number) {
         return Promise.resolve();
     }
 
-    // ✅ تکرار صوت آخرین نوبت
-    async repeatLastAnnouncement() {
-        if (!this.isAudioEnabled || !lastCalledTicketData) {
-            console.log('❌ No recent announcement to repeat');
-            return;
-        }
-        
-        const { ticketNumber, counterNumber, ticketData } = lastCalledTicketData;
-        console.log(`🔁 Repeating announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-        
+    async playCounterSound(counterNumber) {
+        return Promise.resolve();
+    }
+
+    async playAudioFile(filePath) {
         return Promise.resolve();
     }
 
     setVolume(level) {
-        this.volume = Math.max(0, Math.min(1, level));
+        // غیرفعال
     }
 
     toggleSound(enabled) {
-        this.isAudioEnabled = enabled;
-        console.log(`🔊 Sound ${enabled ? 'enabled' : 'disabled'}`);
+        // غیرفعال
     }
 
     loadSettings() {
-        // تنظیمات صدا فقط برای نمایشگر
+        // غیرفعال
     }
 }
 
-    const soundManager = new SoundManager();
+const soundManager = new SoundManager();
 
     // --- توابع کمکی برای دسترسی امن ---
     function getUserPrefs() {
@@ -438,27 +430,7 @@ class SoundManager {
         }
     }
 
-    // --- تابع جدید برای بررسی نوبت‌های در انتظار ---
-async function checkWaitingTickets(serviceIds) {
-    try {
-        const waitingTickets = await databases.listDocuments(
-            DATABASE_ID,
-            TICKETS_COLLECTION_ID,
-            [
-                Query.equal('status', 'در حال انتظار'),
-                Query.equal('service_id', serviceIds),
-                Query.limit(1)
-            ]
-        );
-        
-        return waitingTickets.documents.length > 0;
-    } catch (error) {
-        console.error('Error checking waiting tickets:', error);
-        return false;
-    }
-}
-
-// --- تابع بهبودیافته برای بازگشت نوبت به باجه مبدا ---
+// --- تابع بهبود یافته برای بازگشت نوبت به باجه مبدا ---
 async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
     try {
         console.log(`Returning ticket ${ticketId} to counter: ${originalCounterName}`);
@@ -474,7 +446,7 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
             return false;
         }
 
-        // ایجاد نوبت جدید با اولویت بالا و نوع مشخص
+        // ایجاد نوبت جدید با اولویت بالا
         const newTicketData = {
             service_id: originalTicket.service_id,
             specific_ticket: originalTicket.specific_ticket,
@@ -485,13 +457,14 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
             registered_by: originalTicket.registered_by,
             registered_by_name: originalTicket.registered_by_name,
             status: 'در حال انتظار',
-            ticket_type: 'returned_from_photography', // ✅ نوع مشخص برای شناسایی
+            ticket_type: 'returned_from_photography',
             original_ticket_id: originalTicket.$id,
             returned_from_photography: true,
             original_counter_name: originalCounterName || 'عکاسی',
             priority: 'high', // ✅ اولویت بالا
             created_at: new Date().toISOString(),
-            called_by_counter_name: originalCounterName, // ✅ برای صوت فراخوانی
+            // ✅ اضافه کردن فیلدهای مربوط به فراخوانی صوتی
+            called_by_counter_name: originalCounterName,
             call_time: new Date().toISOString()
         };
 
@@ -510,7 +483,7 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
         
         showPopupNotification(`
             <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
-            <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت اول قرار گرفت و به زودی فراخوانی می‌شود.</p>
+            <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت بالا قرار گرفت و به زودی فراخوانی می‌شود.</p>
         `);
 
         return true;
@@ -521,7 +494,6 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
         return false;
     }
 }
-
     // --- تابع رندر تاریخچه عکاسی ---
     function renderPhotographyHistory() {
         const historyBody = document.getElementById('photography-history-body');
@@ -624,108 +596,154 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
     }
 
     // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
-    function showAdvancedPopupNotification(ticket, htmlContent) {
-        return new Promise((resolve) => {
-            const popup = document.getElementById('popup-notification');
-            const popupText = document.getElementById('popup-text');
-            
-            popupText.innerHTML = '';
-            
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'popup-with-buttons';
-            
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'popup-close-btn';
-            closeBtn.innerHTML = '×';
-            closeBtn.title = 'بستن';
-            closeBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('close'), 300);
-            };
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.innerHTML = htmlContent;
-            
-            const buttonsDiv = document.createElement('div');
-            buttonsDiv.className = 'popup-buttons';
-            
-            // ✅ دکمه تکرار صوت
-            const repeatSoundBtn = document.createElement('button');
-            repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
-            repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
-            repeatSoundBtn.onclick = () => {
-                console.log('🔁 User requested sound repetition');
-                soundManager.repeatLastAnnouncement();
-                // افکت بصری
-                repeatSoundBtn.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    repeatSoundBtn.style.transform = 'scale(1)';
-                }, 150);
-            };
-            
-            // ✅ دکمه ارسال به عکاسی
-            const photographyBtn = document.createElement('button');
-            photographyBtn.className = 'popup-btn popup-photography-btn';
-            photographyBtn.textContent = 'ارسال به عکاسی';
-            photographyBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('photography'), 300);
-            };
-            
-            // ✅ دکمه فراخوان بعدی
-            const nextBtn = document.createElement('button');
-            nextBtn.className = 'popup-btn popup-next-btn';
-            nextBtn.textContent = 'فراخوان بعدی';
-            nextBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('next'), 300);
-            };
-            
-            buttonsDiv.appendChild(repeatSoundBtn);
-            buttonsDiv.appendChild(photographyBtn);
-            buttonsDiv.appendChild(nextBtn);
-            
-            contentDiv.appendChild(closeBtn);
-            contentDiv.appendChild(messageDiv);
-            contentDiv.appendChild(buttonsDiv);
-            
-            popupText.appendChild(contentDiv);
-            
-            popup.style.display = 'flex';
+function showAdvancedPopupNotification(ticket, htmlContent) {
+    return new Promise((resolve) => {
+        const popup = document.getElementById('popup-notification');
+        const popupText = document.getElementById('popup-text');
+        
+        popupText.innerHTML = '';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'popup-with-buttons';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'popup-close-btn';
+        closeBtn.innerHTML = '×';
+        closeBtn.title = 'بستن';
+        closeBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('close'), 300);
+        };
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.innerHTML = htmlContent;
+        
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'popup-buttons';
+        
+        // ✅ دکمه تکرار صوت
+        const repeatSoundBtn = document.createElement('button');
+        repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
+        repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
+        repeatSoundBtn.onclick = () => {
+            console.log('🔁 User requested sound repetition');
+            playCallSound(ticket); // تابع پخش صوت
+            // افکت بصری
+            repeatSoundBtn.style.transform = 'scale(0.95)';
             setTimeout(() => {
-                popup.classList.add('show');
-            }, 10);
-            
-            // ✅ پخش خودکار صوت از طریق نمایشگر
-            if (ticket) {
-                const ticketNumber = ticket.specific_ticket || '0001';
-                const counterNumber = getCounterNumber();
-                soundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket);
+                repeatSoundBtn.style.transform = 'scale(1)';
+            }, 150);
+        };
+        
+        // ✅ دکمه ارسال به عکاسی
+        const photographyBtn = document.createElement('button');
+        photographyBtn.className = 'popup-btn popup-photography-btn';
+        photographyBtn.textContent = 'ارسال به عکاسی';
+        photographyBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('photography'), 300);
+        };
+        
+        // ✅ دکمه فراخوان بعدی
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'popup-btn popup-next-btn';
+        nextBtn.textContent = 'فراخوان بعدی';
+        nextBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('next'), 300);
+        };
+        
+        buttonsDiv.appendChild(repeatSoundBtn);
+        buttonsDiv.appendChild(photographyBtn);
+        buttonsDiv.appendChild(nextBtn);
+        
+        contentDiv.appendChild(closeBtn);
+        contentDiv.appendChild(messageDiv);
+        contentDiv.appendChild(buttonsDiv);
+        
+        popupText.appendChild(contentDiv);
+        
+        popup.style.display = 'flex';
+        setTimeout(() => {
+            popup.classList.add('show');
+        }, 10);
+        
+        // ✅ پخش خودکار صوت هنگام نمایش نوتیفیکیشن
+        setTimeout(() => {
+            playCallSound(ticket);
+        }, 500);
+        
+        function closePopup() {
+            popup.classList.remove('show');
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, 300);
+        }
+        
+        const backgroundCloseHandler = function(e) {
+            if (e.target === popup) {
+                closePopup();
+                setTimeout(() => resolve('background'), 300);
             }
-            
-            function closePopup() {
-                popup.classList.remove('show');
-                setTimeout(() => {
-                    popup.style.display = 'none';
-                }, 300);
-            }
-            
-            const backgroundCloseHandler = function(e) {
-                if (e.target === popup) {
-                    closePopup();
-                    setTimeout(() => resolve('background'), 300);
-                }
-            };
-            
-            popup.addEventListener('click', backgroundCloseHandler);
-            
-            const originalClosePopup = closePopup;
-            closePopup = function() {
-                popup.removeEventListener('click', backgroundCloseHandler);
-                originalClosePopup();
-            };
-        });
-    }
+        };
+        
+        popup.addEventListener('click', backgroundCloseHandler);
+        
+        const originalClosePopup = closePopup;
+        closePopup = function() {
+            popup.removeEventListener('click', backgroundCloseHandler);
+            originalClosePopup();
+        };
+    });
+}
+
+// --- تابع پخش صوت برای فراخوانی عکاسی ---
+function playPhotographyCallSound(photographyItem) {
+    console.log('🔇 Photography sound playing is handled by display page');
+    return Promise.resolve();
+}
+
+
+
+// --- تابع پخش شماره نوبت ---
+function playNumberSound(number) {
+    return new Promise((resolve, reject) => {
+        const formattedNumber = String(number).padStart(4, '0');
+        const audioPath = `sounds/${formattedNumber}.mp3`;
+        playAudioFile(audioPath)
+            .then(resolve)
+            .catch(reject);
+    });
+}
+
+// --- تابع پخش شماره باجه ---
+
+function playCounterSound(counterNumber) {
+    return Promise.resolve();
+}
+// --- پیدا کردن فایل صوتی مناسب برای شماره باجه ---
+function getCounterSoundFile(counterNumber) {
+    const numberMap = {
+        '1': 'one.mp3', '2': 'two.mp3', '3': 'three.mp3', '4': 'four.mp3',
+        '5': 'five.mp3', '6': 'six.mp3', '7': 'seven.mp3', '8': 'eight.mp3',
+        '9': 'nine.mp3', '10': 'ten.mp3', '11': 'eleven.mp3', '12': 'twelve.mp3',
+        '13': 'thirteen.mp3', '14': 'fourteen.mp3', '15': 'fifteen.mp3',
+        '16': 'sixteen.mp3', '17': 'seventeen.mp3', '18': 'eighteen.mp3',
+        '19': 'nineteen.mp3', '20': 'twenty.mp3'
+    };
+    
+    return numberMap[counterNumber] || null;
+}
+
+// --- تابع عمومی پخش فایل صوتی ---
+function playAudioFile(filePath) {
+    return Promise.resolve();
+}
+
+// --- تابع تأخیر ---
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
     // --- تابع جدید برای نمایش مودال دریافت کد ملی ---
     function showNationalIdModal(ticketNumber) {
@@ -874,149 +892,140 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
         }
     }
 
-    // --- تابع بهبودیافته برای فراخوانی نوبت ---
-    async function callSpecificTicket(ticket) {
-        // ✅ جلوگیری از فراخوانی همزمان
-        if (isCallingInProgress) {
-            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-            return;
-        }
-
-        isCallingInProgress = true;
-        
-        try {
-            // ✅ نمایش پیام "منتظر بمانید"
-            const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-            
-            const counterName = getCounterName();
-            const counterNumber = getCounterNumber();
-            
-            const updatedTicket = await databases.updateDocument(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, 
-                ticket.$id, 
-                {
-                    status: 'در حال سرویس',
-                    called_by: currentUser.$id,
-                    called_by_name: currentUser.name || currentUser.email,
-                    called_by_counter_name: counterName,
-                    call_time: new Date().toISOString()
-                }
-            );
-            
-            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-            await fetchTickets();
-            
-            // ✅ بستن پیام انتظار
-            closeWaitingNotification(waitingPopup);
-            
-            const service = services.find(s => s.$id === updatedTicket.service_id);
-            const popupMessage = `
-                <div class="ticket-popup-header">
-                    <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-                    ${updatedTicket.returned_from_photography ? 
-                        '<span class="photography-badge">📸 بازگشته از عکاسی</span>' : ''}
-                    ${updatedTicket.priority === 'high' ? 
-                        '<span class="priority-badge">⚡ اولویت بالا</span>' : ''}
-                </div>
-                <div class="ticket-popup-info">
-                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-                    <p><strong>باجه:</strong> ${counterName} (شماره ${counterNumber})</p>
-                    ${updatedTicket.original_counter_name ? 
-                        `<p><strong>باجه مبدا:</strong> ${updatedTicket.original_counter_name}</p>` : ''}
-                </div>
-            `;
-            
-            // ✅ استفاده از نوتیفیکیشن جدید با قابلیت تکرار صوت
-            const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
-            
-            if (userChoice === 'photography') {
-                openPhotographyModal(updatedTicket);
-            } else if (userChoice === 'next') {
-                setTimeout(() => {
-                    callNextTicketWithOptions();
-                }, 1000);
-            }
-            
-            await updateAllDisplays();
-            
-        } catch (error) {
-            console.error('Error calling specific ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
-        } finally {
-            // ✅ آزاد کردن قفل فراخوانی
-            isCallingInProgress = false;
-        }
-    }
-
 
 // --- تابع بهبودیافته برای فراخوانی نوبت ---
-async function callNextTicketWithOptions() {
+async function callSpecificTicket(ticket) {
+    // ✅ جلوگیری از فراخوانی همزمان
     if (isCallingInProgress) {
         showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
         return;
     }
 
     isCallingInProgress = true;
-
+    
     try {
+        // ✅ نمایش پیام "منتظر بمانید"
         const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-
-        const selections = getServiceSelections();
-        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-        if (selectedServiceIds.length === 0) {
-            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-            return;
-        }
-
-        // ✅ اولویت اول: نوبت‌های بازگشته از عکاسی با اولویت بالا
-        const highPriorityReturnedTickets = tickets.filter(t => 
-            t.status === 'در حال انتظار' && 
-            (t.returned_from_photography === true || t.ticket_type === 'returned_from_photography') &&
-            t.priority === 'high' &&
-            selectedServiceIds.includes(t.service_id)
-        ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-        if (highPriorityReturnedTickets.length > 0) {
-            console.log('🚨 Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
-            await callSpecificTicket(highPriorityReturnedTickets[0]);
-            return;
-        }
-
-        // ✅ اولویت دوم: نوبت‌های بازگشته از عکاسی عادی
-        const returnedTickets = tickets.filter(t => 
-            t.status === 'در حال انتظار' && 
-            (t.returned_from_photography === true || t.ticket_type === 'returned_from_photography') &&
-            selectedServiceIds.includes(t.service_id)
-        ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-        if (returnedTickets.length > 0) {
-            console.log('📸 Calling returned ticket:', returnedTickets[0]);
-            await callSpecificTicket(returnedTickets[0]);
-            return;
-        }
-
-        // ✅ اولویت سوم: نوبت‌های عکاسی در انتظار (فقط اگر کاربر عکاسی است)
-        const waitingPhotographyItems = photographyHistory.filter(item => 
-            item.status === 'در انتظار' && !item.photoTaken
+        
+        const counterName = getCounterName();
+        const counterNumber = getCounterNumber();
+        
+        const updatedTicket = await databases.updateDocument(
+            DATABASE_ID, 
+            TICKETS_COLLECTION_ID, 
+            ticket.$id, 
+            {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name || currentUser.email,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            }
         );
-
-        if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
-            console.log('🎯 Processing photography ticket as photography user');
-            await processPhotographyTicket();
-            return;
+        
+        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+        await fetchTickets();
+        
+        // ✅ بستن پیام انتظار
+        closeWaitingNotification(waitingPopup);
+        
+        const service = services.find(s => s.$id === updatedTicket.service_id);
+        const popupMessage = `
+            <div class="ticket-popup-header">
+                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+                ${updatedTicket.returned_from_photography ? 
+                    '<span class="photography-badge">📸 بازگشته از عکاسی</span>' : ''}
+                ${updatedTicket.priority === 'high' ? 
+                    '<span class="priority-badge">⚡ اولویت بالا</span>' : ''}
+            </div>
+            <div class="ticket-popup-info">
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName} (شماره ${counterNumber})</p>
+                ${updatedTicket.original_counter_name ? 
+                    `<p><strong>باجه مبدا:</strong> ${updatedTicket.original_counter_name}</p>` : ''}
+            </div>
+        `;
+        
+        // ✅ استفاده از نوتیفیکیشن جدید با قابلیت تکرار صوت
+        const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
+        
+        if (userChoice === 'photography') {
+            openPhotographyModal(updatedTicket);
+        } else if (userChoice === 'next') {
+            setTimeout(() => {
+                callNextTicketWithOptions();
+            }, 1000);
         }
-
-        // ✅ اولویت چهارم: فراخوانی نوبت‌های عادی
-        console.log('📋 Calling regular ticket');
-        await callNextRegularTicket();
-
+        
+        await updateAllDisplays();
+        
+    } catch (error) {
+        console.error('Error calling specific ticket:', error);
+        showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
     } finally {
+        // ✅ آزاد کردن قفل فراخوانی
         isCallingInProgress = false;
     }
+}
+// --- تابع بهبودیافته برای فراخوانی نوبت ---
+async function callNextTicketWithOptions() {
+    // ✅ جلوگیری از فراخوانی همزمان
+    if (isCallingInProgress) {
+        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+        return;
+    }
+
+    const selections = getServiceSelections();
+    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+    if (selectedServiceIds.length === 0) {
+        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+        return;
+    }
+
+    // ✅ اولویت اول: نوبت‌های بازگشته از عکاسی با اولویت بالا
+    const highPriorityReturnedTickets = tickets.filter(t => 
+        t.status === 'در حال انتظار' && 
+        t.returned_from_photography === true &&
+        t.priority === 'high' &&
+        selectedServiceIds.includes(t.service_id)
+    ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (highPriorityReturnedTickets.length > 0) {
+        console.log('🚨 Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
+        await callSpecificTicket(highPriorityReturnedTickets[0]);
+        return;
+    }
+
+    // ✅ اولویت دوم: نوبت‌های بازگشته از عکاسی عادی
+    const returnedTickets = tickets.filter(t => 
+        t.status === 'در حال انتظار' && 
+        t.returned_from_photography === true &&
+        selectedServiceIds.includes(t.service_id)
+    ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (returnedTickets.length > 0) {
+        console.log('📸 Calling returned ticket:', returnedTickets[0]);
+        await callSpecificTicket(returnedTickets[0]);
+        return;
+    }
+
+    // ✅ اولویت سوم: نوبت‌های عکاسی در انتظار (فقط اگر کاربر عکاسی است)
+    const waitingPhotographyItems = photographyHistory.filter(item => 
+        item.status === 'در انتظار' && !item.photoTaken
+    );
+
+    if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
+        console.log('🎯 Processing photography ticket as photography user');
+        await processPhotographyTicket();
+        return;
+    }
+
+    // ✅ اولویت چهارم: فراخوانی نوبت‌های عادی
+    console.log('📋 Calling regular ticket');
+    await callNextRegularTicket();
 }
 
     // تابع جدید برای بررسی و تنظیم شماره باجه
@@ -2215,102 +2224,108 @@ async function callNextTicketWithOptions() {
         updatePhotographyUI();
     }
 
-    // --- تابع جدید برای نوتیفیکیشن عکاسی با قابلیت تکرار صوت ---
-    function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
-        return new Promise((resolve) => {
-            const popup = document.getElementById('popup-notification');
-            const popupText = document.getElementById('popup-text');
-            
-            popupText.innerHTML = '';
-            
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'popup-with-buttons';
-            
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'popup-close-btn';
-            closeBtn.innerHTML = '×';
-            closeBtn.title = 'بستن';
-            closeBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('close'), 300);
-            };
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.innerHTML = htmlContent;
-            
-            const buttonsDiv = document.createElement('div');
-            buttonsDiv.className = 'popup-buttons';
-            
-            // ✅ دکمه تکرار صوت برای عکاسی
-            const repeatSoundBtn = document.createElement('button');
-            repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
-            repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
-            repeatSoundBtn.onclick = () => {
-                console.log('🔁 User requested photography sound repetition');
-                // نمایشگر از طریق real-time صوت را تکرار می‌کند
-                // افکت بصری
-                repeatSoundBtn.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    repeatSoundBtn.style.transform = 'scale(1)';
-                }, 150);
-            };
-            
-            // ✅ دکمه عکس گرفته شد
-            const photoTakenBtn = document.createElement('button');
-            photoTakenBtn.className = 'popup-btn popup-photography-btn';
-            photoTakenBtn.textContent = 'عکس گرفته شد';
-            photoTakenBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('photo_taken'), 300);
-            };
-            
-            // ✅ دکمه بعدی
-            const skipBtn = document.createElement('button');
-            skipBtn.className = 'popup-btn popup-next-btn';
-            skipBtn.textContent = 'بعدی';
-            skipBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('skip'), 300);
-            };
-            
-            buttonsDiv.appendChild(repeatSoundBtn);
-            buttonsDiv.appendChild(photoTakenBtn);
-            buttonsDiv.appendChild(skipBtn);
-            
-            contentDiv.appendChild(closeBtn);
-            contentDiv.appendChild(messageDiv);
-            contentDiv.appendChild(buttonsDiv);
-            
-            popupText.appendChild(contentDiv);
-            
-            popup.style.display = 'flex';
+// --- تابع جدید برای نوتیفیکیشن عکاسی با قابلیت تکرار صوت ---
+function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
+    return new Promise((resolve) => {
+        const popup = document.getElementById('popup-notification');
+        const popupText = document.getElementById('popup-text');
+        
+        popupText.innerHTML = '';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'popup-with-buttons';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'popup-close-btn';
+        closeBtn.innerHTML = '×';
+        closeBtn.title = 'بستن';
+        closeBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('close'), 300);
+        };
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.innerHTML = htmlContent;
+        
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'popup-buttons';
+        
+        // ✅ دکمه تکرار صوت برای عکاسی
+        const repeatSoundBtn = document.createElement('button');
+        repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
+        repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
+        repeatSoundBtn.onclick = () => {
+            console.log('🔁 User requested photography sound repetition');
+            playPhotographyCallSound(photographyItem);
+            // افکت بصری
+            repeatSoundBtn.style.transform = 'scale(0.95)';
             setTimeout(() => {
-                popup.classList.add('show');
-            }, 10);
-            
-            function closePopup() {
-                popup.classList.remove('show');
-                setTimeout(() => {
-                    popup.style.display = 'none';
-                }, 300);
+                repeatSoundBtn.style.transform = 'scale(1)';
+            }, 150);
+        };
+        
+        // ✅ دکمه عکس گرفته شد
+        const photoTakenBtn = document.createElement('button');
+        photoTakenBtn.className = 'popup-btn popup-photography-btn';
+        photoTakenBtn.textContent = 'عکس گرفته شد';
+        photoTakenBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('photo_taken'), 300);
+        };
+        
+        // ✅ دکمه بعدی
+        const skipBtn = document.createElement('button');
+        skipBtn.className = 'popup-btn popup-next-btn';
+        skipBtn.textContent = 'بعدی';
+        skipBtn.onclick = () => {
+            closePopup();
+            setTimeout(() => resolve('skip'), 300);
+        };
+        
+        buttonsDiv.appendChild(repeatSoundBtn);
+        buttonsDiv.appendChild(photoTakenBtn);
+        buttonsDiv.appendChild(skipBtn);
+        
+        contentDiv.appendChild(closeBtn);
+        contentDiv.appendChild(messageDiv);
+        contentDiv.appendChild(buttonsDiv);
+        
+        popupText.appendChild(contentDiv);
+        
+        popup.style.display = 'flex';
+        setTimeout(() => {
+            popup.classList.add('show');
+        }, 10);
+        
+        // ✅ پخش خودکار صوت برای عکاسی
+        setTimeout(() => {
+            playPhotographyCallSound(photographyItem);
+        }, 500);
+        
+        function closePopup() {
+            popup.classList.remove('show');
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, 300);
+        }
+        
+        const backgroundCloseHandler = function(e) {
+            if (e.target === popup) {
+                closePopup();
+                setTimeout(() => resolve('background'), 300);
             }
-            
-            const backgroundCloseHandler = function(e) {
-                if (e.target === popup) {
-                    closePopup();
-                    setTimeout(() => resolve('background'), 300);
-                }
-            };
-            
-            popup.addEventListener('click', backgroundCloseHandler);
-            
-            const originalClosePopup = closePopup;
-            closePopup = function() {
-                popup.removeEventListener('click', backgroundCloseHandler);
-                originalClosePopup();
-            };
-        });
-    }
+        };
+        
+        popup.addEventListener('click', backgroundCloseHandler);
+        
+        const originalClosePopup = closePopup;
+        closePopup = function() {
+            popup.removeEventListener('click', backgroundCloseHandler);
+            originalClosePopup();
+        };
+    });
+}
+
 
     function showSendToPhotographyButton(ticket) {
         const existingButton = document.querySelector('.send-to-photography-btn');
@@ -2335,33 +2350,54 @@ async function callNextTicketWithOptions() {
         }, 30000);
     }
 
-    // --- تابع استخراج شماره باجه از نام ---
-    function extractCounterNumber(counterName) {
-        if (!counterName) return '1';
-        
-        // استخراج عدد از انتهای نام
-        const numbers = counterName.match(/\d+$/);
-        if (numbers) {
-            return numbers[0];
-        }
-        
-        // جستجوی کلمات عددی
-        const wordToNumber = {
-            'یک': '1', 'اول': '1', 'دو': '2', 'دوم': '2',
-            'سه': '3', 'سوم': '3', 'چهار': '4', 'چهارم': '4',
-            'پنج': '5', 'پنجم': '5', 'شش': '6', 'ششم': '6',
-            'هفت': '7', 'هفتم': '7', 'هشت': '8', 'هشتم': '8',
-            'نه': '9', 'نهم': '9', 'ده': '10', 'دهم': '10'
-        };
-        
-        for (const [word, num] of Object.entries(wordToNumber)) {
-            if (counterName.includes(word)) {
-                return num;
-            }
-        }
-        
-        return '1';
+    // --- تابع پخش صوت برای فراخوانی عکاسی ---
+function playPhotographyCallSound(photographyItem) {
+    if (!photographyItem) return;
+    
+    const ticketNumber = photographyItem.ticketNumber || '0001';
+    const counterName = photographyItem.originalCounterName || 'عکاسی';
+    const counterNumber = extractCounterNumber(counterName);
+    
+    console.log(`🎵 Playing photography sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    
+    playNumberSound(ticketNumber)
+        .then(() => delay(600))
+        .then(() => playAudioFile('sounds2/bajeh.mp3'))
+        .then(() => delay(400))
+        .then(() => playCounterSound(counterNumber))
+        .catch(error => {
+            console.error('Error playing photography sound:', error);
+        });
+}
+
+
+// --- تابع استخراج شماره باجه از نام ---
+function extractCounterNumber(counterName) {
+    if (!counterName) return '1';
+    
+    // استخراج عدد از انتهای نام
+    const numbers = counterName.match(/\d+$/);
+    if (numbers) {
+        return numbers[0];
     }
+    
+    // جستجوی کلمات عددی
+    const wordToNumber = {
+        'یک': '1', 'اول': '1', 'دو': '2', 'دوم': '2',
+        'سه': '3', 'سوم': '3', 'چهار': '4', 'چهارم': '4',
+        'پنج': '5', 'پنجم': '5', 'شش': '6', 'ششم': '6',
+        'هفت': '7', 'هفتم': '7', 'هشت': '8', 'هشتم': '8',
+        'نه': '9', 'نهم': '9', 'ده': '10', 'دهم': '10'
+    };
+    
+    for (const [word, num] of Object.entries(wordToNumber)) {
+        if (counterName.includes(word)) {
+            return num;
+        }
+    }
+    
+    return '1';
+}
 
     function updateUIForUserRole() {
         if (isPhotographyUser) {
@@ -2406,60 +2442,10 @@ async function callNextTicketWithOptions() {
     }
 
     // --- اضافه کردن کنترل‌های صدا به UI ---
-// --- اضافه کردن کنترل‌های صدا به UI ---
-function addSoundControlsToUI() {
-    const soundControlDiv = document.createElement('div');
-    soundControlDiv.className = 'sound-control';
-    soundControlDiv.style.cssText = `
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 10px;
-        justify-content: center;
-        flex-wrap: wrap;
-    `;
-    
-    // دکمه فعال/غیرفعال کردن صدا
-    const soundToggleBtn = document.createElement('button');
-    soundToggleBtn.className = 'sound-btn';
-    soundToggleBtn.innerHTML = '🔊';
-    soundToggleBtn.title = 'فعال/غیرفعال کردن صدا';
-    soundToggleBtn.onclick = () => {
-        soundManager.toggleSound(!soundManager.isAudioEnabled);
-        soundToggleBtn.innerHTML = soundManager.isAudioEnabled ? '🔊' : '🔇';
-        showPopupNotification(`<p>صدا ${soundManager.isAudioEnabled ? 'فعال' : 'غیرفعال'} شد</p>`);
-    };
-    
-    // دکمه تکرار صوت آخرین نوبت
-    const repeatSoundBtn = document.createElement('button');
-    repeatSoundBtn.className = 'sound-btn';
-    repeatSoundBtn.innerHTML = '🔁';
-    repeatSoundBtn.title = 'تکرار صوت آخرین نوبت';
-    repeatSoundBtn.onclick = () => {
-        soundManager.repeatLastAnnouncement();
-        showPopupNotification('<p>در حال تکرار صوت آخرین نوبت...</p>');
-    };
-    
-    // دکمه پاک کردن کش صوتی
-    const clearCacheBtn = document.createElement('button');
-    clearCacheBtn.className = 'sound-btn';
-    clearCacheBtn.innerHTML = '🧹';
-    clearCacheBtn.title = 'پاک کردن کش صوتی';
-    clearCacheBtn.onclick = () => {
-        // این تابع باید در display.js تعریف شود
-        if (window.displaySoundManager) {
-            window.displaySoundManager.clearCache();
-            showPopupNotification('<p>کش صوتی پاک شد</p>');
-        }
-    };
-    
-    soundControlDiv.appendChild(soundToggleBtn);
-    soundControlDiv.appendChild(repeatSoundBtn);
-    soundControlDiv.appendChild(clearCacheBtn);
-    
-    const header = document.querySelector('header');
-    header.appendChild(soundControlDiv);
-}
+    function addSoundControlsToUI() {
+        // ❌ حذف کنترل‌های صدا از script.js
+        // صدا فقط در display.js پخش می‌شود
+    }
 
     // --- Initialize App ---
     async function initializeApp() {
@@ -2483,9 +2469,6 @@ function addSoundControlsToUI() {
             updateUIForUserRole();
             
             setupPhotographyEventListeners();
-            
-            // ✅ اضافه کردن کنترل‌های صدا
-            addSoundControlsToUI();
             
             console.log('App initialized successfully');
             
