@@ -438,70 +438,89 @@ class SoundManager {
         }
     }
 
-    // --- تابع بهبود یافته برای بازگشت نوبت به باجه مبدا ---
-    async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
-        try {
-            console.log(`Returning ticket ${ticketId} to counter: ${originalCounterName}`);
-            
-            const originalTicket = await databases.getDocument(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                ticketId
-            );
+    // --- تابع جدید برای بررسی نوبت‌های در انتظار ---
+async function checkWaitingTickets(serviceIds) {
+    try {
+        const waitingTickets = await databases.listDocuments(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            [
+                Query.equal('status', 'در حال انتظار'),
+                Query.equal('service_id', serviceIds),
+                Query.limit(1)
+            ]
+        );
+        
+        return waitingTickets.documents.length > 0;
+    } catch (error) {
+        console.error('Error checking waiting tickets:', error);
+        return false;
+    }
+}
 
-            if (!originalTicket) {
-                console.error('Original ticket not found:', ticketId);
-                return false;
-            }
+// --- تابع بهبودیافته برای بازگشت نوبت به باجه مبدا ---
+async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
+    try {
+        console.log(`Returning ticket ${ticketId} to counter: ${originalCounterName}`);
+        
+        const originalTicket = await databases.getDocument(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            ticketId
+        );
 
-            // ایجاد نوبت جدید با اولویت بالا
-            const newTicketData = {
-                service_id: originalTicket.service_id,
-                specific_ticket: originalTicket.specific_ticket,
-                general_ticket: originalTicket.general_ticket,
-                first_name: originalTicket.first_name,
-                last_name: originalTicket.last_name,
-                national_id: originalTicket.national_id,
-                registered_by: originalTicket.registered_by,
-                registered_by_name: originalTicket.registered_by_name,
-                status: 'در حال انتظار',
-                ticket_type: 'returned_from_photography',
-                original_ticket_id: originalTicket.$id,
-                returned_from_photography: true,
-                original_counter_name: originalCounterName || 'عکاسی',
-                priority: 'high', // ✅ اولویت بالا
-                created_at: new Date().toISOString(),
-                // ✅ اضافه کردن فیلدهای مربوط به فراخوانی صوتی
-                called_by_counter_name: originalCounterName,
-                call_time: new Date().toISOString()
-            };
-
-            const returnedTicket = await databases.createDocument(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                ID.unique(),
-                newTicketData,
-                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
-            );
-
-            console.log('Ticket returned to counter with high priority:', returnedTicket);
-            
-            const service = services.find(s => s.$id === originalTicket.service_id);
-            const serviceName = service ? service.name : 'خدمت';
-            
-            showPopupNotification(`
-                <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
-                <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت بالا قرار گرفت و به زودی فراخوانی می‌شود.</p>
-            `);
-
-            return true;
-
-        } catch (error) {
-            console.error('Error returning ticket to counter:', error);
-            showPopupNotification('<p>خطا در بازگرداندن نوبت به باجه!</p>');
+        if (!originalTicket) {
+            console.error('Original ticket not found:', ticketId);
             return false;
         }
+
+        // ایجاد نوبت جدید با اولویت بالا و نوع مشخص
+        const newTicketData = {
+            service_id: originalTicket.service_id,
+            specific_ticket: originalTicket.specific_ticket,
+            general_ticket: originalTicket.general_ticket,
+            first_name: originalTicket.first_name,
+            last_name: originalTicket.last_name,
+            national_id: originalTicket.national_id,
+            registered_by: originalTicket.registered_by,
+            registered_by_name: originalTicket.registered_by_name,
+            status: 'در حال انتظار',
+            ticket_type: 'returned_from_photography', // ✅ نوع مشخص برای شناسایی
+            original_ticket_id: originalTicket.$id,
+            returned_from_photography: true,
+            original_counter_name: originalCounterName || 'عکاسی',
+            priority: 'high', // ✅ اولویت بالا
+            created_at: new Date().toISOString(),
+            called_by_counter_name: originalCounterName, // ✅ برای صوت فراخوانی
+            call_time: new Date().toISOString()
+        };
+
+        const returnedTicket = await databases.createDocument(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            ID.unique(),
+            newTicketData,
+            [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
+        );
+
+        console.log('Ticket returned to counter with high priority:', returnedTicket);
+        
+        const service = services.find(s => s.$id === originalTicket.service_id);
+        const serviceName = service ? service.name : 'خدمت';
+        
+        showPopupNotification(`
+            <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
+            <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت اول قرار گرفت و به زودی فراخوانی می‌شود.</p>
+        `);
+
+        return true;
+
+    } catch (error) {
+        console.error('Error returning ticket to counter:', error);
+        showPopupNotification('<p>خطا در بازگرداندن نوبت به باجه!</p>');
+        return false;
     }
+}
 
     // --- تابع رندر تاریخچه عکاسی ---
     function renderPhotographyHistory() {
@@ -932,13 +951,18 @@ class SoundManager {
         }
     }
 
-    // --- تابع بهبودیافته برای فراخوانی نوبت ---
-    async function callNextTicketWithOptions() {
-        // ✅ جلوگیری از فراخوانی همزمان
-        if (isCallingInProgress) {
-            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-            return;
-        }
+
+// --- تابع بهبودیافته برای فراخوانی نوبت ---
+async function callNextTicketWithOptions() {
+    if (isCallingInProgress) {
+        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+        return;
+    }
+
+    isCallingInProgress = true;
+
+    try {
+        const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
 
         const selections = getServiceSelections();
         const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
@@ -951,7 +975,7 @@ class SoundManager {
         // ✅ اولویت اول: نوبت‌های بازگشته از عکاسی با اولویت بالا
         const highPriorityReturnedTickets = tickets.filter(t => 
             t.status === 'در حال انتظار' && 
-            t.returned_from_photography === true &&
+            (t.returned_from_photography === true || t.ticket_type === 'returned_from_photography') &&
             t.priority === 'high' &&
             selectedServiceIds.includes(t.service_id)
         ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -965,7 +989,7 @@ class SoundManager {
         // ✅ اولویت دوم: نوبت‌های بازگشته از عکاسی عادی
         const returnedTickets = tickets.filter(t => 
             t.status === 'در حال انتظار' && 
-            t.returned_from_photography === true &&
+            (t.returned_from_photography === true || t.ticket_type === 'returned_from_photography') &&
             selectedServiceIds.includes(t.service_id)
         ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
@@ -989,7 +1013,11 @@ class SoundManager {
         // ✅ اولویت چهارم: فراخوانی نوبت‌های عادی
         console.log('📋 Calling regular ticket');
         await callNextRegularTicket();
+
+    } finally {
+        isCallingInProgress = false;
     }
+}
 
     // تابع جدید برای بررسی و تنظیم شماره باجه
     async function checkAndSetCounterName() {
@@ -2378,44 +2406,60 @@ class SoundManager {
     }
 
     // --- اضافه کردن کنترل‌های صدا به UI ---
-    function addSoundControlsToUI() {
-        // ✅ اضافه کردن کنترل‌های صدا به هدر
-        const soundControlDiv = document.createElement('div');
-        soundControlDiv.className = 'sound-control';
-        soundControlDiv.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-            justify-content: center;
-        `;
-        
-        // دکمه فعال/غیرفعال کردن صدا
-        const soundToggleBtn = document.createElement('button');
-        soundToggleBtn.className = 'sound-btn';
-        soundToggleBtn.innerHTML = '🔊';
-        soundToggleBtn.title = 'فعال/غیرفعال کردن صدا';
-        soundToggleBtn.onclick = () => {
-            soundManager.toggleSound(!soundManager.isAudioEnabled);
-            soundToggleBtn.innerHTML = soundManager.isAudioEnabled ? '🔊' : '🔇';
-        };
-        
-        // دکمه تکرار صوت آخرین نوبت
-        const repeatSoundBtn = document.createElement('button');
-        repeatSoundBtn.className = 'sound-btn';
-        repeatSoundBtn.innerHTML = '🔁';
-        repeatSoundBtn.title = 'تکرار صوت آخرین نوبت';
-        repeatSoundBtn.onclick = () => {
-            soundManager.repeatLastAnnouncement();
-        };
-        
-        soundControlDiv.appendChild(soundToggleBtn);
-        soundControlDiv.appendChild(repeatSoundBtn);
-        
-        // اضافه کردن به هدر
-        const header = document.querySelector('header');
-        header.appendChild(soundControlDiv);
-    }
+// --- اضافه کردن کنترل‌های صدا به UI ---
+function addSoundControlsToUI() {
+    const soundControlDiv = document.createElement('div');
+    soundControlDiv.className = 'sound-control';
+    soundControlDiv.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+    `;
+    
+    // دکمه فعال/غیرفعال کردن صدا
+    const soundToggleBtn = document.createElement('button');
+    soundToggleBtn.className = 'sound-btn';
+    soundToggleBtn.innerHTML = '🔊';
+    soundToggleBtn.title = 'فعال/غیرفعال کردن صدا';
+    soundToggleBtn.onclick = () => {
+        soundManager.toggleSound(!soundManager.isAudioEnabled);
+        soundToggleBtn.innerHTML = soundManager.isAudioEnabled ? '🔊' : '🔇';
+        showPopupNotification(`<p>صدا ${soundManager.isAudioEnabled ? 'فعال' : 'غیرفعال'} شد</p>`);
+    };
+    
+    // دکمه تکرار صوت آخرین نوبت
+    const repeatSoundBtn = document.createElement('button');
+    repeatSoundBtn.className = 'sound-btn';
+    repeatSoundBtn.innerHTML = '🔁';
+    repeatSoundBtn.title = 'تکرار صوت آخرین نوبت';
+    repeatSoundBtn.onclick = () => {
+        soundManager.repeatLastAnnouncement();
+        showPopupNotification('<p>در حال تکرار صوت آخرین نوبت...</p>');
+    };
+    
+    // دکمه پاک کردن کش صوتی
+    const clearCacheBtn = document.createElement('button');
+    clearCacheBtn.className = 'sound-btn';
+    clearCacheBtn.innerHTML = '🧹';
+    clearCacheBtn.title = 'پاک کردن کش صوتی';
+    clearCacheBtn.onclick = () => {
+        // این تابع باید در display.js تعریف شود
+        if (window.displaySoundManager) {
+            window.displaySoundManager.clearCache();
+            showPopupNotification('<p>کش صوتی پاک شد</p>');
+        }
+    };
+    
+    soundControlDiv.appendChild(soundToggleBtn);
+    soundControlDiv.appendChild(repeatSoundBtn);
+    soundControlDiv.appendChild(clearCacheBtn);
+    
+    const header = document.querySelector('header');
+    header.appendChild(soundControlDiv);
+}
 
     // --- Initialize App ---
     async function initializeApp() {
