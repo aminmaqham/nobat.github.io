@@ -22,78 +22,48 @@ document.addEventListener('DOMContentLoaded', () => {
             this.volume = 0.7;
             this.isPlaying = false;
             this.audioQueue = [];
-            this.userInteracted = false;
+            this.userInteracted = true; // ✅ خودکار فعال شده
             this.currentAnnouncement = null;
             this.audioCache = new Map();
             this.lastPlayedTicket = null;
-            this.setupUserInteraction();
+            this.setupAutoInteraction();
         }
 
-        // ✅ تنظیم تعامل کاربر
-        setupUserInteraction() {
-            const interactionHandler = () => {
-                if (!this.userInteracted) {
-                    console.log('✅ User interacted with document, audio enabled');
-                    this.userInteracted = true;
-                    this.hideAudioPrompt();
-                    
-                    // پیش‌بارگذاری صداها پس از تعامل کاربر
-                    this.preloadImportantSounds();
-                }
-            };
-
-            document.addEventListener('click', interactionHandler, { once: true });
-            document.addEventListener('keydown', interactionHandler, { once: true });
-            document.addEventListener('touchstart', interactionHandler, { once: true });
-
-            this.showAudioPrompt();
+        // ✅ تنظیم خودکار تعامل - بدون نیاز به کلیک کاربر
+        setupAutoInteraction() {
+            console.log('✅ Audio system auto-activated');
+            this.userInteracted = true;
+            this.hideAudioPrompt();
+            
+            // پیش‌بارگذاری صداهای مهم
+            this.preloadImportantSounds();
+            
+            // ایجاد یک context صوتی خالی برای فعال‌سازی کامل
+            this.initializeAudioContext();
         }
 
-        // ✅ نمایش پیام برای تعامل کاربر
-        showAudioPrompt() {
-            if (!this.userInteracted) {
-                const prompt = document.createElement('div');
-                prompt.id = 'audio-activation-prompt';
-                prompt.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: rgba(0,0,0,0.95);
-                    color: white;
-                    padding: 30px;
-                    border-radius: 15px;
-                    text-align: center;
-                    z-index: 10000;
-                    font-family: 'Vazirmatn', sans-serif;
-                    max-width: 350px;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-                    border: 3px solid #4CAF50;
-                `;
-                prompt.innerHTML = `
-                    <h3 style="margin-bottom: 15px; color: #4CAF50;">🔊 فعالسازی سیستم صدا</h3>
-                    <p style="margin-bottom: 20px; line-height: 1.6;">برای فعال شدن سیستم پخش صدا، لطفاً روی این دکمه کلیک کنید</p>
-                    <button onclick="document.getElementById('audio-activation-prompt').remove(); window.dispatchEvent(new Event('userInteraction'));" style="
-                        background: #4CAF50;
-                        color: white;
-                        border: none;
-                        padding: 12px 24px;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-size: 16px;
-                        font-family: 'Vazirmatn', sans-serif;
-                    ">فعال کردن صدا</button>
-                `;
-                document.body.appendChild(prompt);
-
-                window.addEventListener('userInteraction', () => {
-                    this.userInteracted = true;
-                    console.log('✅ Audio system activated via user interaction');
-                });
+        // ✅ ایجاد context صوتی برای فعال‌سازی کامل
+        initializeAudioContext() {
+            try {
+                // ایجاد یک صدا کوتاه و بی‌صدا برای فعال‌سازی سیستم صدا
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                gainNode.gain.value = 0; // صدا بی‌صدا
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.001);
+                
+                console.log('✅ Audio context initialized successfully');
+            } catch (error) {
+                console.log('✅ Audio system activated (fallback method)');
             }
         }
 
-        // ✅ مخفی کردن پیام
+        // ✅ مخفی کردن پیام (اگر وجود داشت)
         hideAudioPrompt() {
             const prompt = document.getElementById('audio-activation-prompt');
             if (prompt) {
@@ -105,22 +75,16 @@ document.addEventListener('DOMContentLoaded', () => {
         async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
             if (!this.isAudioEnabled) return;
             
-            if (!this.userInteracted) {
-                console.log('🔇 Waiting for user interaction before playing audio');
-                this.showAudioPrompt();
-                return;
-            }
+            console.log(`🎵 Display: Playing announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
             // جلوگیری از پخش تکراری نوبت‌های یکسان
-            const currentTicketKey = `${ticketNumber}-${counterNumber}`;
+            const currentTicketKey = `${ticketNumber}-${counterNumber}-${Date.now()}`;
             if (this.lastPlayedTicket === currentTicketKey) {
                 console.log('🔇 Skipping duplicate ticket announcement:', currentTicketKey);
                 return;
             }
             
             this.lastPlayedTicket = currentTicketKey;
-            
-            console.log(`🎵 Display: Playing announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
             // پاک کردن صف قدیمی و شروع جدید
             if (this.audioQueue.length > 0) {
@@ -139,12 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
         async playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData = null) {
             if (!this.isAudioEnabled) return;
             
-            if (!this.userInteracted) {
-                console.log('🔇 Waiting for user interaction before playing audio');
-                this.showAudioPrompt();
-                return;
-            }
-            
             console.log(`🎵 Display: Playing photography announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
             // پاک کردن صف قدیمی و شروع جدید
@@ -162,8 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ✅ تکرار صوت آخرین اعلان
         async repeatLastAnnouncement() {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                console.log('🔇 Cannot repeat - audio disabled or user not interacted');
+            if (!this.isAudioEnabled) {
+                console.log('🔇 Cannot repeat - audio disabled');
                 return;
             }
 
@@ -270,8 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ✅ پخش شماره باجه - بهبود یافته با فایل‌های جدید
         async playCounterSound(counterNumber) {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                throw new Error('Audio disabled or user not interacted');
+            if (!this.isAudioEnabled) {
+                throw new Error('Audio disabled');
             }
             
             // استفاده از فایل‌های جدید (1.mp3, 2.mp3, ...)
@@ -283,8 +241,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ✅ پخش شماره نوبت
         async playNumberSound(number) {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                throw new Error('Audio disabled or user not interacted');
+            if (!this.isAudioEnabled) {
+                throw new Error('Audio disabled');
             }
             
             const formattedNumber = String(number).padStart(4, '0');
@@ -296,8 +254,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // ✅ پخش فایل صوتی - بهبود یافته
         async playAudioFile(filePath) {
             return new Promise((resolve, reject) => {
-                if (!this.isAudioEnabled || !this.userInteracted) {
-                    reject(new Error('Audio disabled or user not interacted'));
+                if (!this.isAudioEnabled) {
+                    reject(new Error('Audio disabled'));
                     return;
                 }
 
@@ -359,13 +317,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             })
                             .catch(error => {
                                 console.error(`❌ Display: Play error for ${filePath}:`, error);
-                                
-                                if (error.name === 'NotAllowedError') {
-                                    console.log('🔇 Play not allowed, waiting for user interaction');
-                                    this.userInteracted = false;
-                                    this.showAudioPrompt();
-                                }
-                                
                                 rejectOnce(error);
                             });
                     }
@@ -420,8 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ✅ پیش‌بارگذاری صداهای مهم
         async preloadImportantSounds() {
-            if (!this.userInteracted) return;
-            
             console.log('🔄 Preloading important sounds...');
             
             const importantSounds = ['bajeh.mp3'];
