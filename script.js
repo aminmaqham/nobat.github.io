@@ -721,15 +721,39 @@ function playNumberSound(number) {
 function playCounterSound(counterNumber) {
     return Promise.resolve();
 }
+
+// --- توابع پخش صوت (غیرفعال در صفحه اصلی) ---
+function playCallSound(ticket) {
+    console.log('🔇 Sound playing is handled by display page');
+    return Promise.resolve();
+}
+
+function playPhotographyCallSound(photographyItem) {
+    console.log('🔇 Photography sound playing is handled by display page');
+    return Promise.resolve();
+}
+
+function playNumberSound(number) {
+    console.log('🔇 Number sound playing is handled by display page');
+    return Promise.resolve();
+}
+
+function playCounterSound(counterNumber) {
+    console.log('🔇 Counter sound playing is handled by display page');
+    return Promise.resolve();
+}
+
+function playAudioFile(filePath) {
+    console.log('🔇 Audio file playing is handled by display page');
+    return Promise.resolve();
+}
+
 // --- پیدا کردن فایل صوتی مناسب برای شماره باجه ---
 function getCounterSoundFile(counterNumber) {
     const numberMap = {
         '1': 'one.mp3', '2': 'two.mp3', '3': 'three.mp3', '4': 'four.mp3',
         '5': 'five.mp3', '6': 'six.mp3', '7': 'seven.mp3', '8': 'eight.mp3',
-        '9': 'nine.mp3', '10': 'ten.mp3', '11': 'eleven.mp3', '12': 'twelve.mp3',
-        '13': 'thirteen.mp3', '14': 'fourteen.mp3', '15': 'fifteen.mp3',
-        '16': 'sixteen.mp3', '17': 'seventeen.mp3', '18': 'eighteen.mp3',
-        '19': 'nineteen.mp3', '20': 'twenty.mp3'
+        '9': 'nine.mp3', '10': 'ten.mp3'
     };
     
     return numberMap[counterNumber] || null;
