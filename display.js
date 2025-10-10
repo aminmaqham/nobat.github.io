@@ -20,9 +20,67 @@ document.addEventListener('DOMContentLoaded', () => {
         constructor() {
             this.isAudioEnabled = true;
             this.volume = 0.7;
-            this.audioContext = null;
             this.isPlaying = false;
             this.audioQueue = [];
+            this.userInteracted = false;
+            this.setupUserInteraction();
+        }
+
+        // تنظیم تعامل کاربر
+        setupUserInteraction() {
+            const interactionEvents = ['click', 'touchstart', 'keydown', 'mousedown'];
+            
+            interactionEvents.forEach(event => {
+                document.addEventListener(event, () => {
+                    if (!this.userInteracted) {
+                        console.log('✅ User interaction detected - audio enabled');
+                        this.userInteracted = true;
+                    }
+                }, { once: true });
+            });
+
+            // نمایش پیام برای کاربر
+            this.showAudioPrompt();
+        }
+
+        // نمایش پیام برای تعامل کاربر
+        showAudioPrompt() {
+            const prompt = document.createElement('div');
+            prompt.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: #4CAF50;
+                color: white;
+                padding: 20px 30px;
+                border-radius: 10px;
+                z-index: 10000;
+                font-family: 'Vazirmatn', sans-serif;
+                text-align: center;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                cursor: pointer;
+            `;
+            prompt.innerHTML = `
+                <h3>🔊 فعال‌سازی صدا</h3>
+                <p>برای فعال‌سازی سیستم صوتی، روی این پیام کلیک کنید</p>
+                <small>صفحه را لمس یا کلیک کنید</small>
+            `;
+            
+            prompt.addEventListener('click', () => {
+                this.userInteracted = true;
+                document.body.removeChild(prompt);
+                console.log('✅ Audio system activated by user');
+            });
+
+            document.body.appendChild(prompt);
+
+            // حذف خودکار پس از 10 ثانیه
+            setTimeout(() => {
+                if (document.body.contains(prompt)) {
+                    document.body.removeChild(prompt);
+                }
+            }, 10000);
         }
 
         // تبدیل شماره به فرمت 4 رقمی برای نام فایل
@@ -32,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // پخش صدا برای یک عدد خاص
         async playNumberSound(number) {
-            if (!this.isAudioEnabled) return;
+            if (!this.isAudioEnabled || !this.userInteracted) return;
             
             const fileName = this.formatNumberForFile(number);
             const audioPath = `sounds/${fileName}.mp3`;
@@ -42,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // پخش صدا برای باجه
         async playCounterSound(counterNumber) {
-            if (!this.isAudioEnabled) return;
+            if (!this.isAudioEnabled || !this.userInteracted) return;
             
             const counterFile = this.getCounterSoundFile(counterNumber);
             if (counterFile) {
@@ -81,6 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // پخش اعلان کامل برای فراخوانی نوبت
         async playCallAnnouncement(ticketNumber, counterNumber) {
             if (!this.isAudioEnabled) return;
+            
+            if (!this.userInteracted) {
+                console.log('🔇 Audio disabled - waiting for user interaction');
+                return;
+            }
             
             console.log(`🎵 Playing announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
@@ -144,7 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // پخش یک فایل صوتی با مدیریت بهتر
         async playAudioFile(filePath) {
             return new Promise((resolve, reject) => {
-                if (!this.isAudioEnabled) {
+                if (!this.isAudioEnabled || !this.userInteracted) {
+                    console.log('🔇 Audio disabled or no user interaction');
                     resolve();
                     return;
                 }
@@ -163,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resolveOnce = () => {
                     if (!hasResolved) {
                         hasResolved = true;
+                        console.log(`✅ Audio completed: ${filePath}`);
                         resolve();
                     }
                 };
@@ -170,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rejectOnce = (error) => {
                     if (!hasResolved) {
                         hasResolved = true;
-                        console.warn(`Audio error for ${filePath}:`, error);
+                        console.warn(`❌ Audio error for ${filePath}:`, error);
                         resolve(); // حتی با خطا ادامه بده
                     }
                 };
@@ -186,12 +251,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                 audio.addEventListener('ended', resolveOnce, { once: true });
                                 audio.addEventListener('error', rejectOnce, { once: true });
                             })
-                            .catch(rejectOnce);
+                            .catch(error => {
+                                if (error.name === 'NotAllowedError') {
+                                    console.log('🔇 Audio blocked - waiting for user interaction');
+                                    this.userInteracted = false;
+                                    this.showAudioPrompt();
+                                }
+                                rejectOnce(error);
+                            });
                     } else {
                         // Fallback for older browsers
                         audio.addEventListener('ended', resolveOnce, { once: true });
                         audio.addEventListener('error', rejectOnce, { once: true });
-                        audio.play();
+                        audio.play().catch(rejectOnce);
                     }
                 });
 
@@ -414,34 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Text-to-Speech Function ---
-    function speak(text) {
-        if ('speechSynthesis' in window) {
-            // توقف صحبت‌های قبلی
-            window.speechSynthesis.cancel();
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'fa-IR';
-            utterance.rate = 0.8;
-            utterance.pitch = 1;
-            utterance.volume = 0.7;
-            
-            window.speechSynthesis.speak(utterance);
-        }
-    }
-
     // --- Initial Load ---
     function initializeDisplay() {
         console.log('🚀 Initializing display system...');
-        
-        // تست اولیه صدا
-        setTimeout(() => {
-            console.log('🔊 Testing audio system...');
-            // تست صدا با یک شماره نمونه
-            displaySoundManager.playAudioFile('sounds2/bajeh.mp3')
-                .then(() => console.log('✅ Audio test passed'))
-                .catch(err => console.warn('⚠️ Audio test warning:', err));
-        }, 1000);
         
         updateDisplay();
         setupRealtime();
