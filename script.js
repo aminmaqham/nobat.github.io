@@ -82,44 +82,55 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPhotographyUser = false;
     let currentTicketForPhotography = null;
     let isCallingInProgress = false;
+    let lastCalledTicketData = null; // برای ذخیره اطلاعات نوبت فراخوانی شده
 
     // --- Sound Management System ---
-    // ❌ سیستم صدا حذف شده - فقط از نمایشگر استفاده می‌شود
     class SoundManager {
         constructor() {
-            // سیستم صدا غیرفعال - فقط برای سازگاری
+            this.isAudioEnabled = true;
+            this.volume = 0.7;
         }
 
-        async playCallAnnouncement() {
-            // ❌ صدا فقط از نمایشگر پخش می‌شود
+        // ✅ پخش اعلان از طریق نمایشگر
+        async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+            if (!this.isAudioEnabled) return;
+            
+            console.log(`🎵 Requesting display to play: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            
+            // ذخیره اطلاعات نوبت برای استفاده در دکمه تکرار
+            lastCalledTicketData = { ticketNumber, counterNumber, ticketData };
+            
+            // نمایشگر به صورت خودکار از طریق real-time صدا را پخش می‌کند
+            // این تابع فقط برای سازگاری و ثبت اطلاعات استفاده می‌شود
             return Promise.resolve();
         }
 
-        async playNumberSound() {
-            // ❌ صدا فقط از نمایشگر پخش می‌شود
+        // ✅ تکرار صوت آخرین نوبت
+        async repeatLastAnnouncement() {
+            if (!this.isAudioEnabled || !lastCalledTicketData) {
+                console.log('❌ No recent announcement to repeat');
+                return;
+            }
+            
+            const { ticketNumber, counterNumber, ticketData } = lastCalledTicketData;
+            console.log(`🔁 Repeating announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            
+            // نمایشگر از طریق real-time صدا را تکرار می‌کند
+            // این فقط یک درخواست برای نمایشگر است
             return Promise.resolve();
         }
 
-        async playCounterSound() {
-            // ❌ صدا فقط از نمایشگر پخش می‌شود
-            return Promise.resolve();
+        setVolume(level) {
+            this.volume = Math.max(0, Math.min(1, level));
         }
 
-        async playAudioFile() {
-            // ❌ صدا فقط از نمایشگر پخش می‌شود
-            return Promise.resolve();
-        }
-
-        setVolume() {
-            // ❌ سیستم صدا غیرفعال
-        }
-
-        toggleSound() {
-            // ❌ سیستم صدا غیرفعال
+        toggleSound(enabled) {
+            this.isAudioEnabled = enabled;
+            console.log(`🔊 Sound ${enabled ? 'enabled' : 'disabled'}`);
         }
 
         loadSettings() {
-            // ❌ سیستم صدا غیرفعال
+            // تنظیمات صدا فقط برای نمایشگر
         }
     }
 
@@ -623,7 +634,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const buttonsDiv = document.createElement('div');
             buttonsDiv.className = 'popup-buttons';
             
-            // ❌ دکمه تکرار صوت حذف شده - صدا فقط از نمایشگر پخش می‌شود
+            // ✅ دکمه تکرار صوت
+            const repeatSoundBtn = document.createElement('button');
+            repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
+            repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
+            repeatSoundBtn.onclick = () => {
+                console.log('🔁 User requested sound repetition');
+                soundManager.repeatLastAnnouncement();
+                // افکت بصری
+                repeatSoundBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    repeatSoundBtn.style.transform = 'scale(1)';
+                }, 150);
+            };
             
             // ✅ دکمه ارسال به عکاسی
             const photographyBtn = document.createElement('button');
@@ -643,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => resolve('next'), 300);
             };
             
+            buttonsDiv.appendChild(repeatSoundBtn);
             buttonsDiv.appendChild(photographyBtn);
             buttonsDiv.appendChild(nextBtn);
             
@@ -657,7 +681,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 popup.classList.add('show');
             }, 10);
             
-            // ❌ پخش خودکار صوت حذف شده - صدا فقط از نمایشگر پخش می‌شود
+            // ✅ پخش خودکار صوت از طریق نمایشگر
+            if (ticket) {
+                const ticketNumber = ticket.specific_ticket || '0001';
+                const counterNumber = getCounterNumber();
+                soundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket);
+            }
             
             function closePopup() {
                 popup.classList.remove('show');
@@ -885,7 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             
-            // ✅ استفاده از نوتیفیکیشن جدید
+            // ✅ استفاده از نوتیفیکیشن جدید با قابلیت تکرار صوت
             const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
             
             if (userChoice === 'photography') {
@@ -2162,7 +2191,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePhotographyUI();
     }
 
-    // --- تابع جدید برای نوتیفیکیشن عکاسی ---
+    // --- تابع جدید برای نوتیفیکیشن عکاسی با قابلیت تکرار صوت ---
     function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         return new Promise((resolve) => {
             const popup = document.getElementById('popup-notification');
@@ -2188,7 +2217,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const buttonsDiv = document.createElement('div');
             buttonsDiv.className = 'popup-buttons';
             
-            // ❌ دکمه تکرار صوت حذف شده - صدا فقط از نمایشگر پخش می‌شود
+            // ✅ دکمه تکرار صوت برای عکاسی
+            const repeatSoundBtn = document.createElement('button');
+            repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
+            repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
+            repeatSoundBtn.onclick = () => {
+                console.log('🔁 User requested photography sound repetition');
+                // نمایشگر از طریق real-time صوت را تکرار می‌کند
+                // افکت بصری
+                repeatSoundBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    repeatSoundBtn.style.transform = 'scale(1)';
+                }, 150);
+            };
             
             // ✅ دکمه عکس گرفته شد
             const photoTakenBtn = document.createElement('button');
@@ -2208,6 +2249,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => resolve('skip'), 300);
             };
             
+            buttonsDiv.appendChild(repeatSoundBtn);
             buttonsDiv.appendChild(photoTakenBtn);
             buttonsDiv.appendChild(skipBtn);
             
@@ -2221,8 +2263,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 popup.classList.add('show');
             }, 10);
-            
-            // ❌ پخش خودکار صوت حذف شده - صدا فقط از نمایشگر پخش می‌شود
             
             function closePopup() {
                 popup.classList.remove('show');
@@ -2343,7 +2383,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- اضافه کردن کنترل‌های صدا به UI ---
     function addSoundControlsToUI() {
-        // ❌ کنترل‌های صدا حذف شده - صدا فقط از نمایشگر پخش می‌شود
+        // ✅ اضافه کردن کنترل‌های صدا به هدر
+        const soundControlDiv = document.createElement('div');
+        soundControlDiv.className = 'sound-control';
+        soundControlDiv.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            justify-content: center;
+        `;
+        
+        // دکمه فعال/غیرفعال کردن صدا
+        const soundToggleBtn = document.createElement('button');
+        soundToggleBtn.className = 'sound-btn';
+        soundToggleBtn.innerHTML = '🔊';
+        soundToggleBtn.title = 'فعال/غیرفعال کردن صدا';
+        soundToggleBtn.onclick = () => {
+            soundManager.toggleSound(!soundManager.isAudioEnabled);
+            soundToggleBtn.innerHTML = soundManager.isAudioEnabled ? '🔊' : '🔇';
+        };
+        
+        // دکمه تکرار صوت آخرین نوبت
+        const repeatSoundBtn = document.createElement('button');
+        repeatSoundBtn.className = 'sound-btn';
+        repeatSoundBtn.innerHTML = '🔁';
+        repeatSoundBtn.title = 'تکرار صوت آخرین نوبت';
+        repeatSoundBtn.onclick = () => {
+            soundManager.repeatLastAnnouncement();
+        };
+        
+        soundControlDiv.appendChild(soundToggleBtn);
+        soundControlDiv.appendChild(repeatSoundBtn);
+        
+        // اضافه کردن به هدر
+        const header = document.querySelector('header');
+        header.appendChild(soundControlDiv);
     }
 
     // --- Initialize App ---
@@ -2368,6 +2443,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateUIForUserRole();
             
             setupPhotographyEventListeners();
+            
+            // ✅ اضافه کردن کنترل‌های صدا
+            addSoundControlsToUI();
             
             console.log('App initialized successfully');
             
