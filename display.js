@@ -20,9 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
         constructor() {
             this.isAudioEnabled = true;
             this.volume = 0.7;
-            this.audioQueue = [];
+            this.audioContext = null;
             this.isPlaying = false;
-            this.currentAudio = null;
+            this.audioQueue = [];
         }
 
         // تبدیل شماره به فرمت 4 رقمی برای نام فایل
@@ -78,91 +78,70 @@ document.addEventListener('DOMContentLoaded', () => {
             return numberMap[counterNumber] || null;
         }
 
-        // ✅ پخش اعلان کامل با صف‌بندی و تاخیر
+        // پخش اعلان کامل برای فراخوانی نوبت
         async playCallAnnouncement(ticketNumber, counterNumber) {
             if (!this.isAudioEnabled) return;
             
-            console.log(`Adding to audio queue: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            console.log(`🎵 Playing announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
             
-            // اضافه کردن به صف
-            this.audioQueue.push({
-                ticketNumber,
-                counterNumber,
-                timestamp: Date.now()
-            });
-
-            // اگر در حال پخش هستیم، صبر می‌کنیم
+            // اضافه به صف برای جلوگیری از همپوشانی
+            this.audioQueue.push({ ticketNumber, counterNumber });
+            
             if (this.isPlaying) {
-                console.log('Audio is already playing, added to queue');
+                console.log('Audio already playing, added to queue');
                 return;
             }
-
-            // پخش صداها از صف
-            await this.processAudioQueue();
+            
+            await this.processQueue();
         }
 
-        // ✅ پردازش صف صداها
-        async processAudioQueue() {
+        // پردازش صف صداها
+        async processQueue() {
             if (this.isPlaying || this.audioQueue.length === 0) return;
-
+            
             this.isPlaying = true;
-            console.log(`Processing audio queue, ${this.audioQueue.length} items`);
-
+            
             while (this.audioQueue.length > 0) {
-                const audioItem = this.audioQueue[0];
+                const { ticketNumber, counterNumber } = this.audioQueue[0];
                 
                 try {
-                    console.log(`Playing announcement for ticket ${audioItem.ticketNumber}`);
-                    await this.playSingleAnnouncement(audioItem.ticketNumber, audioItem.counterNumber);
-                    
-                    // تأثیر بین اعلان‌های مختلف
-                    await this.delay(2000);
-                    
+                    await this.playSingleAnnouncement(ticketNumber, counterNumber);
+                    await this.delay(1000); // تأثیر بین اعلان‌ها
                 } catch (error) {
-                    console.error('Error playing audio announcement:', error);
+                    console.error('Error in announcement:', error);
                 }
                 
-                // حذف آیتم پخش شده از صف
                 this.audioQueue.shift();
             }
-
+            
             this.isPlaying = false;
-            console.log('Audio queue processing completed');
         }
 
-        // ✅ پخش یک اعلان کامل
+        // پخش یک اعلان کامل
         async playSingleAnnouncement(ticketNumber, counterNumber) {
             try {
-                console.log(`Starting single announcement: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-                
                 // پخش شماره نوبت
-                console.log(`Playing ticket number: ${ticketNumber}`);
+                console.log(`🔢 Playing ticket number: ${ticketNumber}`);
                 await this.playNumberSound(ticketNumber);
                 
-                await this.delay(800); // ✅ تأثیر قبل از "به باجه"
+                await this.delay(500); // تأثیر قبل از "به باجه"
                 
                 // پخش "به باجه"
-                console.log('Playing "به باجه"');
+                console.log('🏢 Playing "به باجه"');
                 await this.playAudioFile('sounds2/bajeh.mp3');
                 
-                await this.delay(500); // ✅ تأثیر قبل از شماره باجه
+                await this.delay(300); // تأثیر قبل از شماره باجه
                 
                 // پخش شماره باجه
-                console.log(`Playing counter number: ${counterNumber}`);
-                const counterFile = this.getCounterSoundFile(counterNumber);
-                if (counterFile) {
-                    await this.playAudioFile(`sounds2/${counterFile}`);
-                }
-                
-                console.log('Single announcement completed successfully');
+                console.log(`🔢 Playing counter number: ${counterNumber}`);
+                await this.playCounterSound(counterNumber);
                 
             } catch (error) {
-                console.error('Error in single call announcement:', error);
-                throw error;
+                console.error('Error in single announcement:', error);
             }
         }
 
-        // ✅ پخش یک فایل صوتی با مدیریت بهتر
+        // پخش یک فایل صوتی با مدیریت بهتر
         async playAudioFile(filePath) {
             return new Promise((resolve, reject) => {
                 if (!this.isAudioEnabled) {
@@ -170,90 +149,79 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                console.log(`Attempting to play audio: ${filePath}`);
-
-                // توقف صداهای قبلی
-                if (this.currentAudio) {
-                    this.currentAudio.pause();
-                    this.currentAudio = null;
-                }
+                console.log(`🔊 Loading audio: ${filePath}`);
 
                 const audio = new Audio(filePath);
-                this.currentAudio = audio;
-                
                 audio.volume = this.volume;
                 audio.preload = 'auto';
+                
+                // برای حل مشکل CORS
+                audio.crossOrigin = 'anonymous';
 
-                let resolved = false;
+                let hasResolved = false;
 
-                const onEnded = () => {
-                    if (!resolved) {
-                        resolved = true;
-                        console.log(`Audio ended normally: ${filePath}`);
-                        this.currentAudio = null;
+                const resolveOnce = () => {
+                    if (!hasResolved) {
+                        hasResolved = true;
                         resolve();
                     }
                 };
 
-                const onError = (error) => {
-                    if (!resolved) {
-                        resolved = true;
-                        console.warn(`Audio file error: ${filePath}`, error);
-                        this.currentAudio = null;
-                        resolve(); // resolve instead of reject to continue queue
+                const rejectOnce = (error) => {
+                    if (!hasResolved) {
+                        hasResolved = true;
+                        console.warn(`Audio error for ${filePath}:`, error);
+                        resolve(); // حتی با خطا ادامه بده
                     }
                 };
 
-                const onCanPlayThrough = () => {
-                    console.log(`Audio can play through: ${filePath}`);
+                audio.addEventListener('canplaythrough', () => {
+                    console.log(`✅ Audio ready: ${filePath}`);
                     const playPromise = audio.play();
                     
                     if (playPromise !== undefined) {
                         playPromise
                             .then(() => {
-                                console.log(`Audio playing: ${filePath}`);
-                                audio.addEventListener('ended', onEnded);
-                                audio.addEventListener('error', onError);
+                                console.log(`🎵 Audio playing: ${filePath}`);
+                                audio.addEventListener('ended', resolveOnce, { once: true });
+                                audio.addEventListener('error', rejectOnce, { once: true });
                             })
-                            .catch(error => {
-                                console.warn(`Audio play failed: ${filePath}`, error);
-                                onError(error);
-                            });
+                            .catch(rejectOnce);
+                    } else {
+                        // Fallback for older browsers
+                        audio.addEventListener('ended', resolveOnce, { once: true });
+                        audio.addEventListener('error', rejectOnce, { once: true });
+                        audio.play();
                     }
-                };
+                });
 
-                audio.addEventListener('canplaythrough', onCanPlayThrough);
-                audio.addEventListener('error', onError);
+                audio.addEventListener('error', (e) => {
+                    console.warn(`❌ Audio load error: ${filePath}`, e);
+                    rejectOnce(e);
+                });
 
                 // Fallback timeout
                 setTimeout(() => {
-                    if (!resolved) {
-                        console.log(`Audio fallback timeout: ${filePath}`);
-                        resolved = true;
-                        this.currentAudio = null;
-                        resolve();
+                    if (!hasResolved) {
+                        console.log(`⏰ Audio timeout: ${filePath}`);
+                        resolveOnce();
                     }
-                }, 5000);
+                }, 3000);
 
-                // Load the audio
+                // شروع بارگذاری
                 audio.load();
             });
         }
 
-        // ✅ تأثیر بین پخش صداها
+        // تأثیر بین پخش صداها
         delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
         // توقف تمام صداها
         stopAllSounds() {
-            if (this.currentAudio) {
-                this.currentAudio.pause();
-                this.currentAudio = null;
-            }
             this.audioQueue = [];
             this.isPlaying = false;
-            console.log('All sounds stopped');
         }
 
         // فعال/غیرفعال کردن صدا
@@ -262,11 +230,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!enabled) {
                 this.stopAllSounds();
             }
-        }
-
-        // تنظیم حجم صدا
-        setVolume(level) {
-            this.volume = Math.max(0, Math.min(1, level));
         }
     }
 
@@ -280,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- UI Update Functions ---
     async function updateDisplay() {
         try {
+            // دریافت ۳ نوبت آخر
             const ticketsResponse = await databases.listDocuments(
                 DATABASE_ID,
                 TICKETS_COLLECTION_ID,
@@ -413,6 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function extractCounterNumber(counterName) {
         if (!counterName) return '1';
         
+        // استخراج اعداد از نام باجه
         const numbers = counterName.match(/\d+/);
         return numbers ? numbers[0] : '1';
     }
@@ -423,16 +388,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
         
         client.subscribe(ticketChannel, response => {
+            console.log('Realtime update received:', response);
+            
             if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
                 const updatedTicket = response.payload;
 
                 if (updatedTicket.status === 'در حال سرویس') {
                     console.log('New ticket called:', updatedTicket);
                     
-                    // ✅ پخش صدای فراخوانی با صف‌بندی
+                    // پخش صدای فراخوانی
                     const ticketNumber = updatedTicket.specific_ticket || '0001';
                     const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
                     
+                    console.log(`Triggering sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
                     displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber);
                 }
             }
@@ -441,16 +409,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         client.subscribe(photographyChannel, response => {
-            console.log('Display: Photography history updated via real-time');
+            console.log('Photography history updated via real-time');
             updatePhotographyDisplay();
         });
     }
 
+    // --- Text-to-Speech Function ---
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            // توقف صحبت‌های قبلی
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'fa-IR';
+            utterance.rate = 0.8;
+            utterance.pitch = 1;
+            utterance.volume = 0.7;
+            
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
     // --- Initial Load ---
     function initializeDisplay() {
+        console.log('🚀 Initializing display system...');
+        
+        // تست اولیه صدا
+        setTimeout(() => {
+            console.log('🔊 Testing audio system...');
+            // تست صدا با یک شماره نمونه
+            displaySoundManager.playAudioFile('sounds2/bajeh.mp3')
+                .then(() => console.log('✅ Audio test passed'))
+                .catch(err => console.warn('⚠️ Audio test warning:', err));
+        }, 1000);
+        
         updateDisplay();
         setupRealtime();
-        setInterval(updateDisplay, 30000);
+        setInterval(updateDisplay, 30000); // به‌روزرسانی هر 30 ثانیه
+        
+        console.log('✅ Display system initialized');
     }
 
     // --- Start the Display ---
