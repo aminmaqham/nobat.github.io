@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
-    const TICKETS_COLLECTION_ID = 'tickets_collection_id';
+    const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
     const PHOTOGRAPHY_COLLECTION_ID = 'photography_history';
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsBtn = document.getElementById('settings-btn');
     const counterSettingsBtn = document.getElementById('counter-settings-btn');
     const resetAllBtn = document.getElementById('reset-all-btn');
-    const resetPhotographyBtn = document.getElementById('reset-photography-btn');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
     const userGreeting = document.getElementById('user-greeting');
@@ -83,6 +82,155 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPhotographyUser = false;
     let currentTicketForPhotography = null;
 
+    // --- Sound Management System ---
+    class SoundManager {
+        constructor() {
+            this.isAudioEnabled = true;
+            this.volume = 0.7;
+            this.audioQueue = [];
+            this.isPlaying = false;
+        }
+
+        // تبدیل شماره به فرمت 4 رقمی برای نام فایل
+        formatNumberForFile(number) {
+            return String(number).padStart(4, '0');
+        }
+
+        // پخش صدا برای یک عدد خاص
+        async playNumberSound(number) {
+            if (!this.isAudioEnabled) return;
+            
+            const fileName = this.formatNumberForFile(number);
+            const audioPath = `sounds/${fileName}.mp3`;
+            
+            return this.playAudioFile(audioPath);
+        }
+
+        // پخش صدا برای باجه
+        async playCounterSound(counterNumber) {
+            if (!this.isAudioEnabled) return;
+            
+            // پخش "به باجه"
+            await this.playAudioFile('sounds2/bajeh.mp3');
+            
+            // پخش شماره باجه
+            const counterFile = this.getCounterSoundFile(counterNumber);
+            if (counterFile) {
+                await this.playAudioFile(`sounds2/${counterFile}`);
+            }
+        }
+
+        // پیدا کردن فایل صوتی مناسب برای شماره باجه
+        getCounterSoundFile(counterNumber) {
+            const numberMap = {
+                '1': 'one.mp3',
+                '2': 'two.mp3',
+                '3': 'three.mp3',
+                '4': 'four.mp3',
+                '5': 'five.mp3',
+                '6': 'six.mp3',
+                '7': 'seven.mp3',
+                '8': 'eight.mp3',
+                '9': 'nine.mp3',
+                '10': 'ten.mp3'
+            };
+            
+            return numberMap[counterNumber] || null;
+        }
+
+        // پخش اعلان کامل برای فراخوانی نوبت
+        async playCallAnnouncement(ticketNumber, counterNumber) {
+            if (!this.isAudioEnabled) return;
+            
+            try {
+                // پخش شماره نوبت (رقم به رقم)
+                const ticketStr = String(ticketNumber).padStart(4, '0');
+                for (let i = 0; i < ticketStr.length; i++) {
+                    const digit = parseInt(ticketStr[i]);
+                    await this.playNumberSound(digit);
+                    await this.delay(300); // تأثیر بین ارقام
+                }
+                
+                await this.delay(500); // تأثیر قبل از "به باجه"
+                
+                // پخش "به باجه"
+                await this.playAudioFile('sounds2/bajeh.mp3');
+                
+                await this.delay(300); // تأثیر قبل از شماره باجه
+                
+                // پخش شماره باجه
+                const counterFile = this.getCounterSoundFile(counterNumber);
+                if (counterFile) {
+                    await this.playAudioFile(`sounds2/${counterFile}`);
+                }
+                
+            } catch (error) {
+                console.error('Error in call announcement:', error);
+            }
+        }
+
+        // پخش یک فایل صوتی
+        async playAudioFile(filePath) {
+            return new Promise((resolve, reject) => {
+                if (!this.isAudioEnabled) {
+                    resolve();
+                    return;
+                }
+
+                const audio = new Audio(filePath);
+                audio.volume = this.volume;
+                audio.preload = 'auto';
+
+                audio.addEventListener('canplaythrough', () => {
+                    audio.play().then(resolve).catch(reject);
+                });
+
+                audio.addEventListener('error', (e) => {
+                    console.warn(`Audio file not found: ${filePath}`);
+                    resolve(); // حتی اگر فایل پیدا نشد ادامه بده
+                });
+
+                // Fallback در صورت عدم وجود canplaythrough
+                setTimeout(() => {
+                    if (audio.readyState >= 3) {
+                        audio.play().then(resolve).catch(reject);
+                    } else {
+                        resolve();
+                    }
+                }, 100);
+            });
+        }
+
+        // تأثیر بین پخش صداها
+        delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        setVolume(level) {
+            this.volume = Math.max(0, Math.min(1, level));
+            localStorage.setItem('soundVolume', level.toString());
+        }
+
+        toggleSound(enabled) {
+            this.isAudioEnabled = enabled;
+            localStorage.setItem('soundEnabled', enabled.toString());
+        }
+
+        loadSettings() {
+            const soundEnabled = localStorage.getItem('soundEnabled');
+            if (soundEnabled !== null) {
+                this.isAudioEnabled = soundEnabled === 'true';
+            }
+            
+            const volume = localStorage.getItem('soundVolume');
+            if (volume !== null) {
+                this.volume = parseFloat(volume);
+            }
+        }
+    }
+
+    const soundManager = new SoundManager();
+
     // --- توابع کمکی برای دسترسی امن ---
     function getUserPrefs() {
         return currentUser ? (currentUser.prefs || {}) : {};
@@ -91,6 +239,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function getCounterName() {
         const prefs = getUserPrefs();
         return prefs.counter_name || 'باجه';
+    }
+
+    function getCounterNumber() {
+        const prefs = getUserPrefs();
+        return prefs.counter_number || '1';
     }
 
     function isUserPhotography() {
@@ -119,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
             photographyHistory = response.documents;
             renderPhotographyHistory();
             updatePhotographyUI();
-            console.log('Photography history loaded:', photographyHistory.length, 'items');
         } catch (error) {
             console.error('Error loading photography history from Appwrite:', error);
             photographyHistory = [];
@@ -131,11 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // ایجاد یک event برای همگام‌سازی بین تب‌ها
             const event = new Event('photographyHistoryUpdated');
             window.dispatchEvent(event);
-            
-            // به‌روزرسانی نمایشگر
-            if (typeof updatePhotographyDisplay === 'function') {
-                updatePhotographyDisplay();
-            }
             
             console.log('Photography history synced');
         } catch (error) {
@@ -553,10 +700,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateAllDisplays() {
         await updateTotalWaitingCount();
         updatePhotographyUI();
-        // به‌روزرسانی سایر نمایشگرها
-        if (typeof updatePhotographyDisplay === 'function') {
-            updatePhotographyDisplay();
-        }
     }
 
     async function updateTotalWaitingCount() {
@@ -608,15 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => resolve('photography'), 300);
             };
             
-            // دکمه جدید: رزرو
-            const reserveBtn = document.createElement('button');
-            reserveBtn.className = 'popup-btn popup-reserve-btn';
-            reserveBtn.textContent = 'رزرو';
-            reserveBtn.onclick = () => {
-                closePopup();
-                setTimeout(() => resolve('reserve'), 300);
-            };
-            
             // دکمه فراخوان بعدی
             const nextBtn = document.createElement('button');
             nextBtn.className = 'popup-btn popup-next-btn';
@@ -627,7 +761,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             buttonsDiv.appendChild(photographyBtn);
-            buttonsDiv.appendChild(reserveBtn);
             buttonsDiv.appendChild(nextBtn);
             
             contentDiv.appendChild(closeBtn);
@@ -666,218 +799,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 originalClosePopup();
             };
         });
-    }
-
-    // --- تابع جدید برای رزرو نوبت ---
-    async function reserveTicket(ticket) {
-        try {
-            // آپدیت وضعیت نوبت به "رزرو شده"
-            const reservedTicket = await databases.updateDocument(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, 
-                ticket.$id, 
-                {
-                    status: 'رزرو شده',
-                    reserved_by: currentUser.$id,
-                    reserved_by_name: currentUser.name || currentUser.email,
-                    reserved_at: new Date().toISOString()
-                }
-            );
-            
-            showPopupNotification(`
-                <p>نوبت ${ticket.specific_ticket || 'پاس'} با موفقیت رزرو شد.</p>
-                <p style="font-size: 14px; color: #666;">این نوبت در لیست رزروها قرار گرفت و می‌توانید بعداً آن را فراخوانی کنید.</p>
-            `);
-            
-            await fetchTickets();
-            return true;
-            
-        } catch (error) {
-            console.error('Error reserving ticket:', error);
-            showPopupNotification('<p>خطا در رزرو نوبت!</p>');
-            return false;
-        }
-    }
-
-    // --- تابع برای فراخوانی نوبت رزرو شده ---
-    async function callReservedTicket() {
-        try {
-            // دریافت مستقیم نوبت‌های رزرو شده از Appwrite
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                [
-                    Query.equal('status', 'رزرو شده'),
-                    Query.orderAsc('reserved_at')
-                ]
-            );
-            
-            const reservedTickets = response.documents;
-            
-            if (reservedTickets.length === 0) {
-                showPopupNotification('<p>هیچ نوبت رزرو شده‌ای وجود ندارد.</p>');
-                return;
-            }
-            
-            // نمایش لیست نوبت‌های رزرو شده
-            const reservedListHTML = reservedTickets.map(ticket => {
-                const service = services.find(s => s.$id === ticket.service_id);
-                return `
-                    <div class="reserved-ticket-item" data-id="${ticket.$id}">
-                        <div class="ticket-number">${ticket.specific_ticket || 'پاس'}</div>
-                        <div class="ticket-info">
-                            <div><strong>${ticket.first_name} ${ticket.last_name}</strong></div>
-                            <div class="service-name">خدمت: ${service?.name || '---'}</div>
-                            <div class="reserved-by">رزرو شده توسط: ${ticket.reserved_by_name}</div>
-                            <div class="reserved-time">زمان رزرو: ${formatDate(ticket.reserved_at)}</div>
-                        </div>
-                        <button class="call-reserved-btn" data-id="${ticket.$id}">فراخوانی</button>
-                    </div>
-                `;
-            }).join('');
-            
-            const modalHTML = `
-                <div class="reserved-tickets-modal">
-                    <h3>لیست نوبت‌های رزرو شده (${reservedTickets.length})</h3>
-                    <div class="reserved-tickets-list">
-                        ${reservedListHTML}
-                    </div>
-                    <div class="modal-actions">
-                        <button id="close-reserved-modal" class="secondary-btn">بستن</button>
-                    </div>
-                </div>
-            `;
-            
-            showCustomModal(modalHTML);
-            
-            // اضافه کردن event listener به دکمه‌های فراخوانی
-            setTimeout(() => {
-                document.querySelectorAll('.call-reserved-btn').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        const ticketId = e.target.getAttribute('data-id');
-                        await callReservedTicketById(ticketId);
-                    });
-                });
-                
-                document.getElementById('close-reserved-modal').addEventListener('click', () => {
-                    closeCustomModal();
-                });
-            }, 100);
-            
-        } catch (error) {
-            console.error('Error calling reserved tickets:', error);
-            showPopupNotification('<p>خطا در دریافت لیست رزروها از سرور!</p>');
-        }
-    }
-
-    // --- تابع برای فراخوانی نوبت رزرو شده خاص ---
-    async function callReservedTicketById(ticketId) {
-        try {
-            const ticket = tickets.find(t => t.$id === ticketId);
-            if (!ticket) {
-                showPopupNotification('<p>نوبت مورد نظر یافت نشد.</p>');
-                return;
-            }
-            
-            const counterName = getCounterName();
-            
-            // آپدیت وضعیت نوبت به "در حال سرویس"
-            const updatedTicket = await databases.updateDocument(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, 
-                ticketId, 
-                {
-                    status: 'در حال سرویس',
-                    called_by: currentUser.$id,
-                    called_by_name: currentUser.name || currentUser.email,
-                    called_by_counter_name: counterName,
-                    call_time: new Date().toISOString(),
-                    reserved_by: null,
-                    reserved_by_name: null,
-                    reserved_at: null
-                }
-            );
-            
-            closeCustomModal();
-            
-            const service = services.find(s => s.$id === updatedTicket.service_id);
-            const popupMessage = `
-                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-                <p><strong>باجه:</strong> ${counterName}</p>
-                <p style="color: #4CAF50; font-weight: bold;">✓ فراخوانی از لیست رزرو</p>
-            `;
-            
-            const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
-            
-            if (userChoice === 'photography') {
-                openPhotographyModal(updatedTicket);
-            } else if (userChoice === 'reserve') {
-                await reserveTicket(updatedTicket);
-            } else if (userChoice === 'next') {
-                setTimeout(() => {
-                    callNextTicketWithOptions();
-                }, 1000);
-            }
-            
-            await updateAllDisplays();
-            
-        } catch (error) {
-            console.error('Error calling reserved ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت رزرو شده!</p>');
-        }
-    }
-
-    // --- تابع برای نمایش مودال سفارشی ---
-    function showCustomModal(htmlContent) {
-        const modal = document.createElement('div');
-        modal.className = 'custom-modal-overlay';
-        modal.innerHTML = htmlContent;
-        
-        document.body.appendChild(modal);
-        
-        // بستن مودال با کلیک روی background
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeCustomModal();
-            }
-        });
-    }
-
-    function closeCustomModal() {
-        const modal = document.querySelector('.custom-modal-overlay');
-        if (modal) {
-            modal.remove();
-        }
-    }
-
-    async function debugPhotographyCollection() {
-        try {
-            console.log('Debugging photography collection...');
-            
-            // بررسی وجود collection
-            const documents = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [
-                Query.limit(1)
-            ]);
-            
-            console.log('Collection access successful. Sample document:', documents.documents[0]);
-            console.log('Total documents:', documents.total);
-            
-            return true;
-        } catch (error) {
-            console.error('Error debugging collection:', error);
-            
-            // نمایش خطای کاربرپسند
-            if (error.code === 404) {
-                console.error('Collection not found. Please check collection ID and permissions.');
-            } else if (error.code === 401) {
-                console.error('Permission denied. Please check API keys and permissions.');
-            }
-            
-            return false;
-        }
     }
 
     // --- تابع جدید برای نمایش مودال دریافت کد ملی ---
@@ -1031,9 +952,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- تابع بهبودیافته برای فراخوانی نوبت با پخش صدا ---
     async function callSpecificTicket(ticket) {
         try {
             const counterName = getCounterName();
+            const counterNumber = getCounterNumber();
             
             const updatedTicket = await databases.updateDocument(
                 DATABASE_ID, 
@@ -1050,6 +973,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             lastCalledTicket[currentUser.$id] = updatedTicket.$id;
             await fetchTickets();
+            
+            // پخش صدای فراخوانی
+            const ticketNumber = updatedTicket.specific_ticket || '0001';
+            await soundManager.playCallAnnouncement(ticketNumber, counterNumber);
             
             const service = services.find(s => s.$id === updatedTicket.service_id);
             const popupMessage = `
@@ -1068,8 +995,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (userChoice === 'photography') {
                 openPhotographyModal(updatedTicket);
-            } else if (userChoice === 'reserve') {
-                await reserveTicket(updatedTicket);
             } else if (userChoice === 'next') {
                 setTimeout(() => {
                     callNextTicketWithOptions();
@@ -1115,7 +1040,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // تابع جدید برای بررسی و تنظیم شماره باجه
     async function checkAndSetCounterName() {
         const userPrefs = getUserPrefs();
-        if (!userPrefs.counter_name) {
+        if (!userPrefs.counter_name || !userPrefs.counter_number) {
             openCounterSettingsModal();
         }
     }
@@ -1179,18 +1104,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- تابع برای بررسی وضعیت session ---
-    async function checkSessionStatus() {
-        try {
-            const user = await account.get();
-            console.log('User session is active:', user.email);
-            return true;
-        } catch (error) {
-            console.log('No active session');
-            return false;
-        }
-    }
-
     async function logout() {
         try {
             await account.deleteSession('current');
@@ -1214,11 +1127,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (getUserRole() === 'admin') {
             settingsBtn.style.display = 'inline-block';
             resetAllBtn.style.display = 'inline-block';
-            resetPhotographyBtn.style.display = 'inline-block';
         } else {
             settingsBtn.style.display = 'none';
             resetAllBtn.style.display = 'none';
-            resetPhotographyBtn.style.display = 'none';
         }
         
         counterSettingsBtn.style.display = 'inline-block';
@@ -1538,15 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function callNextTicket() {
-        if (isPhotographyUser) {
-            await processPhotographyTicket();
-            return;
-        }
-        
-        await callNextRegularTicket();
-    }
-
+    // --- تابع بهبودیافته callNextRegularTicket با پخش صدا ---
     async function callNextRegularTicket() {
         const selections = getServiceSelections();
         const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
@@ -1585,6 +1488,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ticketToCall) {
             try {
                 const counterName = getCounterName();
+                const counterNumber = getCounterNumber();
                 const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
@@ -1594,6 +1498,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                
+                // پخش صدای فراخوانی
+                const ticketNumber = updatedTicket.specific_ticket || '0001';
+                await soundManager.playCallAnnouncement(ticketNumber, counterNumber);
                 
                 await fetchTickets();
                 
@@ -1610,10 +1518,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (userChoice === 'photography') {
                     openPhotographyModal(updatedTicket);
-                } else if (userChoice === 'reserve') {
-                    await reserveTicket(updatedTicket);
                 } else if (userChoice === 'next') {
-                    // فراخوانی نوبت بعدی
                     setTimeout(() => {
                         callNextTicketWithOptions();
                     }, 1000);
@@ -1657,6 +1562,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const counterName = getCounterName();
+            const counterNumber = getCounterNumber();
             
             const updatedTicket = await databases.updateDocument(
                 DATABASE_ID, 
@@ -1672,6 +1578,9 @@ document.addEventListener('DOMContentLoaded', () => {
             );
 
             lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            
+            // پخش صدای فراخوانی
+            await soundManager.playCallAnnouncement(ticketNumber, counterNumber);
             
             const service = services.find(s => s.$id === updatedTicket.service_id);
             
@@ -1826,6 +1735,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function openCounterSettingsModal() {
         const userPrefs = getUserPrefs();
         counterNameInput.value = userPrefs.counter_name || '';
+        
+        // اضافه کردن فیلد شماره باجه
+        if (!document.getElementById('counter-number-input')) {
+            const numberInput = document.createElement('input');
+            numberInput.type = 'text';
+            numberInput.id = 'counter-number-input';
+            numberInput.placeholder = 'شماره باجه (مثلاً 5)';
+            numberInput.value = userPrefs.counter_number || '';
+            numberInput.style.cssText = 'width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px;';
+            
+            const counterNameLabel = counterNameInput.previousElementSibling;
+            counterNameLabel.parentNode.insertBefore(numberInput, counterNameInput.nextSibling);
+        }
+        
         counterSettingsModal.style.display = 'flex';
     }
 
@@ -1835,8 +1758,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function saveCounterSettings() {
         const counterName = counterNameInput.value.trim();
+        const counterNumberInput = document.getElementById('counter-number-input');
+        const counterNumber = counterNumberInput ? counterNumberInput.value.trim() : '1';
+        
         if (!counterName) {
-            alert('لطفا شماره یا نام باجه را وارد کنید.');
+            alert('لطفا نام باجه را وارد کنید.');
+            return;
+        }
+
+        if (!counterNumber || isNaN(counterNumber)) {
+            alert('لطفا شماره باجه را به صورت عدد وارد کنید.');
             return;
         }
 
@@ -1844,18 +1775,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const userPrefs = getUserPrefs();
             await account.updatePrefs({ 
                 ...userPrefs, 
-                counter_name: counterName 
+                counter_name: counterName,
+                counter_number: counterNumber
             });
             
             currentUser = await account.get();
             
             userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
             
-            showPopupNotification('<p>شماره باجه با موفقیت ذخیره شد.</p>');
+            showPopupNotification('<p>تنظیمات باجه با موفقیت ذخیره شد.</p>');
             closeCounterSettingsModal();
         } catch (error) {
             console.error('Error saving counter settings:', error);
-            showPopupNotification('<p>خطا در ذخیره شماره باجه!</p>');
+            showPopupNotification('<p>خطا در ذخیره تنظیمات باجه!</p>');
         }
     }
 
@@ -2389,6 +2321,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- اضافه کردن کنترل‌های صدا به UI ---
+    function addSoundControlsToUI() {
+        // ایجاد دکمه کنترل صدا
+        const soundControl = document.createElement('div');
+        soundControl.className = 'sound-control';
+        soundControl.innerHTML = `
+            <button id="sound-toggle-btn" class="sound-btn ${soundManager.isAudioEnabled ? 'sound-on' : 'sound-off'}">
+                ${soundManager.isAudioEnabled ? '🔊' : '🔇'}
+            </button>
+            <input type="range" id="sound-volume" min="0" max="100" value="${soundManager.volume * 100}" 
+                   class="volume-slider" title="تنظیم حجم صدا">
+        `;
+        
+        // اضافه کردن به هدر - قبل از دکمه خروج
+        const header = document.querySelector('header');
+        const logoutBtn = document.querySelector('.logout-btn');
+        if (logoutBtn) {
+            header.insertBefore(soundControl, logoutBtn);
+        } else {
+            header.appendChild(soundControl);
+        }
+        
+        // event listeners
+        document.getElementById('sound-toggle-btn').addEventListener('click', toggleSound);
+        document.getElementById('sound-volume').addEventListener('input', changeVolume);
+    }
+
+    function toggleSound() {
+        const btn = document.getElementById('sound-toggle-btn');
+        soundManager.toggleSound(!soundManager.isAudioEnabled);
+        
+        if (soundManager.isAudioEnabled) {
+            btn.classList.remove('sound-off');
+            btn.classList.add('sound-on');
+            btn.textContent = '🔊';
+        } else {
+            btn.classList.remove('sound-on');
+            btn.classList.add('sound-off');
+            btn.textContent = '🔇';
+        }
+    }
+
+    function changeVolume(event) {
+        const volume = event.target.value / 100;
+        soundManager.setVolume(volume);
+        localStorage.setItem('soundVolume', volume.toString());
+    }
+
     // --- Initialize App ---
     async function initializeApp() {
         try {
@@ -2403,8 +2383,9 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetchData();
             await loadPhotographyHistory();
             
-            // بررسی ساده collection
-            await debugPhotographyCollection();
+            // بارگذاری تنظیمات صدا و اضافه کردن کنترل‌ها
+            soundManager.loadSettings();
+            addSoundControlsToUI();
             
             setupRealtimeSubscriptions();
             checkAutoReset();
@@ -2428,25 +2409,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     settingsBtn.addEventListener('click', openAdminPanel);
     resetAllBtn.addEventListener('click', resetAllTickets);
-    resetPhotographyBtn.addEventListener('click', resetPhotographyHistoryOnly);
     callNextBtn.addEventListener('click', callNextTicketWithOptions);
     passTicketBtn.addEventListener('click', openPassServiceModal);
     
-    // اضافه کردن event listener برای دکمه فراخوانی نوبت رزرو شده
-    const callReservedBtn = document.createElement('button');
-    callReservedBtn.id = 'call-reserved-btn';
-    callReservedBtn.className = 'big-button reserved-btn';
-    callReservedBtn.textContent = 'فراخوانی نوبت رزرو شده';
-    callReservedBtn.addEventListener('click', callReservedTicket);
-    
-    // اضافه کردن دکمه به رابط کاربری
-    const reservedTicketsSection = document.createElement('div');
-    reservedTicketsSection.className = 'reserved-tickets-section';
-    reservedTicketsSection.appendChild(callReservedBtn);
-    
-    const ticketActions = document.querySelector('.ticket-actions');
-    if (ticketActions) {
-        ticketActions.appendChild(reservedTicketsSection);
+    // اضافه کردن event listener برای reset photography
+    const resetPhotographyBtn = document.getElementById('reset-photography-btn');
+    if (resetPhotographyBtn) {
+        resetPhotographyBtn.addEventListener('click', resetPhotographyHistoryOnly);
     }
     
     submitTicketBtn.addEventListener('click', () => {

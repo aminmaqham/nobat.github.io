@@ -32,16 +32,19 @@
         </header>
 
         <!-- مودال تنظیمات باجه -->
-        <div class="modal-overlay" id="counter-settings-modal" style="display: none;">
-            <div class="modal">
-                <h2>تنظیم شماره باجه</h2>
-                <div class="form-group">
-                    <label for="counter-name-input">شماره یا نام باجه:</label>
-                    <input type="text" id="counter-name-input" placeholder="مثال: باجه ۱، پنجره ۲، ...">
-                </div>
-                <div class="form-actions">
-                    <button id="save-counter-btn" class="primary-btn">ذخیره</button>
-                    <button id="cancel-counter-btn" class="secondary-btn">انصراف</button>
+        <div class="modal" id="counter-settings-modal">
+            <div class="modal-content">
+                <h3>تنظیمات باجه</h3>
+                <label for="counter-name-input">نام باجه:</label>
+                <input type="text" id="counter-name-input" placeholder="مثلاً: باجه ۵">
+                
+                <!-- اضافه کردن این فیلد -->
+                <label for="counter-number-input">شماره باجه:</label>
+                <input type="text" id="counter-number-input" placeholder="شماره باجه (مثلاً 5)">
+                
+                <div class="modal-actions">
+                    <button id="save-counter-btn" class="btn-primary">ذخیره</button>
+                    <button id="cancel-counter-btn" class="btn-secondary">انصراف</button>
                 </div>
             </div>
         </div>
@@ -106,10 +109,6 @@
                             <input type="text" id="past-ticket-input" placeholder="شماره نوبت گذشته خاص" maxlength="4">
                             <button id="call-past-btn" class="big-button past-call-btn">فراخوان گذشته خاص</button>
                         </div>
-                        <div class="reserved-tickets-section">
-                            <button id="call-reserved-btn" class="big-button reserved-btn">فراخوانی نوبت رزرو شده</button>
-                        </div>
-
                         <div class="call-next-section">
                             <button id="call-next-btn" class="big-button">فراخوان نوبت بعدی</button>
 

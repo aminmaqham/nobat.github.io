@@ -958,147 +958,6 @@ header h1 {
     margin-right: 5px;
 }
 
-/* استایل برای دکمه رزرو در پاپاپ */
-.popup-reserve-btn {
-    background-color: #FF9800 !important;
-    color: white;
-}
-
-.popup-reserve-btn:hover {
-    background-color: #F57C00 !important;
-}
-
-/* استایل برای دکمه فراخوانی رزرو */
-.reserved-btn {
-    background-color: #FF9800 !important;
-    margin-top: 10px;
-}
-
-.reserved-btn:hover {
-    background-color: #F57C00 !important;
-}
-
-/* استایل برای مودال نوبت‌های رزرو شده */
-.custom-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-}
-
-.reserved-tickets-modal {
-    background-color: white;
-    padding: 25px;
-    border-radius: var(--border-radius);
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    width: 100%;
-    max-width: 500px;
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-.reserved-tickets-modal h3 {
-    margin-bottom: 20px;
-    text-align: center;
-    color: var(--primary-color);
-    font-size: 1.3rem;
-}
-
-.reserved-tickets-list {
-    max-height: 400px;
-    overflow-y: auto;
-    margin-bottom: 20px;
-}
-
-.reserved-ticket-item {
-    display: flex;
-    align-items: center;
-    padding: 15px;
-    margin-bottom: 10px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    border-right: 4px solid #FF9800;
-    transition: all 0.3s ease;
-}
-
-.reserved-ticket-item:hover {
-    background: #e9ecef;
-}
-
-.reserved-ticket-item .ticket-number {
-    font-weight: 700;
-    font-size: 1.5rem;
-    color: #333;
-    min-width: 60px;
-    text-align: center;
-}
-
-.reserved-ticket-item .ticket-info {
-    flex-grow: 1;
-    margin-right: 15px;
-}
-
-.reserved-ticket-item .ticket-info div:first-child {
-    font-weight: 600;
-    color: #555;
-    margin-bottom: 5px;
-}
-
-.reserved-ticket-item .service-name {
-    font-size: 0.9rem;
-    color: #777;
-    margin-bottom: 5px;
-}
-
-.reserved-ticket-item .reserved-by {
-    font-size: 0.8rem;
-    color: #999;
-}
-
-.call-reserved-btn {
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-family: 'Vazirmatn', sans-serif;
-    font-size: 14px;
-    transition: background-color 0.3s;
-}
-
-.call-reserved-btn:hover {
-    background-color: #2E7D32;
-}
-
-/* استایل برای موبایل */
-@media (max-width: 768px) {
-    .reserved-ticket-item {
-        flex-direction: column;
-        text-align: center;
-        gap: 10px;
-    }
-    
-    .reserved-ticket-item .ticket-info {
-        margin-right: 0;
-    }
-    
-    .call-reserved-btn {
-        width: 100%;
-    }
-    
-    .popup-buttons {
-        flex-direction: column;
-    }
-}
-
 .popup-message {
     background-color: rgb(249, 252, 239);
     color: var(--dark-text);
@@ -1236,6 +1095,74 @@ header h1 {
   .service-btn .service-name {
     font-size: 13px;
   }
+
+  /* Sound Controls */
+.sound-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    margin-right: 15px;
+}
+
+.sound-btn {
+    background: var(--primary-color);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.3s ease;
+}
+
+.sound-btn:hover {
+    background: var(--primary-dark);
+    transform: scale(1.1);
+}
+
+.sound-btn.sound-off {
+    background: #666;
+}
+
+.sound-btn.sound-off:hover {
+    background: #777;
+}
+
+.volume-slider {
+    width: 80px;
+    height: 6px;
+    border-radius: 3px;
+    background: #ddd;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.volume-slider:hover {
+    opacity: 1;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: none;
+}
   
   .service-btn .waiting-count {
     font-size: 12px;

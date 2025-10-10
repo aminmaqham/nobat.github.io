@@ -15,6 +15,131 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const databases = new Databases(client);
 
+    // --- Sound Manager for Display ---
+    class DisplaySoundManager {
+        constructor() {
+            this.isAudioEnabled = true;
+            this.volume = 0.5;
+        }
+
+        // تبدیل شماره به فرمت 4 رقمی برای نام فایل
+        formatNumberForFile(number) {
+            return String(number).padStart(4, '0');
+        }
+
+        // پخش صدا برای یک عدد خاص
+        async playNumberSound(number) {
+            if (!this.isAudioEnabled) return;
+            
+            const fileName = this.formatNumberForFile(number);
+            const audioPath = `sounds/${fileName}.mp3`;
+            
+            return this.playAudioFile(audioPath);
+        }
+
+        // پخش صدا برای باجه
+        async playCounterSound(counterNumber) {
+            if (!this.isAudioEnabled) return;
+            
+            // پخش "به باجه"
+            await this.playAudioFile('sounds2/bajeh.mp3');
+            
+            // پخش شماره باجه
+            const counterFile = this.getCounterSoundFile(counterNumber);
+            if (counterFile) {
+                await this.playAudioFile(`sounds2/${counterFile}`);
+            }
+        }
+
+        // پیدا کردن فایل صوتی مناسب برای شماره باجه
+        getCounterSoundFile(counterNumber) {
+            const numberMap = {
+                '1': 'one.mp3',
+                '2': 'two.mp3',
+                '3': 'three.mp3',
+                '4': 'four.mp3',
+                '5': 'five.mp3',
+                '6': 'six.mp3',
+                '7': 'seven.mp3',
+                '8': 'eight.mp3',
+                '9': 'nine.mp3',
+                '10': 'ten.mp3'
+            };
+            
+            return numberMap[counterNumber] || null;
+        }
+
+        // پخش اعلان کامل برای فراخوانی نوبت
+        async playCallAnnouncement(ticketNumber, counterNumber) {
+            if (!this.isAudioEnabled) return;
+            
+            try {
+                // پخش شماره نوبت (رقم به رقم)
+                const ticketStr = String(ticketNumber).padStart(4, '0');
+                for (let i = 0; i < ticketStr.length; i++) {
+                    const digit = parseInt(ticketStr[i]);
+                    await this.playNumberSound(digit);
+                    await this.delay(300); // تأثیر بین ارقام
+                }
+                
+                await this.delay(500); // تأثیر قبل از "به باجه"
+                
+                // پخش "به باجه"
+                await this.playAudioFile('sounds2/bajeh.mp3');
+                
+                await this.delay(300); // تأثیر قبل از شماره باجه
+                
+                // پخش شماره باجه
+                const counterFile = this.getCounterSoundFile(counterNumber);
+                if (counterFile) {
+                    await this.playAudioFile(`sounds2/${counterFile}`);
+                }
+                
+            } catch (error) {
+                console.error('Error in call announcement:', error);
+            }
+        }
+
+        // پخش یک فایل صوتی
+        async playAudioFile(filePath) {
+            return new Promise((resolve, reject) => {
+                if (!this.isAudioEnabled) {
+                    resolve();
+                    return;
+                }
+
+                const audio = new Audio(filePath);
+                audio.volume = this.volume;
+                audio.preload = 'auto';
+
+                audio.addEventListener('canplaythrough', () => {
+                    audio.play().then(resolve).catch(reject);
+                });
+
+                audio.addEventListener('error', (e) => {
+                    console.warn(`Audio file not found: ${filePath}`);
+                    resolve(); // حتی اگر فایل پیدا نشد ادامه بده
+                });
+
+                // Fallback در صورت عدم وجود canplaythrough
+                setTimeout(() => {
+                    if (audio.readyState >= 3) {
+                        audio.play().then(resolve).catch(reject);
+                    } else {
+                        resolve();
+                    }
+                }, 100);
+            });
+        }
+
+        // تأثیر بین پخش صداها
+        delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    }
+
+    const displaySoundManager = new DisplaySoundManager();
+
     // --- DOM Elements ---
     const ticketsContainer = document.querySelector('.tickets-container');
     const photographyList = document.querySelector('.photography-list');
@@ -153,17 +278,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Realtime Subscription ---
+    // --- Realtime Subscription با پخش صدا ---
     function setupRealtime() {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
         const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
         
-        // گوش دادن به تغییرات نوبت‌ها
         client.subscribe(ticketChannel, response => {
             if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
                 const updatedTicket = response.payload;
 
                 if (updatedTicket.status === 'در حال سرویس') {
+                    // پخش صدای فراخوانی
+                    const ticketNumber = updatedTicket.specific_ticket || '0001';
+                    const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
+                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber);
+                    
                     // اعلام صوتی
                     const numberToSpeak = updatedTicket.specific_ticket || 'نوبت پاس شده';
                     const counterName = updatedTicket.called_by_counter_name || 'باجه';
@@ -175,11 +304,19 @@ document.addEventListener('DOMContentLoaded', () => {
             updateDisplay();
         });
         
-        // گوش دادن به تغییرات تاریخچه عکاسی
         client.subscribe(photographyChannel, response => {
             console.log('Display: Photography history updated via real-time');
             updatePhotographyDisplay();
         });
+    }
+
+    // استخراج شماره باجه از نام باجه
+    function extractCounterNumber(counterName) {
+        if (!counterName) return '1';
+        
+        // استخراج اعداد از نام باجه
+        const numbers = counterName.match(/\d+/);
+        return numbers ? numbers[0] : '1';
     }
 
     // --- Text-to-Speech Function ---
