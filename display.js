@@ -715,63 +715,63 @@ function extractCounterNumber(counterName) {
     return '1';
 }
 
-    // --- Realtime Subscription ---
-    function setupRealtime() {
-        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
+// --- Realtime Subscription ---
+function setupRealtime() {
+    const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+    const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
+    
+    let lastProcessedTicketId = null;
+    
+    client.subscribe(ticketChannel, response => {
+        console.log('Display: Realtime update received:', response);
         
-        let lastProcessedTicketId = null;
-        
-        client.subscribe(ticketChannel, response => {
-            console.log('Display: Realtime update received:', response);
-            
-            if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
-                const updatedTicket = response.payload;
+        if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
+            const updatedTicket = response.payload;
 
-                if (updatedTicket.status === 'در حال سرویس') {
-                    // جلوگیری از پردازش تکراری
-                    if (lastProcessedTicketId === updatedTicket.$id) {
-                        console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
-                        return;
-                    }
-                    
-                    lastProcessedTicketId = updatedTicket.$id;
-                    
-                    console.log('Display: New ticket called:', updatedTicket);
-                    
-                    const ticketNumber = updatedTicket.specific_ticket || '0001';
-                    const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
-                    
-                    console.log(`Display: Triggering sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-                    
-                    // پخش صدا
-                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
+            if (updatedTicket.status === 'در حال سرویس') {
+                // جلوگیری از پردازش تکراری
+                if (lastProcessedTicketId === updatedTicket.$id) {
+                    console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
+                    return;
                 }
+                
+                lastProcessedTicketId = updatedTicket.$id;
+                
+                console.log('Display: New ticket called:', updatedTicket);
+                
+                const ticketNumber = updatedTicket.specific_ticket || '0001';
+                const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
+                
+                console.log(`Display: Triggering sound: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                
+                // پخش صدا برای همه انواع نوبت‌ها
+                displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
             }
-            
-            updateDisplay();
-        });
+        }
         
-        client.subscribe(photographyChannel, response => {
-            console.log('Display: Photography history updated via real-time');
-            
-            // اگر نوبت عکاسی جدید اضافه شده، اعلان صوتی پخش کن
-            if (response.events.includes(`databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents.*.create`)) {
-                const newPhotographyItem = response.payload;
-                if (newPhotographyItem.status === 'در انتظار' && !newPhotographyItem.photoTaken) {
-                    console.log('Display: New photography item added:', newPhotographyItem);
-                    
-                    const ticketNumber = newPhotographyItem.ticketNumber || '0001';
-                    const counterNumber = extractCounterNumber(newPhotographyItem.originalCounterName || 'عکاسی');
-                    
-                    // پخش اعلان برای نوبت عکاسی
-                    displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, newPhotographyItem);
-                }
+        updateDisplay();
+    });
+    
+    client.subscribe(photographyChannel, response => {
+        console.log('Display: Photography history updated via real-time');
+        
+        // اگر نوبت عکاسی جدید اضافه شده، اعلان صوتی پخش کن
+        if (response.events.includes(`databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents.*.create`)) {
+            const newPhotographyItem = response.payload;
+            if (newPhotographyItem.status === 'در انتظار' && !newPhotographyItem.photoTaken) {
+                console.log('Display: New photography item added:', newPhotographyItem);
+                
+                const ticketNumber = newPhotographyItem.ticketNumber || '0001';
+                const counterNumber = extractCounterNumber(newPhotographyItem.originalCounterName || 'عکاسی');
+                
+                // پخش اعلان برای نوبت عکاسی
+                displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, newPhotographyItem);
             }
-            
-            updatePhotographyDisplay();
-        });
-    }
+        }
+        
+        updatePhotographyDisplay();
+    });
+}
 
     // --- تابع پخش شماره باجه - بهبود یافته ---
 async function playCounterSound(counterNumber) {

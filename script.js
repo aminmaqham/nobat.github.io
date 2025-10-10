@@ -744,8 +744,6 @@ function playNumberSound(number) {
 
 
 
-// در script.js - اضافه کردن تابع تکرار صوت
-
 // --- تابع تکرار صوت - بهبود یافته ---
 function playCallSound(ticket) {
     if (!ticket) return;
@@ -757,7 +755,7 @@ function playCallSound(ticket) {
     console.log(`🎵 Main: Playing sound: Ticket ${ticketNumber}, Counter ${counterNumber}, Name: ${counterName}`);
     
     // استفاده از سیستم صوتی اصلی که با display ارتباط برقرار می‌کند
-    soundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
+    return soundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
         .then(() => {
             console.log('✅ Main: Sound play completed');
         })
@@ -961,6 +959,10 @@ async function callSpecificTicket(ticket) {
         
         // ✅ بستن پیام انتظار
         closeWaitingNotification(waitingPopup);
+        
+        // ✅ پخش صوت فراخوانی برای همه نوبت‌ها
+        console.log(`🎵 Main: Calling ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
+        await playCallSound(updatedTicket);
         
         const service = services.find(s => s.$id === updatedTicket.service_id);
         const popupMessage = `
@@ -1476,192 +1478,200 @@ async function callNextTicketWithOptions() {
         }
     }
 
-    // --- تابع بهبودیافته callNextRegularTicket ---
-    async function callNextRegularTicket() {
-        // ✅ جلوگیری از فراخوانی همزمان
-        if (isCallingInProgress) {
-            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-            return;
-        }
-
-        isCallingInProgress = true;
-
-        try {
-            // ✅ نمایش پیام "منتظر بمانید"
-            const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-
-            const selections = getServiceSelections();
-            const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-            if (selectedServiceIds.length === 0) {
-                showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-                return;
-            }
-
-            let ticketToCall = null;
-            
-            const waitingTickets = tickets
-                .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-                .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
-
-            const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
-            
-            if (passedTickets.length > 0) {
-                ticketToCall = passedTickets[0];
-            } else {
-                const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
-                if (regularTickets.length > 0) {
-                    ticketToCall = regularTickets[0];
-                    
-                    const passedToUpdate = tickets.filter(t => 
-                        t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
-                        t.service_id === ticketToCall.service_id
-                    );
-                    const updatePromises = passedToUpdate.map(t => 
-                        databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
-                    );
-                    if (updatePromises.length > 0) await Promise.all(updatePromises);
-                }
-            }
-
-            if (ticketToCall) {
-                try {
-                    const counterName = getCounterName();
-                    const counterNumber = getCounterNumber();
-                    const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
-                        status: 'در حال سرویس',
-                        called_by: currentUser.$id,
-                        called_by_name: currentUser.name,
-                        called_by_counter_name: counterName,
-                        call_time: new Date().toISOString()
-                    });
-                    
-                    lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-                    
-                    // ✅ بستن پیام انتظار
-                    closeWaitingNotification(waitingPopup);
-                    
-                    await fetchTickets();
-                    
-                    const service = services.find(s => s.$id === updatedTicket.service_id);
-                    const popupMessage = `
-                        <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
-                        <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                        <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                        <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-                        <p><strong>باجه:</strong> ${counterName}</p>
-                    `;
-                    
-                    const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
-                    
-                    if (userChoice === 'photography') {
-                        openPhotographyModal(updatedTicket);
-                    } else if (userChoice === 'next') {
-                        setTimeout(() => {
-                            callNextTicketWithOptions();
-                        }, 1000);
-                    }
-                    
-                    await updateAllDisplays();
-                    
-                } catch (error) {
-                    console.error('Error calling next ticket:', error);
-                    showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
-                }
-            } else {
-                showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
-            }
-        } finally {
-            // ✅ آزاد کردن قفل فراخوانی
-            isCallingInProgress = false;
-        }
+// --- تابع بهبودیافته callNextRegularTicket ---
+async function callNextRegularTicket() {
+    // ✅ جلوگیری از فراخوانی همزمان
+    if (isCallingInProgress) {
+        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+        return;
     }
 
-    // --- فراخوانی نوبت گذشته خاص ---
-    async function callPastTicket() {
-        // ✅ جلوگیری از فراخوانی همزمان
-        if (isCallingInProgress) {
-            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+    isCallingInProgress = true;
+
+    try {
+        // ✅ نمایش پیام "منتظر بمانید"
+        const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
+
+        const selections = getServiceSelections();
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
             return;
         }
 
-        isCallingInProgress = true;
+        let ticketToCall = null;
+        
+        const waitingTickets = tickets
+            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
 
-        try {
-            const ticketNumber = pastTicketInput.value.trim();
-            
-            if (!ticketNumber) {
-                showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
-                pastTicketInput.classList.add('error');
-                return;
+        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+        
+        if (passedTickets.length > 0) {
+            ticketToCall = passedTickets[0];
+        } else {
+            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+            if (regularTickets.length > 0) {
+                ticketToCall = regularTickets[0];
+                
+                const passedToUpdate = tickets.filter(t => 
+                    t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                    t.service_id === ticketToCall.service_id
+                );
+                const updatePromises = passedToUpdate.map(t => 
+                    databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+                );
+                if (updatePromises.length > 0) await Promise.all(updatePromises);
             }
+        }
 
-            if (!currentUser) {
-                showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
-                return;
-            }
-
-            // ✅ نمایش پیام "منتظر بمانید"
-            const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-
-            const pastTicket = tickets.find(t => 
-                t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
-            );
-
-            if (!pastTicket) {
-                showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
-                pastTicketInput.classList.add('error');
-                return;
-            }
-
-            const counterName = getCounterName();
-            const counterNumber = getCounterNumber();
-            
-            const updatedTicket = await databases.updateDocument(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, 
-                pastTicket.$id, 
-                {
+        if (ticketToCall) {
+            try {
+                const counterName = getCounterName();
+                const counterNumber = getCounterNumber();
+                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
-                    called_by_name: currentUser.name || currentUser.email,
+                    called_by_name: currentUser.name,
                     called_by_counter_name: counterName,
                     call_time: new Date().toISOString()
+                });
+                
+                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                
+                // ✅ بستن پیام انتظار
+                closeWaitingNotification(waitingPopup);
+                
+                await fetchTickets();
+                
+                // ✅ پخش صوت فراخوانی برای نوبت عادی
+                console.log(`🎵 Main: Calling regular ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
+                await playCallSound(updatedTicket);
+                
+                const service = services.find(s => s.$id === updatedTicket.service_id);
+                const popupMessage = `
+                    <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                    <p><strong>باجه:</strong> ${counterName}</p>
+                `;
+                
+                const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
+                
+                if (userChoice === 'photography') {
+                    openPhotographyModal(updatedTicket);
+                } else if (userChoice === 'next') {
+                    setTimeout(() => {
+                        callNextTicketWithOptions();
+                    }, 1000);
                 }
-            );
-
-            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-            
-            // ✅ بستن پیام انتظار
-            closeWaitingNotification(waitingPopup);
-            
-            const service = services.find(s => s.$id === updatedTicket.service_id);
-            
-            const popupMessage = `
-                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-                <p><strong>باجه:</strong> ${counterName}</p>
-            `;
-            showPopupNotification(popupMessage);
-            
-            pastTicketInput.value = '';
-            pastTicketInput.classList.remove('error');
-            pastTicketInput.classList.add('success');
-            setTimeout(() => pastTicketInput.classList.remove('success'), 2000);
-            
-            await fetchData();
-            
-        } catch (error) {
-            console.error('Error calling past ticket:', error);
-            showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
-            pastTicketInput.classList.add('error');
-        } finally {
-            // ✅ آزاد کردن قفل فراخوانی
-            isCallingInProgress = false;
+                
+                await updateAllDisplays();
+                
+            } catch (error) {
+                console.error('Error calling next ticket:', error);
+                showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+            }
+        } else {
+            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
         }
+    } finally {
+        // ✅ آزاد کردن قفل فراخوانی
+        isCallingInProgress = false;
     }
+}
+
+// --- فراخوانی نوبت گذشته خاص ---
+async function callPastTicket() {
+    // ✅ جلوگیری از فراخوانی همزمان
+    if (isCallingInProgress) {
+        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+        return;
+    }
+
+    isCallingInProgress = true;
+
+    try {
+        const ticketNumber = pastTicketInput.value.trim();
+        
+        if (!ticketNumber) {
+            showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
+            pastTicketInput.classList.add('error');
+            return;
+        }
+
+        if (!currentUser) {
+            showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
+            return;
+        }
+
+        // ✅ نمایش پیام "منتظر بمانید"
+        const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
+
+        const pastTicket = tickets.find(t => 
+            t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
+        );
+
+        if (!pastTicket) {
+            showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
+            pastTicketInput.classList.add('error');
+            return;
+        }
+
+        const counterName = getCounterName();
+        const counterNumber = getCounterNumber();
+        
+        const updatedTicket = await databases.updateDocument(
+            DATABASE_ID, 
+            TICKETS_COLLECTION_ID, 
+            pastTicket.$id, 
+            {
+                status: 'در حال سرویس',
+                called_by: currentUser.$id,
+                called_by_name: currentUser.name || currentUser.email,
+                called_by_counter_name: counterName,
+                call_time: new Date().toISOString()
+            }
+        );
+
+        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+        
+        // ✅ بستن پیام انتظار
+        closeWaitingNotification(waitingPopup);
+        
+        // ✅ پخش صوت برای نوبت گذشته
+        console.log(`🎵 Main: Calling past ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
+        await playCallSound(updatedTicket);
+        
+        const service = services.find(s => s.$id === updatedTicket.service_id);
+        
+        const popupMessage = `
+            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+            <p><strong>باجه:</strong> ${counterName}</p>
+        `;
+        showPopupNotification(popupMessage);
+        
+        pastTicketInput.value = '';
+        pastTicketInput.classList.remove('error');
+        pastTicketInput.classList.add('success');
+        setTimeout(() => pastTicketInput.classList.remove('success'), 2000);
+        
+        await fetchData();
+        
+    } catch (error) {
+        console.error('Error calling past ticket:', error);
+        showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
+        pastTicketInput.classList.add('error');
+    } finally {
+        // ✅ آزاد کردن قفل فراخوانی
+        isCallingInProgress = false;
+    }
+}
     
     async function resetAllTickets() {
         if (!confirm('⚠️ هشدار: این عمل غیرقابل بازگشت است!\n\nآیا مطمئن هستید که می‌خواهید:\n• تمام نوبت‌ها\n• تمام تاریخچه عکاسی\n• لیست انتظار عکاسی\n\nرا پاک کنید؟')) return;
