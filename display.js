@@ -562,26 +562,28 @@ async preloadImportantSounds() {
     const photographyWaiting = document.querySelector('.photography-waiting');
 
     // --- UI Update Functions ---
-    async function updateDisplay() {
-        try {
-            const ticketsResponse = await databases.listDocuments(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                [
-                    Query.equal('status', 'در حال سرویس'),
-                    Query.orderDesc('call_time'),
-                    Query.limit(3)
-                ]
-            );
+// --- به‌روزرسانی تابع updateDisplay ---
+async function updateDisplay() {
+    try {
+        const ticketsResponse = await databases.listDocuments(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            [
+                Query.equal('status', 'در حال سرویس'),
+                Query.orderDesc('call_time'),
+                Query.limit(3)
+            ]
+        );
 
-            const calledTickets = ticketsResponse.documents;
-            updateTicketsDisplay(calledTickets);
-            await updatePhotographyDisplay();
+        const calledTickets = ticketsResponse.documents;
+        updateTicketsDisplay(calledTickets);
+        await updatePhotographyDisplay();
+        await updateWaitingList(); // اضافه کردن فراخوانی تابع جدید
 
-        } catch (error) {
-            console.error("Error fetching data:", error);
-        }
+    } catch (error) {
+        console.error("Error fetching data:", error);
     }
+}
 
     async function updatePhotographyDisplay() {
         try {
@@ -704,6 +706,8 @@ async function preloadImportantSounds() {
         console.warn('⚠️ Some sounds failed to preload:', error);
     }
 }
+
+
 
 
 
@@ -862,16 +866,90 @@ async function playCounterSound(counterNumber) {
     }
 }
 
-    // --- Initial Load ---
-    function initializeDisplay() {
-        console.log('🚀 Initializing display system...');
+// --- تابع جدید برای به‌روزرسانی لیست منتظران ---
+async function updateWaitingList() {
+    try {
+        // دریافت تمام نوبت‌های در حال انتظار
+        const waitingTicketsResponse = await databases.listDocuments(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            [
+                Query.equal('status', 'در حال انتظار'),
+                Query.orderAsc('$createdAt')
+            ]
+        );
+
+        // دریافت لیست خدمات
+        const servicesResponse = await databases.listDocuments(
+            DATABASE_ID,
+            SERVICES_COLLECTION_ID,
+            [Query.orderAsc('name')]
+        );
+
+        const waitingTickets = waitingTicketsResponse.documents;
+        const services = servicesResponse.documents;
+
+        // محاسبه تعداد کل منتظران
+        const totalWaiting = waitingTickets.length;
+        document.getElementById('total-waiting-count').textContent = totalWaiting;
+
+        // گروه‌بندی نوبت‌ها بر اساس خدمت
+        const serviceWaitingCounts = {};
         
-        updateDisplay();
-        setupRealtime();
-        setInterval(updateDisplay, 30000);
-        
-        console.log('✅ Display system initialized');
+        services.forEach(service => {
+            // فقط خدمات فعال را نمایش بده
+            if (service.disabled !== true) {
+                serviceWaitingCounts[service.$id] = {
+                    name: service.name,
+                    count: 0
+                };
+            }
+        });
+
+        // شمارش نوبت‌های هر خدمت
+        waitingTickets.forEach(ticket => {
+            if (serviceWaitingCounts[ticket.service_id]) {
+                serviceWaitingCounts[ticket.service_id].count++;
+            }
+        });
+
+        // نمایش لیست منتظران هر خدمت
+        const serviceWaitingContainer = document.getElementById('service-waiting-container');
+        serviceWaitingContainer.innerHTML = '';
+
+        Object.values(serviceWaitingCounts).forEach(service => {
+            if (service.count > 0) {
+                const serviceItem = document.createElement('div');
+                serviceItem.className = 'service-waiting-item';
+                serviceItem.innerHTML = `
+                    <span class="service-name">${service.name}:</span>
+                    <span class="service-count">${service.count}</span>
+                `;
+                serviceWaitingContainer.appendChild(serviceItem);
+            }
+        });
+
+        // اگر هیچ منتظری نبود پیام مناسب نمایش بده
+        if (Object.values(serviceWaitingCounts).every(service => service.count === 0)) {
+            serviceWaitingContainer.innerHTML = '<div class="service-waiting-item">هیچ نوبتی در انتظار نیست</div>';
+        }
+
+    } catch (error) {
+        console.error("Error updating waiting list:", error);
     }
+}
+
+
+// --- به‌روزرسانی تابع initializeDisplay ---
+function initializeDisplay() {
+    console.log('🚀 Initializing display system...');
+    
+    updateDisplay();
+    setupRealtime();
+    setInterval(updateDisplay, 30000);
+    
+    console.log('✅ Display system initialized');
+}
 
     // --- Start the Display ---
     initializeDisplay();

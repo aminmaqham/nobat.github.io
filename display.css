@@ -482,6 +482,131 @@ body {
     }
 }
 
+/* استایل‌های جدید برای بخش نمایش منتظران */
+.waiting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.total-waiting {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.waiting-label {
+    font-size: 1.4rem;
+    font-weight: 500;
+    color: #fff;
+}
+
+.waiting-count {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ffeb3b;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.service-waiting {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.service-waiting-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 1.1rem;
+    color: #fff;
+}
+
+.service-waiting-item .service-name {
+    font-weight: 500;
+    margin-left: 5px;
+}
+
+.service-waiting-item .service-count {
+    font-weight: 700;
+    color: #ffeb3b;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+
+/* رسپانسیو برای مانیتورهای مختلف */
+@media (max-height: 800px) {
+    .system-title {
+        font-size: 2.8rem;
+    }
+    
+    .waiting-label {
+        font-size: 1.2rem;
+    }
+    
+    .waiting-count {
+        font-size: 1.6rem;
+    }
+    
+    .service-waiting-item {
+        font-size: 1rem;
+        padding: 6px 10px;
+    }
+    
+    .ticket-number-large {
+        font-size: 5rem;
+    }
+    
+    .ticket-info {
+        font-size: 1.4rem;
+    }
+    
+    .photography-display {
+        flex: 0 0 350px;
+    }
+}
+
+@media (max-height: 600px) {
+    .system-title {
+        font-size: 2.2rem;
+    }
+    
+    .waiting-label {
+        font-size: 1rem;
+    }
+    
+    .waiting-count {
+        font-size: 1.3rem;
+    }
+    
+    .service-waiting-item {
+        font-size: 0.9rem;
+        padding: 4px 8px;
+    }
+    
+    .ticket-number-large {
+        font-size: 4rem;
+    }
+    
+    .photography-header h2 {
+        font-size: 1.6rem;
+    }
+    
+    .photography-display {
+        flex: 0 0 300px;
+    }
+}
+
 /* پشتیبانی از مرورگرهای بسیار قدیمی */
 @supports not (backdrop-filter: blur(10px)) {
     .display-header,
@@ -489,3 +614,4 @@ body {
         background: rgba(0, 0, 0, 0.3);
     }
 }
+

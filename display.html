@@ -38,7 +38,15 @@
         <div class="main-display">
             <header class="display-header">
                 <h1 class="system-title">سیستم نوبت دهی هوشمند</h1>
-                <div class="waiting-count">آخرین نوبت‌های فراخوانده شده</div>
+                <div class="waiting-info">
+                    <div class="total-waiting">
+                        <span class="waiting-label">منتظران:</span>
+                        <span class="waiting-count" id="total-waiting-count">0</span>
+                    </div>
+                    <div class="service-waiting" id="service-waiting-container">
+                        <!-- لیست منتظران هر خدمت اینجا نمایش داده می‌شود -->
+                    </div>
+                </div>
             </header>
             
             <div class="tickets-container">
