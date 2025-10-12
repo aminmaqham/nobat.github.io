@@ -782,23 +782,44 @@ function extractCounterNumberFromGreeting() {
         const greetingText = greetingElement.textContent || '';
         console.log('🔍 Greeting text:', greetingText);
         
-        // روش 1: جستجوی عدد بعد از "باجه"
-        const afterBajeh = greetingText.split('باجه')[1];
-        if (afterBajeh) {
-            const numbers = afterBajeh.match(/\d+/);
-            if (numbers && numbers.length > 0) {
-                const num = parseInt(numbers[0]);
-                console.log(`✅ Counter number found after "باجه": ${num}`);
-                return num;
-            }
+        // جستجوی اعداد فارسی و انگلیسی
+        const persianNumbers = greetingText.match(/[۰۱۲۳۴۵۶۷۸۹]/g);
+        const englishNumbers = greetingText.match(/\d/g);
+        
+        console.log('🔢 Persian numbers found:', persianNumbers);
+        console.log('🔢 English numbers found:', englishNumbers);
+        
+        // اول اعداد فارسی را بررسی کن
+        if (persianNumbers && persianNumbers.length > 0) {
+            const persianToEnglish = {
+                '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
+                '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9'
+            };
+            const num = parseInt(persianToEnglish[persianNumbers[0]]);
+            console.log(`✅ Persian counter number found: ${num}`);
+            return num;
         }
         
-        // روش 2: جستجوی هر عدد در متن
-        const allNumbers = greetingText.match(/\d+/g);
-        if (allNumbers && allNumbers.length > 0) {
-            const num = parseInt(allNumbers[0]);
-            console.log(`✅ Counter number found in text: ${num}`);
+        // سپس اعداد انگلیسی
+        if (englishNumbers && englishNumbers.length > 0) {
+            const num = parseInt(englishNumbers[0]);
+            console.log(`✅ English counter number found: ${num}`);
             return num;
+        }
+        
+        // جستجوی کلمات فارسی
+        const wordToNumber = {
+            'یک': 1, 'اول': 1, 'دو': 2, 'دوم': 2, 'سه': 3, 'سوم': 3,
+            'چهار': 4, 'چهارم': 4, 'پنج': 5, 'پنجم': 5, 'شش': 6, 'ششم': 6,
+            'هفت': 7, 'هفتم': 7, 'هشت': 8, 'هشتم': 8, 'نه': 9, 'نهم': 9,
+            'ده': 10, 'دهم': 10
+        };
+        
+        for (const [word, num] of Object.entries(wordToNumber)) {
+            if (greetingText.includes(word)) {
+                console.log(`✅ Counter number from word "${word}": ${num}`);
+                return num;
+            }
         }
         
         console.log('❌ No counter number found, using default: 1');
