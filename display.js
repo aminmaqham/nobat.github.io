@@ -234,23 +234,24 @@ stopAllAudio() {
 }
 
 
-// ✅ پخش یک اعلان کامل برای نوبت عادی - بدون bajeh
-// ✅ پخش یک اعلان کامل برای نوبت عادی - بدون تأخیر
+
+// ✅ پخش اعلان کامل - دیباگ شده
 async playSingleAnnouncement(ticketNumber, counterNumber) {
     try {
-        // پخش شماره نوبت
-        console.log(`🔢 Display: Playing ticket number: ${ticketNumber}`);
+        console.log('🎵 Starting announcement sequence...');
+        
+        // 1. پخش شماره نوبت
+        console.log(`🔢 Step 1: Playing ticket number: ${ticketNumber}`);
         await this.playNumberSound(ticketNumber);
         
-        // ❌ حذف تأخیر بین پخش‌ها
-        // await this.delay(800);
+        // 2. پخش شماره باجه
+        console.log(`🔢 Step 2: Playing counter number (ignoring input: ${counterNumber})`);
+        await this.playCounterSound(counterNumber); // اینجا counterNumber نادیده گرفته می‌شود
         
-        // پخش شماره باجه
-        console.log(`🔢 Display: Playing counter number: ${counterNumber}`);
-        await this.playCounterSound(counterNumber);
+        console.log('✅ Announcement sequence completed');
         
     } catch (error) {
-        console.error('Display: Error in single announcement:', error);
+        console.error('❌ Display: Error in single announcement:', error);
         throw error;
     }
 }
@@ -276,30 +277,20 @@ async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
     }
 }
 
-// ✅ پخش شماره باجه - اصلاح شده برای فایل‌های انگلیسی
+// ✅ پخش شماره باجه - کاملاً اصلاح شده
 async playCounterSound(counterNumber) {
     if (!this.isAudioEnabled || !this.userInteracted) {
         throw new Error('Audio disabled or user not interacted');
     }
     
-    // اگر counterNumber داده نشده، از user-greeting استخراج کن
-    let finalCounterNumber = counterNumber;
-    if (!finalCounterNumber || finalCounterNumber === 'عکاسی' || finalCounterNumber === 'undefined') {
-        finalCounterNumber = extractCounterNumberFromGreeting();
-    }
+    console.log('🔍 playCounterSound called with:', counterNumber);
     
-    // تبدیل به عدد و اعتبارسنجی
-    let counterNum;
-    if (finalCounterNumber === 'عکاسی' || !finalCounterNumber) {
-        counterNum = 1; // پیش‌فرض برای عکاسی
-    } else {
-        counterNum = parseInt(finalCounterNumber.toString().replace(/^0+/, '') || '1');
-    }
+    // همیشه از user-greeting استفاده کن، بدون توجه به ورودی
+    const finalCounterNumber = extractCounterNumberFromGreeting();
+    console.log('🔢 Final counter number to play:', finalCounterNumber);
     
-    if (isNaN(counterNum) || counterNum < 1 || counterNum > 20) {
-        console.warn(`⚠️ Invalid counter number: ${finalCounterNumber}, using default: 1`);
-        counterNum = 1;
-    }
+    // تبدیل به عدد
+    const counterNum = parseInt(finalCounterNumber) || 1;
     
     // تبدیل عدد به نام انگلیسی
     const numberToEnglish = {
@@ -309,26 +300,20 @@ async playCounterSound(counterNumber) {
         16: 'sixteen', 17: 'seventeen', 18: 'eighteen', 19: 'nineteen', 20: 'twenty'
     };
     
-    const englishName = numberToEnglish[counterNum];
-    if (!englishName) {
-        console.warn(`⚠️ No English name for counter number: ${counterNum}, using default: one`);
-        counterNum = 1;
-    }
+    const englishName = numberToEnglish[counterNum] || 'one';
+    const counterFile = `${englishName}.mp3`;
     
-    const counterFile = `${numberToEnglish[counterNum] || 'one'}.mp3`;
-    
-    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${counterNum}, original: ${finalCounterNumber})`);
+    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${counterNum})`);
     
     try {
         await this.playAudioFile(`sounds2/${counterFile}`);
+        console.log('✅ Counter sound played successfully');
     } catch (error) {
         console.error(`❌ Error playing counter sound ${counterFile}:`, error);
         
-        // فال‌بک: اگر فایل وجود نداشت، از فایل پیش‌فرض استفاده کن
-        if (counterNum !== 1) {
-            console.log('🔄 Falling back to default counter sound: one.mp3');
-            await this.playAudioFile('sounds2/one.mp3');
-        }
+        // فال‌بک
+        console.log('🔄 Falling back to default counter sound: one.mp3');
+        await this.playAudioFile('sounds2/one.mp3');
     }
 }
 
@@ -832,7 +817,7 @@ function setupRealtime() {
     });
 }
 
-// --- تابع استخراج شماره باجه از user-greeting ---
+// --- تابع استخراج شماره باجه از user-greeting - بهبود یافته ---
 function extractCounterNumberFromGreeting() {
     try {
         const greetingElement = document.getElementById('user-greeting');
@@ -844,33 +829,12 @@ function extractCounterNumberFromGreeting() {
         const greetingText = greetingElement.textContent || '';
         console.log('🔍 Extracting counter number from greeting:', greetingText);
         
-        // استخراج عدد از متن
+        // استخراج عدد از متن - روش بهبود یافته
         const numbers = greetingText.match(/\d+/g);
         if (numbers && numbers.length > 0) {
             const counterNum = numbers[0];
             console.log(`✅ Counter number extracted from greeting: ${counterNum}`);
             return counterNum;
-        }
-        
-        // اگر عدد پیدا نشد، از کلمات فارسی استفاده کن
-        const wordToNumber = {
-            'یک': '1', 'اول': '1', '۱': '1',
-            'دو': '2', 'دوم': '2', '۲': '2',
-            'سه': '3', 'سوم': '3', '۳': '3', 
-            'چهار': '4', 'چهارم': '4', '۴': '4',
-            'پنج': '5', 'پنجم': '5', '۵': '5',
-            'شش': '6', 'ششم': '6', '۶': '6',
-            'هفت': '7', 'هفتم': '7', '۷': '7',
-            'هشت': '8', 'هشتم': '8', '۸': '8',
-            'نه': '9', 'نهم': '9', '۹': '9',
-            'ده': '10', 'دهم': '10', '۱۰': '10'
-        };
-        
-        for (const [word, num] of Object.entries(wordToNumber)) {
-            if (greetingText.includes(word)) {
-                console.log(`✅ Counter number extracted from word "${word}": ${num}`);
-                return num;
-            }
         }
         
         console.log('❌ No counter number found in greeting, using default: 1');

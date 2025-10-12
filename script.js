@@ -869,28 +869,18 @@ function playAudioFile(filePath) {
     return Promise.resolve();
 }
 
-// --- تابع پخش صوت - فقط فراخوانی به display ---
 function playCallSound(ticket) {
     if (!ticket) return Promise.resolve();
     
     const ticketNumber = ticket.specific_ticket || '0001';
-    const counterName = getCounterName();
-    const counterNumber = getCounterNumber();
+    const counterName = getCounterName(); // این "باجه ۵" برمی‌گرداند
+    const counterNumber = getCounterNumber(); // این باید "5" برگرداند اما بررسی کن
     
     console.log(`🎵 Main: Requesting sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    // فقط درخواست به display ارسال شود
+    // اینجا counterNumber ممکن است undefined باشد
     if (window.displaySoundManager) {
-        return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
-            .then(() => {
-                console.log('✅ Main: Sound request sent to display');
-            })
-            .catch(error => {
-                console.error('❌ Main: Sound request failed:', error);
-            });
-    } else {
-        console.log('🔇 Display not available for sound');
-        return Promise.resolve();
+        return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket);
     }
 }
 
