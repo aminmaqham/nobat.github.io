@@ -650,47 +650,29 @@ async preloadImportantSounds() {
         });
     }
 
-    function updatePhotographyList(photographyItems) {
-        const waitingCount = photographyItems.length;
-        photographyWaiting.textContent = `منتظران: ${waitingCount}`;
+function updatePhotographyList(photographyItems) {
+    const waitingCount = photographyItems.length;
+    photographyWaiting.textContent = `منتظران: ${waitingCount}`;
 
-        if (photographyItems.length === 0) {
-            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در انتظار عکاسی وجود ندارد</div>';
-            return;
-        }
-        
-        photographyList.innerHTML = `
-            <table class="photography-table">
-                <thead>
-                    <tr>
-                        <th>ردیف</th>
-                        <th>شماره نوبت</th>
-                        <th>نام مشتری</th>
-                        <th>کد ملی</th>
-                        <th>وضعیت</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${photographyItems.map((item, index) => `
-                        <tr>
-                            <td class="photography-row-number">${index + 1}</td>
-                            <td>
-                                <div class="photography-ticket-number">${item.ticketNumber}</div>
-                            </td>
-                            <td>${item.firstName} ${item.lastName}</td>
-                            <td class="photography-national-id">${item.nationalId}</td>
-                            <td>
-                                <span class="photography-status status-waiting">
-                                    در انتظار
-                                </span>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
+    if (photographyItems.length === 0) {
+        photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در انتظار عکاسی وجود ندارد</div>';
+        return;
     }
-
+    
+    // استفاده از طراحی جدید با آیتم‌های لیست
+    photographyList.innerHTML = photographyItems.map((item, index) => `
+        <div class="photography-item ${index === 0 ? 'new-item' : ''}">
+            <div class="photography-number">${index + 1}</div>
+            <div class="photography-info">
+                <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
+                <div class="photography-national-id">${item.nationalId}</div>
+            </div>
+            <div class="photography-status status-waiting">
+                در انتظار
+            </div>
+        </div>
+    `).join('');
+}
     function formatTime(date) {
         return date.toLocaleTimeString('fa-IR', {
             hour: '2-digit',

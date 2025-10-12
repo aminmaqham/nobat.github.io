@@ -14,23 +14,179 @@ body {
 
 .container {
     display: flex;
-    flex-direction: column;
     height: 100vh;
     padding: 10px;
-    gap: 10px;
+    gap: 15px;
 }
 
-/* استایل هدر اصلی */
-.display-header {
-    text-align: center;
-    padding: 15px;
+/* بخش لیست عکاسی در سمت چپ */
+.photography-display {
+    flex: 0 0 400px; /* عرض ثابت برای لیست عکاسی */
     background: rgba(255, 255, 255, 0.1);
     border-radius: 15px;
-    /* پشتیبانی کامل از backdrop-filter */
+    padding: 15px;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.photography-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.photography-header h2 {
+    font-size: 2rem;
+    color: #ffeb3b;
+}
+
+.photography-waiting {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: #ff5722;
+    padding: 8px 16px;
+    border-radius: 10px;
+}
+
+.photography-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.photography-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.1rem;
+}
+
+.photography-table th {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 12px 8px;
+    text-align: center;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    font-weight: 700;
+}
+
+.photography-table td {
+    padding: 10px 8px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.photography-row-number {
+    font-weight: 700;
+    color: #ffeb3b;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    padding: 5px;
+    min-width: 40px;
+}
+
+.photography-ticket-number {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #4CAF50;
+}
+
+.photography-national-id {
+    font-family: monospace;
+    letter-spacing: 1px;
+    direction: ltr;
+    text-align: center;
+}
+
+.photography-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.status-waiting {
+    background: #ff9800;
+    color: white;
+}
+
+.photography-empty {
+    text-align: center;
+    padding: 40px;
+    font-size: 1.3rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* استایل برای آیتم‌های لیست عکاسی */
+.photography-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.photography-item.new-item {
+    background: rgba(255, 152, 0, 0.2);
+    border: 2px solid #ff9800;
+    animation: new-item-pulse 2s infinite;
+}
+
+.photography-number {
+    background: #ff5722;
+    color: white;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+.photography-info {
+    flex: 1;
+    text-align: right;
+}
+
+.photography-ticket {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+    color: #4CAF50;
+}
+
+.photography-national-id {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-family: monospace;
+    direction: ltr;
+}
+
+/* بخش اصلی نمایش نوبت‌ها در سمت راست */
+.main-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.display-header {
+    text-align: center;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 15px;
 }
 
 .system-title {
@@ -46,13 +202,6 @@ body {
     font-weight: 500;
     color: #ffeb3b;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-/* بخش اصلی نمایش نوبت‌ها */
-.main-display {
-    flex: 2;
-    display: flex;
-    flex-direction: column;
 }
 
 .tickets-container {
@@ -153,100 +302,7 @@ body {
     font-size: 3rem;
 }
 
-/* بخش لیست عکاسی */
-.photography-display {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    padding: 15px;
-    /* پشتیبانی کامل از backdrop-filter */
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    max-height: 30vh;
-}
-
-.photography-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.photography-header h2 {
-    font-size: 2rem;
-    color: #ffeb3b;
-}
-
-.photography-waiting {
-    font-size: 1.5rem;
-    font-weight: 700;
-    background: #ff5722;
-    padding: 8px 16px;
-    border-radius: 10px;
-}
-
-.photography-list {
-    height: calc(100% - 60px);
-    overflow-y: auto;
-}
-
-.photography-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 1.1rem;
-}
-
-.photography-table th {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 12px;
-    text-align: center;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.photography-table td {
-    padding: 12px;
-    text-align: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.photography-row-number {
-    font-weight: 700;
-    color: #ffeb3b;
-}
-
-.photography-ticket-number {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #4CAF50;
-}
-
-.photography-national-id {
-    font-family: monospace;
-    letter-spacing: 1px;
-}
-
-.photography-status {
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-weight: 700;
-}
-
-.status-waiting {
-    background: #ff9800;
-    color: white;
-}
-
-.photography-empty {
-    text-align: center;
-    padding: 40px;
-    font-size: 1.3rem;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-/* انیمیشن‌ها با پشتیبانی کامل */
+/* انیمیشن‌ها */
 @keyframes pulse-glow {
     0%, 100% {
         box-shadow: 0 8px 32px rgba(255, 152, 0, 0.4);
@@ -283,38 +339,56 @@ body {
     }
 }
 
+@keyframes new-item-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(255, 152, 0, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(255, 152, 0, 0.8);
+    }
+}
+
+@-webkit-keyframes new-item-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(255, 152, 0, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(255, 152, 0, 0.8);
+    }
+}
+
 /* گرادیانت‌ها با پشتیبانی کامل */
 .ticket-card {
-    background: #4CAF50; /* Fallback برای مرورگرهای قدیمی */
+    background: #4CAF50;
     background: -webkit-linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
     background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
 }
 
 .ticket-card.recent {
-    background: #ff9800; /* Fallback */
+    background: #ff9800;
     background: -webkit-linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
     background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
 }
 
 .ticket-card.old {
-    background: #2196F3; /* Fallback */
+    background: #2196F3;
     background: -webkit-linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
     background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
 }
 
 .ticket-card.returned-from-photography {
-    background: #9C27B0; /* Fallback */
+    background: #9C27B0;
     background: -webkit-linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
     background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
 }
 
 body {
-    background: #1e3c72; /* Fallback */
+    background: #1e3c72;
     background: -webkit-linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
 }
 
-/* اسکرول بار استایل با پشتیبانی کامل */
+/* اسکرول بار استایل */
 .photography-list::-webkit-scrollbar {
     width: 8px;
 }
@@ -350,6 +424,10 @@ body {
     .ticket-info {
         font-size: 1.2rem;
     }
+    
+    .photography-display {
+        flex: 0 0 350px;
+    }
 }
 
 @media (max-height: 600px) {
@@ -367,6 +445,10 @@ body {
     
     .photography-header h2 {
         font-size: 1.6rem;
+    }
+    
+    .photography-display {
+        flex: 0 0 300px;
     }
 }
 

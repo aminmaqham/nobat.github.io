@@ -7,9 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="display.css">
     
-    <!-- پشتیبانی از فول‌اسکرین در مرورگرهای مختلف -->
     <style>
-        /* استایل‌های اضافی برای پشتیبانی بهتر */
         .no-backdrop-support {
             display: none;
         }
@@ -31,13 +29,23 @@
     </style>
 </head>
 <body>
-    <!-- هشدار برای مرورگرهای قدیمی -->
     <div class="no-backdrop-support">
         برای تجربه بهتر، از مرورگر جدیدتر استفاده کنید
     </div>
     
     <div class="container">
-        <!-- بخش اصلی نمایش نوبت‌ها -->
+        <!-- بخش لیست عکاسی در سمت چپ -->
+        <div class="photography-display">
+            <div class="photography-header">
+                <h2>لیست عکاسی</h2>
+                <div class="photography-waiting">منتظران: ۰</div>
+            </div>
+            <div class="photography-list">
+                <div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>
+            </div>
+        </div>
+
+        <!-- بخش اصلی نمایش نوبت‌ها در سمت راست -->
         <div class="main-display">
             <header class="display-header">
                 <h1 class="system-title">سیستم نوبت دهی هوشمند</h1>
@@ -45,24 +53,11 @@
             </header>
             
             <div class="tickets-container">
-                <!-- نوبت‌ها اینجا نمایش داده می‌شوند -->
                 <div class="ticket-card placeholder">
                     <div class="ticket-number">---</div>
                     <div class="ticket-info">منتظر فراخوان...</div>
                     <div class="ticket-time">--:--</div>
                 </div>
-            </div>
-        </div>
-
-        <!-- بخش لیست عکاسی -->
-        <div class="photography-display">
-            <div class="photography-header">
-                <h2>لیست عکاسی</h2>
-                <div class="photography-waiting">منتظران: ۰</div>
-            </div>
-            <div class="photography-list">
-                <!-- لیست عکاسی اینجا نمایش داده می‌شود -->
-                <div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>
             </div>
         </div>
     </div>
@@ -71,7 +66,6 @@
     <script src="display.js"></script>
     
     <script>
-        // اتوماتیک فول‌اسکرین هنگام لود صفحه با پشتیبانی کامل
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 const docElement = document.documentElement;
@@ -90,7 +84,6 @@
             }, 1000);
         });
 
-        // امکان فول‌اسکرین با F11
         document.addEventListener('keydown', function(e) {
             if (e.key === 'F11') {
                 e.preventDefault();
