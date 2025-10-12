@@ -1653,93 +1653,137 @@ async function callPastTicket() {
     }
 }
     
-    async function resetAllTickets() {
-        if (!confirm('⚠️ هشدار: این عمل غیرقابل بازگشت است!\n\nآیا مطمئن هستید که می‌خواهید:\n• تمام نوبت‌ها\n• تمام تاریخچه عکاسی\n• لیست انتظار عکاسی\n\nرا پاک کنید؟')) return;
+// --- تابع اصلاح شده برای پاک کردن همه نوبت‌ها و تاریخچه عکاسی ---
+async function resetAllTickets() {
+    if (!confirm('⚠️ هشدار: این عمل غیرقابل بازگشت است!\n\nآیا مطمئن هستید که می‌خواهید:\n• تمام نوبت‌ها\n• تمام تاریخچه عکاسی\n• لیست انتظار عکاسی\n\nرا پاک کنید؟')) return;
+    
+    try {
+        showPopupNotification('<p>در حال پاک کردن داده‌ها... لطفا منتظر بمانید.</p>');
         
+        let deletedTicketsCount = 0;
+        let deletedPhotographyCount = 0;
+
+        // پاک کردن تمام نوبت‌ها با حلقه
         try {
-            showPopupNotification('<p>در حال پاک کردن داده‌ها... لطفا منتظر بمانید.</p>');
-            
-            let deletedTicketsCount = 0;
-            let deletedPhotographyCount = 0;
-
-            try {
-                let ticketsResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
-                while (ticketsResponse.documents.length > 0) {
-                    const deletePromises = ticketsResponse.documents.map(doc => 
-                        databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id)
-                    );
-                    await Promise.all(deletePromises);
-                    deletedTicketsCount += ticketsResponse.documents.length;
-                    ticketsResponse = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [Query.limit(100)]);
+            let hasMoreTickets = true;
+            while (hasMoreTickets) {
+                const ticketsResponse = await databases.listDocuments(
+                    DATABASE_ID, 
+                    TICKETS_COLLECTION_ID, 
+                    [Query.limit(100)]
+                );
+                
+                if (ticketsResponse.documents.length === 0) {
+                    hasMoreTickets = false;
+                    break;
                 }
-                console.log(`Deleted ${deletedTicketsCount} tickets`);
-            } catch (ticketError) {
-                console.error('Error deleting tickets:', ticketError);
-            }
-
-            try {
-                let photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
-                while (photographyResponse.documents.length > 0) {
-                    const deletePhotographyPromises = photographyResponse.documents.map(doc => 
-                        databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
-                    );
-                    await Promise.all(deletePhotographyPromises);
-                    deletedPhotographyCount += photographyResponse.documents.length;
-                    photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
-                }
-                console.log(`Deleted ${deletedPhotographyCount} photography records`);
-            } catch (photographyError) {
-                console.error('Error deleting photography history:', photographyError);
-            }
-
-            photographyHistory = [];
-            tickets = [];
-            savePhotographyHistory();
-            
-            updatePhotographyUI();
-            await fetchData();
-            renderUI();
-            
-            showPopupNotification(`
-                <p>✅ پاکسازی با موفقیت انجام شد:</p>
-                <p>• ${deletedTicketsCount} نوبت پاک شد</p>
-                <p>• ${deletedPhotographyCount} رکورد عکاسی پاک شد</p>
-                <p>• لیست انتظار عکاسی پاک شد</p>
-            `);
-            
-        } catch (error) {
-            console.error('Error in reset operation:', error);
-            showPopupNotification('<p>❌ خطا در پاک کردن داده‌ها. لطفا دوباره تلاش کنید.</p>');
-        }
-    }
-
-    async function resetPhotographyHistoryOnly() {
-        if (!confirm('آیا مطمئن هستید که می‌خواهید فقط تاریخچه عکاسی را پاک کنید؟')) return;
-        
-        try {
-            let deletedCount = 0;
-            let photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
-            
-            while (photographyResponse.documents.length > 0) {
-                const deletePromises = photographyResponse.documents.map(doc => 
-                    databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
+                
+                const deletePromises = ticketsResponse.documents.map(doc => 
+                    databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id)
                 );
                 await Promise.all(deletePromises);
-                deletedCount += photographyResponse.documents.length;
-                photographyResponse = await databases.listDocuments(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, [Query.limit(100)]);
+                deletedTicketsCount += ticketsResponse.documents.length;
+                
+                console.log(`Deleted ${ticketsResponse.documents.length} tickets, total: ${deletedTicketsCount}`);
+            }
+            console.log(`✅ Total tickets deleted: ${deletedTicketsCount}`);
+        } catch (ticketError) {
+            console.error('Error deleting tickets:', ticketError);
+            showPopupNotification('<p>خطا در پاک کردن برخی نوبت‌ها!</p>');
+        }
+
+        // پاک کردن تمام تاریخچه عکاسی با حلقه
+        try {
+            let hasMorePhotography = true;
+            while (hasMorePhotography) {
+                const photographyResponse = await databases.listDocuments(
+                    DATABASE_ID, 
+                    PHOTOGRAPHY_COLLECTION_ID, 
+                    [Query.limit(100)]
+                );
+                
+                if (photographyResponse.documents.length === 0) {
+                    hasMorePhotography = false;
+                    break;
+                }
+                
+                const deletePhotographyPromises = photographyResponse.documents.map(doc => 
+                    databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
+                );
+                await Promise.all(deletePhotographyPromises);
+                deletedPhotographyCount += photographyResponse.documents.length;
+                
+                console.log(`Deleted ${photographyResponse.documents.length} photography records, total: ${deletedPhotographyCount}`);
+            }
+            console.log(`✅ Total photography records deleted: ${deletedPhotographyCount}`);
+        } catch (photographyError) {
+            console.error('Error deleting photography history:', photographyError);
+            showPopupNotification('<p>خطا در پاک کردن برخی رکوردهای عکاسی!</p>');
+        }
+
+        // به‌روزرسانی state برنامه
+        photographyHistory = [];
+        tickets = [];
+        
+        // به‌روزرسانی UI
+        updatePhotographyUI();
+        await fetchData();
+        renderUI();
+        
+        showPopupNotification(`
+            <p>✅ پاکسازی با موفقیت انجام شد:</p>
+            <p>• ${deletedTicketsCount} نوبت پاک شد</p>
+            <p>• ${deletedPhotographyCount} رکورد عکاسی پاک شد</p>
+            <p>• لیست انتظار عکاسی پاک شد</p>
+        `);
+        
+    } catch (error) {
+        console.error('Error in reset operation:', error);
+        showPopupNotification('<p>❌ خطا در پاک کردن داده‌ها. لطفا دوباره تلاش کنید.</p>');
+    }
+}
+
+// --- تابع اصلاح شده برای پاک کردن فقط تاریخچه عکاسی ---
+async function resetPhotographyHistoryOnly() {
+    if (!confirm('آیا مطمئن هستید که می‌خواهید فقط تاریخچه عکاسی را پاک کنید؟')) return;
+    
+    try {
+        showPopupNotification('<p>در حال پاک کردن تاریخچه عکاسی... لطفا منتظر بمانید.</p>');
+        
+        let deletedCount = 0;
+        let hasMorePhotography = true;
+        
+        while (hasMorePhotography) {
+            const photographyResponse = await databases.listDocuments(
+                DATABASE_ID, 
+                PHOTOGRAPHY_COLLECTION_ID, 
+                [Query.limit(100)]
+            );
+            
+            if (photographyResponse.documents.length === 0) {
+                hasMorePhotography = false;
+                break;
             }
             
-            photographyHistory = [];
-            savePhotographyHistory();
-            updatePhotographyUI();
+            const deletePromises = photographyResponse.documents.map(doc => 
+                databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
+            );
+            await Promise.all(deletePromises);
+            deletedCount += photographyResponse.documents.length;
             
-            showPopupNotification(`<p>✅ ${deletedCount} رکورد از تاریخچه عکاسی پاک شد.</p>`);
-            
-        } catch (error) {
-            console.error('Error resetting photography history:', error);
-            showPopupNotification('<p>❌ خطا در پاک کردن تاریخچه عکاسی.</p>');
+            console.log(`Deleted ${photographyResponse.documents.length} photography records, total: ${deletedCount}`);
         }
+        
+        photographyHistory = [];
+        updatePhotographyUI();
+        
+        showPopupNotification(`<p>✅ ${deletedCount} رکورد از تاریخچه عکاسی پاک شد.</p>`);
+        
+    } catch (error) {
+        console.error('Error resetting photography history:', error);
+        showPopupNotification('<p>❌ خطا در پاک کردن تاریخچه عکاسی.</p>');
     }
+}
 
     // --- AUTO RESET FUNCTIONALITY ---
     async function checkAutoReset() {
@@ -2586,10 +2630,12 @@ async function initializeApp() {
     callNextBtn.addEventListener('click', callNextTicketWithOptions);
     passTicketBtn.addEventListener('click', openPassServiceModal);
     
-    const resetPhotographyBtn = document.getElementById('reset-photography-btn');
-    if (resetPhotographyBtn) {
-        resetPhotographyBtn.addEventListener('click', resetPhotographyHistoryOnly);
-    }
+            const resetPhotographyBtn = document.getElementById('reset-photography-btn');
+        if (resetPhotographyBtn) {
+            resetPhotographyBtn.addEventListener('click', resetPhotographyHistoryOnly);
+        } else {
+            console.error('Reset photography button not found');
+        }
     
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
