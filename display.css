@@ -30,6 +30,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     flex-direction: column;
+    order: 1; /* قرارگیری در سمت چپ */
 }
 
 .photography-header {
@@ -176,6 +177,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
+    order: 2; /* قرارگیری در سمت راست */
 }
 
 .display-header {
@@ -251,22 +253,24 @@ body {
     animation: pulse-returned 3s infinite;
 }
 
-.ticket-number {
-    font-size: 4rem;
+/* شماره نوبت بزرگتر */
+.ticket-number-large {
+    font-size: 6rem; /* بزرگتر از قبل */
     font-weight: 900;
     margin-bottom: 15px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
     color: #fff;
+    line-height: 1;
 }
 
 .ticket-info {
-    font-size: 1.4rem;
+    font-size: 1.6rem; /* کمی بزرگتر */
     margin-bottom: 15px;
     line-height: 1.6;
 }
 
 .counter-name {
-    font-size: 1.6rem;
+    font-size: 1.8rem; /* کمی بزرگتر */
     font-weight: 700;
     color: #ffeb3b;
     margin-top: 8px;
@@ -275,20 +279,20 @@ body {
 .photography-badge {
     background: rgba(255, 255, 255, 0.9);
     color: #9C27B0;
-    padding: 5px 12px;
+    padding: 8px 16px; /* کمی بزرگتر */
     border-radius: 20px;
-    font-size: 1.1rem;
+    font-size: 1.2rem; /* کمی بزرگتر */
     font-weight: 700;
     margin-top: 10px;
     display: inline-block;
 }
 
 .ticket-time {
-    font-size: 1.8rem;
+    font-size: 2rem; /* کمی بزرگتر */
     font-weight: 500;
     color: #e3f2fd;
     background: rgba(0, 0, 0, 0.3);
-    padding: 8px 16px;
+    padding: 10px 20px; /* کمی بزرگتر */
     border-radius: 10px;
 }
 
@@ -297,9 +301,9 @@ body {
     border: 2px dashed rgba(255, 255, 255, 0.3);
 }
 
-.ticket-card.placeholder .ticket-number {
+.ticket-card.placeholder .ticket-number-large {
     color: rgba(255, 255, 255, 0.5);
-    font-size: 3rem;
+    font-size: 5rem; /* بزرگ برای حالت placeholder */
 }
 
 /* انیمیشن‌ها */
@@ -417,12 +421,12 @@ body {
         font-size: 1.6rem;
     }
     
-    .ticket-number {
-        font-size: 3.2rem;
+    .ticket-number-large {
+        font-size: 5rem;
     }
     
     .ticket-info {
-        font-size: 1.2rem;
+        font-size: 1.4rem;
     }
     
     .photography-display {
@@ -439,8 +443,8 @@ body {
         font-size: 1.3rem;
     }
     
-    .ticket-number {
-        font-size: 2.8rem;
+    .ticket-number-large {
+        font-size: 4rem;
     }
     
     .photography-header h2 {

@@ -603,52 +603,52 @@ async preloadImportantSounds() {
         }
     }
 
-    function updateTicketsDisplay(tickets) {
-        ticketsContainer.innerHTML = '';
+function updateTicketsDisplay(tickets) {
+    ticketsContainer.innerHTML = '';
+    
+    if (tickets.length === 0) {
+        ticketsContainer.innerHTML = `
+            <div class="ticket-card placeholder">
+                <div class="ticket-number-large">---</div>
+                <div class="ticket-info">منتظر فراخوان...</div>
+                <div class="ticket-time">--:--</div>
+            </div>
+        `;
+        return;
+    }
+
+    tickets.forEach((ticket, index) => {
+        const ticketElement = document.createElement('div');
+        const callTime = new Date(ticket.call_time);
+        const now = new Date();
+        const minutesDiff = Math.floor((now - callTime) / (1000 * 60));
         
-        if (tickets.length === 0) {
-            ticketsContainer.innerHTML = `
-                <div class="ticket-card">
-                    <div class="ticket-number">---</div>
-                    <div class="ticket-info">منتظر فراخوان...</div>
-                    <div class="ticket-time">--:--</div>
-                </div>
-            `;
-            return;
+        let cardClass = 'ticket-card';
+        if (minutesDiff < 2) {
+            cardClass += ' recent';
+        } else {
+            cardClass += ' old';
         }
 
-        tickets.forEach((ticket, index) => {
-            const ticketElement = document.createElement('div');
-            const callTime = new Date(ticket.call_time);
-            const now = new Date();
-            const minutesDiff = Math.floor((now - callTime) / (1000 * 60));
-            
-            let cardClass = 'ticket-card';
-            if (minutesDiff < 2) {
-                cardClass += ' recent';
-            } else {
-                cardClass += ' old';
-            }
+        // اضافه کردن کلاس برای نوبت‌های بازگشته از عکاسی
+        if (ticket.returned_from_photography) {
+            cardClass += ' returned-from-photography';
+        }
 
-            // اضافه کردن کلاس برای نوبت‌های بازگشته از عکاسی
-            if (ticket.returned_from_photography) {
-                cardClass += ' returned-from-photography';
-            }
-
-            ticketElement.className = cardClass;
-            ticketElement.innerHTML = `
-                <div class="ticket-number">${ticket.specific_ticket || 'پاس'}</div>
-                <div class="ticket-info">
-                    <div>شماره ${ticket.specific_ticket || 'پاس'} به ${ticket.called_by_counter_name || 'باجه'}</div>
-                    <div class="counter-name">${ticket.called_by_name || 'سیستم'}</div>
-                    ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
-                </div>
-                <div class="ticket-time">${formatTime(callTime)}</div>
-            `;
-            
-            ticketsContainer.appendChild(ticketElement);
-        });
-    }
+        ticketElement.className = cardClass;
+        ticketElement.innerHTML = `
+            <div class="ticket-number-large">${ticket.specific_ticket || 'پاس'}</div>
+            <div class="ticket-info">
+                <div>شماره ${ticket.specific_ticket || 'پاس'} به ${ticket.called_by_counter_name || 'باجه'}</div>
+                <div class="counter-name">${ticket.called_by_name || 'سیستم'}</div>
+                ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
+            </div>
+            <div class="ticket-time">${formatTime(callTime)}</div>
+        `;
+        
+        ticketsContainer.appendChild(ticketElement);
+    });
+}
 
 function updatePhotographyList(photographyItems) {
     const waitingCount = photographyItems.length;
