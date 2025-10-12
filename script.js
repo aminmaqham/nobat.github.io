@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'normal',
                     timestamp: new Date().toISOString()
                 },
-                [Permission.read(Role.any())]
+                [Permission.read(Role.any())] // ✅ اصلاح: استفاده از Role.any()
             );
             
             console.log('✅ Sound request sent to Appwrite');
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'photography',
                     timestamp: new Date().toISOString()
                 },
-                [Permission.read(Role.any())]
+                [Permission.read(Role.any())] // ✅ اصلاح: استفاده از Role.any()
             );
             
             console.log('✅ Photography sound request sent to Appwrite');
@@ -285,47 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error loading photography history from Appwrite:', error);
             photographyHistory = [];
         }
-    }
-
-    function savePhotographyHistory() {
-        try {
-            const event = new Event('photographyHistoryUpdated');
-            window.dispatchEvent(event);
-            console.log('Photography history synced');
-        } catch (error) {
-            console.error('Error saving photography history:', error);
-        }
-    }
-
-    // --- تابع اصلاح شده برای نمایش خطای کد ملی ---
-    function showNationalIdError(message) {
-        const nationalIdInput = document.getElementById('photography-national-id');
-        if (nationalIdInput) {
-            nationalIdInput.style.borderColor = 'var(--danger-color)';
-            nationalIdInput.style.backgroundColor = '#ffeaea';
-            nationalIdInput.focus();
-            
-            const errorToast = document.createElement('div');
-            errorToast.style.cssText = `
-                position: fixed;
-                top: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: var(--danger-color);
-                color: white;
-                padding: 10px 20px;
-                border-radius: var(--border-radius);
-                z-index: 10000;
-                font-family: 'Vazirmatn', sans-serif;
-            `;
-            errorToast.textContent = message;
-            document.body.appendChild(errorToast);
-            
-            setTimeout(() => {
-                errorToast.remove();
-            }, 3000);
-        }
-        console.error('National ID Error:', message);
     }
 
     // --- تابع برای بررسی تکراری نبودن کد ملی در لیست انتظار ---
@@ -694,12 +653,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (photographyDisplay) {
             photographyDisplay.style.display = 'flex';
         }
-    }
-
-    // --- توابع به‌روزرسانی وضعیت آنلاین ---
-    async function updateAllDisplays() {
-        await updateTotalWaitingCount();
-        updatePhotographyUI();
     }
 
     // --- تابع کامل برای به‌روزرسانی تعداد منتظران ---
