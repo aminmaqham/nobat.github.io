@@ -649,7 +649,6 @@ function updateTicketsDisplay(tickets) {
         ticketsContainer.appendChild(ticketElement);
     });
 }
-
 function updatePhotographyList(photographyItems) {
     const waitingCount = photographyItems.length;
     photographyWaiting.textContent = `منتظران: ${waitingCount}`;
@@ -659,16 +658,17 @@ function updatePhotographyList(photographyItems) {
         return;
     }
     
-    // استفاده از طراحی جدید با آیتم‌های لیست
+    // استفاده از طراحی جدید با عدد بزرگ و بدون "کیوسک الکترونیکی"
     photographyList.innerHTML = photographyItems.map((item, index) => `
         <div class="photography-item ${index === 0 ? 'new-item' : ''}">
             <div class="photography-number">${index + 1}</div>
             <div class="photography-info">
-                <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
+                <div class="photography-ticket">${item.ticketNumber}</div>
+                <div class="photography-customer-name">${item.firstName} ${item.lastName}</div>
                 <div class="photography-national-id">${item.nationalId}</div>
-            </div>
-            <div class="photography-status status-waiting">
-                در انتظار
+                <div class="photography-status status-waiting">
+                    در انتظار
+                </div>
             </div>
         </div>
     `).join('');

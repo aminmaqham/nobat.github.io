@@ -550,42 +550,44 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
             `;
         }
     }
-
-    // --- تابع رندر لیست عکاسی (نمایش زنده) ---
-    function renderPhotographyList() {
-        if (!photographyListContainer) return;
-        
-        const waitingItems = photographyHistory.filter(item => 
-            item.status === 'در انتظار' && !item.photoTaken
-        );
-        
-        if (waitingItems.length === 0) {
-            photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-            if (photographyDisplay) {
-                photographyDisplay.style.display = 'none';
-            }
-            return;
+    
+function renderPhotographyList() {
+    if (!photographyListContainer) return;
+    
+    const waitingItems = photographyHistory.filter(item => 
+        item.status === 'در انتظار' && !item.photoTaken
+    );
+    
+    if (waitingItems.length === 0) {
+        photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+        if (photographyDisplay) {
+            photographyDisplay.style.display = 'none';
         }
-        
-        const displayItems = waitingItems.slice(0, 7);
-        
-        photographyListContainer.innerHTML = displayItems.map((item, index) => `
-            <div class="photography-item ${index === 0 ? 'new-item' : ''}">
-                <div class="photography-number">${index + 1}</div>
-                <div class="photography-info">
-                    <div class="photography-ticket">${item.ticketNumber} - ${item.firstName} ${item.lastName}</div>
-                    <div class="photography-national-id">${item.nationalId}</div>
-                </div>
-                <div class="photography-status">
+        return;
+    }
+    
+    const displayItems = waitingItems.slice(0, 7);
+    
+    photographyListContainer.innerHTML = displayItems.map((item, index) => `
+        <div class="photography-item ${index === 0 ? 'new-item' : ''}">
+            <div class="photography-number">${index + 1}</div>
+            <div class="photography-info">
+                <div class="photography-ticket">${item.ticketNumber}</div>
+                <div class="photography-customer-name">${item.firstName} ${item.lastName}</div>
+                <div class="photography-national-id">${item.nationalId}</div>
+                <div class="photography-status status-waiting">
                     در انتظار
                 </div>
             </div>
-        `).join('');
-        
-        if (photographyDisplay) {
-            photographyDisplay.style.display = 'flex';
-        }
+        </div>
+    `).join('');
+    
+    if (photographyDisplay) {
+        photographyDisplay.style.display = 'flex';
     }
+}
+
+
 
     // --- توابع به‌روزرسانی وضعیت آنلاین ---
     async function updateAllDisplays() {
