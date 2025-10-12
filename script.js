@@ -594,20 +594,21 @@ function renderPhotographyList() {
         await updateTotalWaitingCount();
         updatePhotographyUI();
     }
-// --- تابع نهایی برای به‌روزرسانی تعداد منتظران ---
+// --- تابع بهبود یافته برای به‌روزرسانی تعداد منتظران ---
 async function updateTotalWaitingCount() {
     try {
-        // اطمینان از اینکه tickets به‌روز است
+        // اگر tickets خالی است، ابتدا داده‌ها را دریافت کن
         if (tickets.length === 0) {
             await fetchTickets();
         }
         
+        // محاسبه دقیق از تمام نوبت‌ها
         const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
         const totalWaitingElement = document.getElementById('total-waiting-count');
         
         if (totalWaitingElement) {
             totalWaitingElement.textContent = waitingCount;
-            console.log(`✅ Total waiting count: ${waitingCount} (from ${tickets.length} total tickets)`);
+            console.log(`✅ Total waiting count: ${waitingCount} (calculated from ${tickets.length} total tickets)`);
         }
         
         return waitingCount;
@@ -624,16 +625,19 @@ async function updateTotalWaitingCount() {
     }
 }
 
-// --- نسخه بهینه‌شده با فیلتر وضعیت ---
+// --- تابع اصلاح شده برای دریافت تمام نوبت‌ها ---
 async function fetchTickets() {
     try {
-        // فقط نوبت‌های فعال را دریافت کنید (برای عملکرد بهتر)
+        // ❌ حذف کامل Query.limit برای دریافت تمام نوبت‌ها
         const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-            Query.orderDesc('$createdAt'),
-            Query.limit(1000) // محدودیت منطقی برای جلوگیری از overload
+            Query.orderDesc('$createdAt')
+            // هیچ محدودیتی وجود ندارد
         ]);
         tickets = response.documents;
-        console.log(`📋 Fetched ${tickets.length} tickets from server`);
+        console.log(`📋 Fetched ALL tickets: ${tickets.length} tickets from server`);
+        
+        // به‌روزرسانی فوری تعداد منتظران
+        updateTotalWaitingCount();
         
     } catch (error) {
         console.error('Error fetching tickets:', error);
@@ -1112,16 +1116,6 @@ async function callNextTicketWithOptions() {
         }
     }
 
-    async function fetchTickets() {
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-                Query.orderDesc('$createdAt')
-            ]);
-            tickets = response.documents;
-        } catch (error) {
-            console.error('Error fetching tickets:', error);
-        }
-    }
 
     function renderUI() {
         if (!currentUser) return;
@@ -1193,7 +1187,7 @@ async function callNextTicketWithOptions() {
         totalWaitingContainer.style.display = 'none';
     }
 
-    // --- REALTIME ---
+// --- سیستم real-time پیشرفته ---
 function setupRealtimeSubscriptions() {
     // کانال نوبت‌ها
     const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
@@ -1201,21 +1195,21 @@ function setupRealtimeSubscriptions() {
     client.subscribe(ticketChannel, (response) => {
         console.log('📡 Real-time ticket update:', response);
         
-        // هنگام هر تغییر در نوبت‌ها، داده‌ها را refresh کن
+        // هنگام هر تغییر در نوبت‌ها، داده‌ها را کاملاً refresh کن
         if (response.events.includes('databases.*.collections.*.documents.*.create') ||
             response.events.includes('databases.*.collections.*.documents.*.update') ||
             response.events.includes('databases.*.collections.*.documents.*.delete')) {
             
-            console.log('🔄 Refreshing tickets data due to real-time change');
+            console.log('🔄 Refreshing ALL tickets data due to real-time change');
             
-            // دریافت داده‌های تازه از سرور
-            fetchTickets().then(() => {
-                // به‌روزرسانی فوری UI
-                updateTotalWaitingCount();
-                renderServiceButtons();
-                updateHistoryTable();
-                updateCurrentTicketDisplay();
-            });
+            // دریافت تمام داده‌های تازه از سرور
+            setTimeout(async () => {
+                await fetchTickets(); // دریافت تمام نوبت‌ها
+                updateTotalWaitingCount(); // به‌روزرسانی شمارنده
+                renderServiceButtons(); // به‌روزرسانی دکمه‌های خدمات
+                updateHistoryTable(); // به‌روزرسانی تاریخچه
+                updateCurrentTicketDisplay(); // به‌روزرسانی نوبت فعلی
+            }, 500);
         }
     });
     
@@ -1223,17 +1217,20 @@ function setupRealtimeSubscriptions() {
     const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
     client.subscribe(serviceChannel, (response) => {
         console.log('📡 Real-time service update:', response);
-        fetchServices().then(() => {
+        setTimeout(async () => {
+            await fetchServices();
             renderServiceButtons();
             updateServiceCheckboxes();
-        });
+        }, 500);
     });
     
     // کانال عکاسی
     const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
     client.subscribe(photographyChannel, (response) => {
         console.log('📡 Real-time photography update:', response);
-        loadPhotographyHistory();
+        setTimeout(() => {
+            loadPhotographyHistory();
+        }, 500);
     });
 }
     // --- UI RENDERING ---
@@ -1280,7 +1277,7 @@ function renderServiceButtons() {
         serviceButtonsContainer.appendChild(button);
     });
     
-    console.log(`🎯 Service buttons rendered for ${services.length} services`);
+    console.log(`🎯 Service buttons rendered for ${services.length} services (using ${tickets.length} total tickets)`);
 }
 
     async function updateServiceCheckboxes() {
