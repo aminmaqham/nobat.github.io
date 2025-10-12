@@ -746,94 +746,67 @@ function extractCounterNumber(counterName) {
     return '1';
 }
 
-// --- Realtime Subscription ---
+// در فایل display.js - تابع setupRealtime را پیدا کرده و اینگونه تغییر دهید:
 function setupRealtime() {
     const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
     const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
     
-    let lastProcessedTicketId = null;
-    
-        // در تابع setupRealtime، هنگام پخش صدا از user-greeting استفاده کن
-            client.subscribe(ticketChannel, response => {
-            console.log('Display: Realtime update received:', response);
-            
-            if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
-                const updatedTicket = response.payload;
-
-                if (updatedTicket.status === 'در حال سرویس') {
-                    // جلوگیری از پردازش تکراری
-                    if (lastProcessedTicketId === updatedTicket.$id) {
-                        console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
-                        return;
-                    }
-                    
-                    lastProcessedTicketId = updatedTicket.$id;
-                    
-                    console.log('Display: New ticket called via real-time:', updatedTicket);
-                    
-                    const ticketNumber = updatedTicket.specific_ticket || '0001';
-                    
-                    // ❌ از user-greeting استفاده کن، نه از called_by_counter_name
-                    // const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
-                    const counterNumber = extractCounterNumberFromGreeting();
-                    
-                    console.log(`🎵 Display: Auto-playing via real-time: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-                    
-                    // پخش صدا از طریق real-time
-                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
-                }
-            }
-            
-            updateDisplay();
-});
+    client.subscribe(ticketChannel, response => {
+        console.log('Display: Realtime update received (UI ONLY):', response);
+        
+        // ❌ فقط UI را آپدیت کن، صدا پخش نکن
+        // if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
+        //     const updatedTicket = response.payload;
+        //     if (updatedTicket.status === 'در حال سرویس') {
+        //         // این قسمت کامنت شود تا صدا دو بار پخش نشود
+        //     }
+        // }
+        
+        updateDisplay(); // فقط UI آپدیت شود
+    });
     
     client.subscribe(photographyChannel, response => {
         console.log('Display: Photography history updated via real-time');
-        
-        // اگر نوبت عکاسی جدید اضافه شده، اعلان صوتی پخش کن
-        if (response.events.includes(`databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents.*.create`)) {
-            const newPhotographyItem = response.payload;
-            if (newPhotographyItem.status === 'در انتظار' && !newPhotographyItem.photoTaken) {
-                console.log('Display: New photography item added:', newPhotographyItem);
-                
-                const ticketNumber = newPhotographyItem.ticketNumber || '0001';
-                const counterNumber = extractCounterNumber(newPhotographyItem.originalCounterName || 'عکاسی');
-                
-                // پخش اعلان برای نوبت عکاسی
-                displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, newPhotographyItem);
-            }
-        }
-        
-        updatePhotographyDisplay();
+        updatePhotographyDisplay(); // فقط UI آپدیت شود
     });
 }
-
-// --- تابع استخراج شماره باجه از user-greeting - بهبود یافته ---
+// در display.js - تابع extractCounterNumberFromGreeting را اینگونه اصلاح کنید:
 function extractCounterNumberFromGreeting() {
     try {
         const greetingElement = document.getElementById('user-greeting');
         if (!greetingElement) {
             console.log('❌ user-greeting element not found, using default: 1');
-            return '1';
+            return 1;
         }
         
         const greetingText = greetingElement.textContent || '';
-        console.log('🔍 Extracting counter number from greeting:', greetingText);
+        console.log('🔍 Greeting text:', greetingText);
         
-        // استخراج عدد از متن - روش بهبود یافته
-        const numbers = greetingText.match(/\d+/g);
-        if (numbers && numbers.length > 0) {
-            const counterNum = numbers[0];
-            console.log(`✅ Counter number extracted from greeting: ${counterNum}`);
-            return counterNum;
+        // روش 1: جستجوی عدد بعد از "باجه"
+        const afterBajeh = greetingText.split('باجه')[1];
+        if (afterBajeh) {
+            const numbers = afterBajeh.match(/\d+/);
+            if (numbers && numbers.length > 0) {
+                const num = parseInt(numbers[0]);
+                console.log(`✅ Counter number found after "باجه": ${num}`);
+                return num;
+            }
         }
         
-        console.log('❌ No counter number found in greeting, using default: 1');
-        return '1';
+        // روش 2: جستجوی هر عدد در متن
+        const allNumbers = greetingText.match(/\d+/g);
+        if (allNumbers && allNumbers.length > 0) {
+            const num = parseInt(allNumbers[0]);
+            console.log(`✅ Counter number found in text: ${num}`);
+            return num;
+        }
+        
+        console.log('❌ No counter number found, using default: 1');
+        return 1;
         
     } catch (error) {
-        console.error('Error extracting counter number from greeting:', error);
-        return '1';
+        console.error('Error extracting counter number:', error);
+        return 1;
     }
 }
 
