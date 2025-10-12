@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
     const PHOTOGRAPHY_COLLECTION_ID = 'photography_history';
+    const AUDIO_ANNOUNCEMENTS_COLLECTION_ID = 'audio_announcements';
 
     const { Client, Account, Databases, ID, Query, Permission, Role } = Appwrite;
     const client = new Client();
@@ -83,68 +84,165 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTicketForPhotography = null;
     let isCallingInProgress = false;
 
-// --- Sound Management System (ONLY FORWARD TO DISPLAY) ---
-class SoundManager {
-    constructor() {
-        this.isAudioEnabled = true;
+    // --- Sound Management System (ONLY FORWARD TO DISPLAY) ---
+    class SoundManager {
+        constructor() {
+            this.isAudioEnabled = true;
+        }
+
+        async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+            console.log(`🎵 Main: Forwarding to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            
+            // فقط ارسال به display page
+            if (window.displaySoundManager) {
+                return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticketData);
+            } else {
+                console.log('🔇 Display sound manager not available');
+                return Promise.resolve();
+            }
+        }
+
+        async playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData = null) {
+            console.log(`🎵 Main: Forwarding photography to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+            
+            if (window.displaySoundManager) {
+                return window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData);
+            } else {
+                console.log('🔇 Display sound manager not available');
+                return Promise.resolve();
+            }
+        }
+
+        async repeatLastAnnouncement() {
+            if (window.displaySoundManager) {
+                return window.displaySoundManager.repeatLastAnnouncement();
+            }
+            console.log('🔇 No display manager for repeat');
+            return Promise.resolve();
+        }
+
+        // سایر توابع غیرفعال شده
+        async playLocalAnnouncement() { 
+            console.log('🔇 Local announcement disabled - using display only');
+            return Promise.resolve(); 
+        }
+        
+        async playNumberSound() { 
+            console.log('🔇 Number sound disabled - using display only');
+            return Promise.resolve(); 
+        }
+        
+        async playCounterSound() { 
+            console.log('🔇 Counter sound disabled - using display only');
+            return Promise.resolve(); 
+        }
+
+        setVolume() { /* انجام nothing */ }
+        toggleSound() { /* انجام nothing */ }
+        loadSettings() { /* انجام nothing */ }
     }
 
-    async playCallAnnouncement(ticketNumber, counterNumber, ticketData = null) {
-        console.log(`🎵 Main: Forwarding to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    const soundManager = new SoundManager();
+
+    // ارسال درخواست صدا از طریق Appwrite
+    async function playCallSound(ticket) {
+        if (!ticket) return Promise.resolve();
         
-        // فقط ارسال به display page
-        if (window.displaySoundManager) {
-            return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticketData);
-        } else {
-            console.log('🔇 Display sound manager not available');
+        const ticketNumber = ticket.specific_ticket || '0001';
+        const counterNumber = getCounterNumber() || '5';
+        const counterName = getCounterName() || 'باجه';
+        
+        console.log(`🎵 Main: Sending sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        try {
+            // ایجاد سند جدید در collection صداها
+            const audioRequest = await databases.createDocument(
+                DATABASE_ID,
+                AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
+                ID.unique(),
+                {
+                    ticket_number: ticketNumber,
+                    counter_number: counterNumber,
+                    counter_name: counterName,
+                    type: 'normal',
+                    timestamp: new Date().toISOString()
+                },
+                [Permission.read(Role.any())]
+            );
+            
+            console.log('✅ Sound request sent to Appwrite');
+            return Promise.resolve();
+            
+        } catch (error) {
+            console.error('❌ Error sending sound request:', error);
             return Promise.resolve();
         }
     }
 
-    async playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData = null) {
-        console.log(`🎵 Main: Forwarding photography to display - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    // برای عکاسی
+    async function playPhotographyCallSound(photographyItem) {
+        if (!photographyItem) return;
         
-        if (window.displaySoundManager) {
-            return window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, ticketData);
-        } else {
-            console.log('🔇 Display sound manager not available');
-            return Promise.resolve();
+        const ticketNumber = photographyItem.ticketNumber || '0001';
+        const counterName = photographyItem.originalCounterName || 'عکاسی';
+        const counterNumber = extractCounterNumber(counterName);
+        
+        console.log(`🎵 Main: Sending photography sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        try {
+            await databases.createDocument(
+                DATABASE_ID,
+                AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
+                ID.unique(),
+                {
+                    ticket_number: ticketNumber,
+                    counter_number: counterNumber,
+                    counter_name: counterName,
+                    type: 'photography',
+                    timestamp: new Date().toISOString()
+                },
+                [Permission.read(Role.any())]
+            );
+            
+            console.log('✅ Photography sound request sent to Appwrite');
+            
+        } catch (error) {
+            console.error('❌ Error sending photography sound request:', error);
         }
     }
 
-    async repeatLastAnnouncement() {
-        if (window.displaySoundManager) {
-            return window.displaySoundManager.repeatLastAnnouncement();
+    // پاک کردن درخواست‌های قدیمی
+    async function cleanupOldAudioRequests() {
+        try {
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+            
+            const oldRequests = await databases.listDocuments(
+                DATABASE_ID,
+                AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
+                [
+                    Query.lessThan('timestamp', oneHourAgo),
+                    Query.limit(50)
+                ]
+            );
+            
+            const deletePromises = oldRequests.documents.map(doc => 
+                databases.deleteDocument(DATABASE_ID, AUDIO_ANNOUNCEMENTS_COLLECTION_ID, doc.$id)
+            );
+            
+            await Promise.all(deletePromises);
+            console.log(`✅ Cleaned up ${oldRequests.documents.length} old audio requests`);
+            
+        } catch (error) {
+            console.error('Error cleaning up audio requests:', error);
         }
-        console.log('🔇 No display manager for repeat');
-        return Promise.resolve();
     }
 
-    // سایر توابع غیرفعال شده
-    async playLocalAnnouncement() { 
-        console.log('🔇 Local announcement disabled - using display only');
-        return Promise.resolve(); 
-    }
-    
-    async playNumberSound() { 
-        console.log('🔇 Number sound disabled - using display only');
-        return Promise.resolve(); 
-    }
-    
-    async playCounterSound() { 
-        console.log('🔇 Counter sound disabled - using display only');
-        return Promise.resolve(); 
-    }
-    
-    setVolume() { /* انجام nothing */ }
-    toggleSound() { /* انجام nothing */ }
-    loadSettings() { /* انجام nothing */ }
-}
+    // هر ساعت اجرا شود
+    setInterval(cleanupOldAudioRequests, 60 * 60 * 1000);
 
-
-function getUserPrefs() {
-    return currentUser ? (currentUser.prefs || {}) : {};
-}
+    function getUserPrefs() {
+        return currentUser ? (currentUser.prefs || {}) : {};
+    }
 
     function getCounterName() {
         const prefs = getUserPrefs();
@@ -448,70 +546,70 @@ function getUserPrefs() {
         }
     }
 
-// --- تابع بهبود یافته برای بازگشت نوبت به باجه مبدا ---
-async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
-    try {
-        console.log(`Returning ticket ${ticketId} to counter: ${originalCounterName}`);
-        
-        const originalTicket = await databases.getDocument(
-            DATABASE_ID,
-            TICKETS_COLLECTION_ID,
-            ticketId
-        );
+    // --- تابع بهبود یافته برای بازگشت نوبت به باجه مبدا ---
+    async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
+        try {
+            console.log(`Returning ticket ${ticketId} to counter: ${originalCounterName}`);
+            
+            const originalTicket = await databases.getDocument(
+                DATABASE_ID,
+                TICKETS_COLLECTION_ID,
+                ticketId
+            );
 
-        if (!originalTicket) {
-            console.error('Original ticket not found:', ticketId);
+            if (!originalTicket) {
+                console.error('Original ticket not found:', ticketId);
+                return false;
+            }
+
+            // ایجاد نوبت جدید با اولویت بالا
+            const newTicketData = {
+                service_id: originalTicket.service_id,
+                specific_ticket: originalTicket.specific_ticket,
+                general_ticket: originalTicket.general_ticket,
+                first_name: originalTicket.first_name,
+                last_name: originalTicket.last_name,
+                national_id: originalTicket.national_id,
+                registered_by: originalTicket.registered_by,
+                registered_by_name: originalTicket.registered_by_name,
+                status: 'در حال انتظار',
+                ticket_type: 'returned_from_photography',
+                original_ticket_id: originalTicket.$id,
+                returned_from_photography: true,
+                original_counter_name: originalCounterName || 'عکاسی',
+                priority: 'high',
+                created_at: new Date().toISOString(),
+                called_by_counter_name: originalCounterName,
+                call_time: new Date().toISOString()
+            };
+
+            const returnedTicket = await databases.createDocument(
+                DATABASE_ID,
+                TICKETS_COLLECTION_ID,
+                ID.unique(),
+                newTicketData,
+                [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
+            );
+
+            console.log('Ticket returned to counter with high priority:', returnedTicket);
+            
+            const service = services.find(s => s.$id === originalTicket.service_id);
+            const serviceName = service ? service.name : 'خدمت';
+            
+            showPopupNotification(`
+                <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
+                <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت بالا قرار گرفت و به زودی فراخوانی می‌شود.</p>
+            `);
+
+            return true;
+
+        } catch (error) {
+            console.error('Error returning ticket to counter:', error);
+            showPopupNotification('<p>خطا در بازگرداندن نوبت به باجه!</p>');
             return false;
         }
-
-        // ایجاد نوبت جدید با اولویت بالا
-        const newTicketData = {
-            service_id: originalTicket.service_id,
-            specific_ticket: originalTicket.specific_ticket,
-            general_ticket: originalTicket.general_ticket,
-            first_name: originalTicket.first_name,
-            last_name: originalTicket.last_name,
-            national_id: originalTicket.national_id,
-            registered_by: originalTicket.registered_by,
-            registered_by_name: originalTicket.registered_by_name,
-            status: 'در حال انتظار',
-            ticket_type: 'returned_from_photography',
-            original_ticket_id: originalTicket.$id,
-            returned_from_photography: true,
-            original_counter_name: originalCounterName || 'عکاسی',
-            priority: 'high', // ✅ اولویت بالا
-            created_at: new Date().toISOString(),
-            // ✅ اضافه کردن فیلدهای مربوط به فراخوانی صوتی
-            called_by_counter_name: originalCounterName,
-            call_time: new Date().toISOString()
-        };
-
-        const returnedTicket = await databases.createDocument(
-            DATABASE_ID,
-            TICKETS_COLLECTION_ID,
-            ID.unique(),
-            newTicketData,
-            [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
-        );
-
-        console.log('Ticket returned to counter with high priority:', returnedTicket);
-        
-        const service = services.find(s => s.$id === originalTicket.service_id);
-        const serviceName = service ? service.name : 'خدمت';
-        
-        showPopupNotification(`
-            <p>نوبت ${originalTicket.specific_ticket || 'پاس'} به صف ${serviceName} بازگردانده شد.</p>
-            <p style="font-size: 14px; color: #4CAF50;">✓ این نوبت در اولویت بالا قرار گرفت و به زودی فراخوانی می‌شود.</p>
-        `);
-
-        return true;
-
-    } catch (error) {
-        console.error('Error returning ticket to counter:', error);
-        showPopupNotification('<p>خطا در بازگرداندن نوبت به باجه!</p>');
-        return false;
     }
-}
+
     // --- تابع رندر تاریخچه عکاسی ---
     function renderPhotographyHistory() {
         const historyBody = document.getElementById('photography-history-body');
@@ -562,341 +660,281 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
         }
     }
 
-function renderPhotographyList() {
-    if (!photographyListContainer) return;
-    
-    const waitingItems = photographyHistory.filter(item => 
-        item.status === 'در انتظار' && !item.photoTaken
-    );
-    
-    if (waitingItems.length === 0) {
-        photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-        if (photographyDisplay) {
-            photographyDisplay.style.display = 'none';
+    function renderPhotographyList() {
+        if (!photographyListContainer) return;
+        
+        const waitingItems = photographyHistory.filter(item => 
+            item.status === 'در انتظار' && !item.photoTaken
+        );
+        
+        if (waitingItems.length === 0) {
+            photographyListContainer.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+            if (photographyDisplay) {
+                photographyDisplay.style.display = 'none';
+            }
+            return;
         }
-        return;
-    }
-    
-    const displayItems = waitingItems.slice(0, 7);
-    
-    photographyListContainer.innerHTML = displayItems.map((item, index) => `
-        <div class="photography-item ${index === 0 ? 'new-item' : ''}">
-            <div class="photography-number">${index + 1}</div>
-            <div class="photography-info">
-                <div class="photography-ticket">${item.ticketNumber}</div>
-                <div class="photography-customer-name">${item.firstName} ${item.lastName}</div>
-                <div class="photography-national-id">${item.nationalId}</div>
-                <div class="photography-status status-waiting">
-                    در انتظار
+        
+        const displayItems = waitingItems.slice(0, 7);
+        
+        photographyListContainer.innerHTML = displayItems.map((item, index) => `
+            <div class="photography-item ${index === 0 ? 'new-item' : ''}">
+                <div class="photography-number">${index + 1}</div>
+                <div class="photography-info">
+                    <div class="photography-ticket">${item.ticketNumber}</div>
+                    <div class="photography-customer-name">${item.firstName} ${item.lastName}</div>
+                    <div class="photography-national-id">${item.nationalId}</div>
+                    <div class="photography-status status-waiting">
+                        در انتظار
+                    </div>
                 </div>
             </div>
-        </div>
-    `).join('');
-    
-    if (photographyDisplay) {
-        photographyDisplay.style.display = 'flex';
+        `).join('');
+        
+        if (photographyDisplay) {
+            photographyDisplay.style.display = 'flex';
+        }
     }
-}
-
-
 
     // --- توابع به‌روزرسانی وضعیت آنلاین ---
     async function updateAllDisplays() {
         await updateTotalWaitingCount();
         updatePhotographyUI();
     }
-// --- تابع کامل برای به‌روزرسانی تعداد منتظران ---
-async function updateTotalWaitingCount() {
-    try {
-        // اگر tickets خالی است، ابتدا داده‌ها را دریافت کن
-        if (!tickets || tickets.length === 0) {
-            console.log('🔄 No tickets data, fetching first...');
-            await fetchTickets();
-            return;
-        }
-        
-        // محاسبه دقیق از تمام نوبت‌ها
-        const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
-        const totalWaitingElement = document.getElementById('total-waiting-count');
-        
-        if (totalWaitingElement) {
-            totalWaitingElement.textContent = waitingCount;
-            console.log(`✅ Total waiting count updated: ${waitingCount} (calculated from ${tickets.length} total tickets)`);
-            
-            // تغییر رنگ برای اعداد بالا (اختیاری)
-            if (waitingCount > 20) {
-                totalWaitingElement.style.color = '#d32f2f';
-                totalWaitingElement.style.fontWeight = 'bold';
-            } else if (waitingCount > 10) {
-                totalWaitingElement.style.color = '#f57c00';
-            } else {
-                totalWaitingElement.style.color = '';
-                totalWaitingElement.style.fontWeight = '';
-            }
-        }
-        
-        return waitingCount;
-        
-    } catch (error) {
-        console.error('❌ Error updating total waiting count:', error);
-        
-        // Fallback
-        const totalWaitingElement = document.getElementById('total-waiting-count');
-        if (totalWaitingElement) {
-            totalWaitingElement.textContent = '0';
-            totalWaitingElement.style.color = '#d32f2f';
-        }
-        return 0;
-    }
-}
 
-// --- تابع کامل و بهبود یافته برای دریافت تمام نوبت‌ها ---
-async function fetchTickets() {
-    try {
-        let allTickets = [];
-        let currentOffset = 0;
-        const limit = 100; // تعداد در هر درخواست
-        let hasMore = true;
-        let requestCount = 0;
-
-        console.log('🔄 Starting to fetch all tickets...');
-
-        // دریافت تدریجی تمام نوبت‌ها
-        while (hasMore) {
-            requestCount++;
-            console.log(`📋 Fetching batch ${requestCount} (offset: ${currentOffset})`);
-            
-            const response = await databases.listDocuments(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, [
-                    Query.orderDesc('$createdAt'),
-                    Query.limit(limit),
-                    Query.offset(currentOffset)
-                ]
-            );
-            
-            if (response.documents.length === 0) {
-                console.log('✅ Reached end of tickets');
-                hasMore = false;
-                break;
-            }
-            
-            allTickets = allTickets.concat(response.documents);
-            currentOffset += limit;
-            
-            console.log(`📦 Batch ${requestCount}: ${response.documents.length} tickets, total so far: ${allTickets.length}`);
-            
-            // اگر تعداد کمتر از limit بود، یعنی به انتها رسیدیم
-            if (response.documents.length < limit) {
-                console.log('✅ All tickets fetched successfully');
-                hasMore = false;
-            }
-
-            // اضافه کردن تاخیر کوچک برای جلوگیری از rate limiting
-            if (hasMore) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-        }
-        
-        tickets = allTickets;
-        console.log(`🎉 Successfully fetched ALL tickets: ${tickets.length} total tickets in ${requestCount} requests`);
-        
-        // نمایش آمار دقیق
-        const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
-        const inServiceCount = tickets.filter(t => t.status === 'در حال سرویس').length;
-        const completedCount = tickets.filter(t => t.status === 'تکمیل شده').length;
-        
-        console.log(`
-        📊 Detailed Statistics:
-        • Total tickets: ${tickets.length}
-        • Waiting: ${waitingCount}
-        • In Service: ${inServiceCount}
-        • Completed: ${completedCount}
-        • Regular tickets: ${tickets.filter(t => t.ticket_type === 'regular').length}
-        • Pass tickets: ${tickets.filter(t => t.ticket_type === 'pass').length}
-        • Returned from photography: ${tickets.filter(t => t.returned_from_photography).length}
-        `);
-        
-        // به‌روزرسانی فوری تعداد منتظران
-        updateTotalWaitingCount();
-        
-        return tickets;
-        
-    } catch (error) {
-        console.error('❌ Error fetching tickets:', error);
-        
-        // Fallback: دریافت حداقل داده‌ها
+    // --- تابع کامل برای به‌روزرسانی تعداد منتظران ---
+    async function updateTotalWaitingCount() {
         try {
-            console.log('🔄 Trying fallback method...');
-            const response = await databases.listDocuments(
-                DATABASE_ID, 
-                TICKETS_COLLECTION_ID, [
-                    Query.orderDesc('$createdAt'),
-                    Query.limit(1000) // محدودیت منطقی برای fallback
-                ]
-            );
-            tickets = response.documents;
-            console.log(`📋 Fallback successful: Fetched ${tickets.length} tickets`);
+            if (!tickets || tickets.length === 0) {
+                console.log('🔄 No tickets data, fetching first...');
+                await fetchTickets();
+                return;
+            }
             
-            // نمایش آمار fallback
             const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
-            console.log(`📊 Fallback stats - Total: ${tickets.length}, Waiting: ${waitingCount}`);
+            const totalWaitingElement = document.getElementById('total-waiting-count');
+            
+            if (totalWaitingElement) {
+                totalWaitingElement.textContent = waitingCount;
+                console.log(`✅ Total waiting count updated: ${waitingCount} (calculated from ${tickets.length} total tickets)`);
+                
+                if (waitingCount > 20) {
+                    totalWaitingElement.style.color = '#d32f2f';
+                    totalWaitingElement.style.fontWeight = 'bold';
+                } else if (waitingCount > 10) {
+                    totalWaitingElement.style.color = '#f57c00';
+                } else {
+                    totalWaitingElement.style.color = '';
+                    totalWaitingElement.style.fontWeight = '';
+                }
+            }
+            
+            return waitingCount;
+            
+        } catch (error) {
+            console.error('❌ Error updating total waiting count:', error);
+            
+            const totalWaitingElement = document.getElementById('total-waiting-count');
+            if (totalWaitingElement) {
+                totalWaitingElement.textContent = '0';
+                totalWaitingElement.style.color = '#d32f2f';
+            }
+            return 0;
+        }
+    }
+
+    // --- تابع کامل و بهبود یافته برای دریافت تمام نوبت‌ها ---
+    async function fetchTickets() {
+        try {
+            let allTickets = [];
+            let currentOffset = 0;
+            const limit = 100;
+            let hasMore = true;
+            let requestCount = 0;
+
+            console.log('🔄 Starting to fetch all tickets...');
+
+            while (hasMore) {
+                requestCount++;
+                console.log(`📋 Fetching batch ${requestCount} (offset: ${currentOffset})`);
+                
+                const response = await databases.listDocuments(
+                    DATABASE_ID, 
+                    TICKETS_COLLECTION_ID, [
+                        Query.orderDesc('$createdAt'),
+                        Query.limit(limit),
+                        Query.offset(currentOffset)
+                    ]
+                );
+                
+                if (response.documents.length === 0) {
+                    console.log('✅ Reached end of tickets');
+                    hasMore = false;
+                    break;
+                }
+                
+                allTickets = allTickets.concat(response.documents);
+                currentOffset += limit;
+                
+                console.log(`📦 Batch ${requestCount}: ${response.documents.length} tickets, total so far: ${allTickets.length}`);
+                
+                if (response.documents.length < limit) {
+                    console.log('✅ All tickets fetched successfully');
+                    hasMore = false;
+                }
+
+                if (hasMore) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            tickets = allTickets;
+            console.log(`🎉 Successfully fetched ALL tickets: ${tickets.length} total tickets in ${requestCount} requests`);
+            
+            const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
+            const inServiceCount = tickets.filter(t => t.status === 'در حال سرویس').length;
+            const completedCount = tickets.filter(t => t.status === 'تکمیل شده').length;
+            
+            console.log(`
+            📊 Detailed Statistics:
+            • Total tickets: ${tickets.length}
+            • Waiting: ${waitingCount}
+            • In Service: ${inServiceCount}
+            • Completed: ${completedCount}
+            • Regular tickets: ${tickets.filter(t => t.ticket_type === 'regular').length}
+            • Pass tickets: ${tickets.filter(t => t.ticket_type === 'pass').length}
+            • Returned from photography: ${tickets.filter(t => t.returned_from_photography).length}
+            `);
             
             updateTotalWaitingCount();
+            
             return tickets;
             
-        } catch (fallbackError) {
-            console.error('❌ Fallback also failed:', fallbackError);
-            showPopupNotification('<p>خطا در دریافت داده‌های نوبت‌ها!</p>');
-            return [];
-        }
-    }
-}
-    // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
-function showAdvancedPopupNotification(ticket, htmlContent) {
-    return new Promise((resolve) => {
-        const popup = document.getElementById('popup-notification');
-        const popupText = document.getElementById('popup-text');
-        
-        popupText.innerHTML = '';
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'popup-with-buttons';
-        
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'popup-close-btn';
-        closeBtn.innerHTML = '×';
-        closeBtn.title = 'بستن';
-        closeBtn.onclick = () => {
-            closePopup();
-            setTimeout(() => resolve('close'), 300);
-        };
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.innerHTML = htmlContent;
-        
-        const buttonsDiv = document.createElement('div');
-        buttonsDiv.className = 'popup-buttons';
-        
-        // ✅ دکمه تکرار صوت
-        const repeatSoundBtn = document.createElement('button');
-        repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
-        repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
-        repeatSoundBtn.onclick = () => {
-            console.log('🔁 User requested sound repetition');
-            playCallSound(ticket); // تابع پخش صوت
-            // افکت بصری
-            repeatSoundBtn.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                repeatSoundBtn.style.transform = 'scale(1)';
-            }, 150);
-        };
-        
-        // ✅ دکمه ارسال به عکاسی
-        const photographyBtn = document.createElement('button');
-        photographyBtn.className = 'popup-btn popup-photography-btn';
-        photographyBtn.textContent = 'ارسال به عکاسی';
-        photographyBtn.onclick = () => {
-            closePopup();
-            setTimeout(() => resolve('photography'), 300);
-        };
-        
-        // ✅ دکمه فراخوان بعدی
-        const nextBtn = document.createElement('button');
-        nextBtn.className = 'popup-btn popup-next-btn';
-        nextBtn.textContent = 'فراخوان بعدی';
-        nextBtn.onclick = () => {
-            closePopup();
-            setTimeout(() => resolve('next'), 300);
-        };
-        
-        buttonsDiv.appendChild(repeatSoundBtn);
-        buttonsDiv.appendChild(photographyBtn);
-        buttonsDiv.appendChild(nextBtn);
-        
-        contentDiv.appendChild(closeBtn);
-        contentDiv.appendChild(messageDiv);
-        contentDiv.appendChild(buttonsDiv);
-        
-        popupText.appendChild(contentDiv);
-        
-        popup.style.display = 'flex';
-        setTimeout(() => {
-            popup.classList.add('show');
-        }, 10);
-        
-        // ✅ پخش خودکار صوت هنگام نمایش نوتیفیکیشن
-        setTimeout(() => {
-            playCallSound(ticket);
-        }, 500);
-        
-        function closePopup() {
-            popup.classList.remove('show');
-            setTimeout(() => {
-                popup.style.display = 'none';
-            }, 300);
-        }
-        
-        const backgroundCloseHandler = function(e) {
-            if (e.target === popup) {
-                closePopup();
-                setTimeout(() => resolve('background'), 300);
+        } catch (error) {
+            console.error('❌ Error fetching tickets:', error);
+            
+            try {
+                console.log('🔄 Trying fallback method...');
+                const response = await databases.listDocuments(
+                    DATABASE_ID, 
+                    TICKETS_COLLECTION_ID, [
+                        Query.orderDesc('$createdAt'),
+                        Query.limit(1000)
+                    ]
+                );
+                tickets = response.documents;
+                console.log(`📋 Fallback successful: Fetched ${tickets.length} tickets`);
+                
+                const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
+                console.log(`📊 Fallback stats - Total: ${tickets.length}, Waiting: ${waitingCount}`);
+                
+                updateTotalWaitingCount();
+                return tickets;
+                
+            } catch (fallbackError) {
+                console.error('❌ Fallback also failed:', fallbackError);
+                showPopupNotification('<p>خطا در دریافت داده‌های نوبت‌ها!</p>');
+                return [];
             }
-        };
-        
-        popup.addEventListener('click', backgroundCloseHandler);
-        
-        const originalClosePopup = closePopup;
-        closePopup = function() {
-            popup.removeEventListener('click', backgroundCloseHandler);
-            originalClosePopup();
-        };
-    });
-}
-
-
-
-// --- تابع پخش شماره نوبت - غیرفعال شده ---
-function playNumberSound(number) {
-    console.log('🔇 Number sound playing is handled by display page ONLY');
-    return Promise.resolve();
-}
-
-
-// --- تابع پخش فایل صوتی - غیرفعال شده ---
-function playAudioFile(filePath) {
-    console.log(`🔇 Audio file playing is handled by display page ONLY: ${filePath}`);
-    return Promise.resolve();
-}
-
-function playCallSound(ticket) {
-    if (!ticket) return Promise.resolve();
-    
-    const ticketNumber = ticket.specific_ticket || '0001';
-    const counterNumber = getCounterNumber(); // این باید "5" برگرداند
-    
-    console.log(`🎵 Main: Requesting sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-    
-    if (window.displaySoundManager) {
-        return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
-            .then(() => {
-                console.log('✅ Main: Sound request sent to display');
-            })
-            .catch(error => {
-                console.error('❌ Main: Sound request failed:', error);
-            });
-    } else {
-        console.log('🔇 Display not available for sound');
-        return Promise.resolve();
+        }
     }
-}
 
-// --- تابع پخش شماره باجه - غیرفعال شده ---  
-function playCounterSound(counterNumber) {
-    console.log('🔇 Counter sound playing is handled by display page ONLY');
-    return Promise.resolve();
-}
-
+    // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
+    function showAdvancedPopupNotification(ticket, htmlContent) {
+        return new Promise((resolve) => {
+            const popup = document.getElementById('popup-notification');
+            const popupText = document.getElementById('popup-text');
+            
+            popupText.innerHTML = '';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'popup-with-buttons';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'popup-close-btn';
+            closeBtn.innerHTML = '×';
+            closeBtn.title = 'بستن';
+            closeBtn.onclick = () => {
+                closePopup();
+                setTimeout(() => resolve('close'), 300);
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.innerHTML = htmlContent;
+            
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.className = 'popup-buttons';
+            
+            const repeatSoundBtn = document.createElement('button');
+            repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
+            repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
+            repeatSoundBtn.onclick = () => {
+                console.log('🔁 User requested sound repetition');
+                playCallSound(ticket);
+                repeatSoundBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    repeatSoundBtn.style.transform = 'scale(1)';
+                }, 150);
+            };
+            
+            const photographyBtn = document.createElement('button');
+            photographyBtn.className = 'popup-btn popup-photography-btn';
+            photographyBtn.textContent = 'ارسال به عکاسی';
+            photographyBtn.onclick = () => {
+                closePopup();
+                setTimeout(() => resolve('photography'), 300);
+            };
+            
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'popup-btn popup-next-btn';
+            nextBtn.textContent = 'فراخوان بعدی';
+            nextBtn.onclick = () => {
+                closePopup();
+                setTimeout(() => resolve('next'), 300);
+            };
+            
+            buttonsDiv.appendChild(repeatSoundBtn);
+            buttonsDiv.appendChild(photographyBtn);
+            buttonsDiv.appendChild(nextBtn);
+            
+            contentDiv.appendChild(closeBtn);
+            contentDiv.appendChild(messageDiv);
+            contentDiv.appendChild(buttonsDiv);
+            
+            popupText.appendChild(contentDiv);
+            
+            popup.style.display = 'flex';
+            setTimeout(() => {
+                popup.classList.add('show');
+            }, 10);
+            
+            setTimeout(() => {
+                playCallSound(ticket);
+            }, 500);
+            
+            function closePopup() {
+                popup.classList.remove('show');
+                setTimeout(() => {
+                    popup.style.display = 'none';
+                }, 300);
+            }
+            
+            const backgroundCloseHandler = function(e) {
+                if (e.target === popup) {
+                    closePopup();
+                    setTimeout(() => resolve('background'), 300);
+                }
+            };
+            
+            popup.addEventListener('click', backgroundCloseHandler);
+            
+            const originalClosePopup = closePopup;
+            closePopup = function() {
+                popup.removeEventListener('click', backgroundCloseHandler);
+                originalClosePopup();
+            };
+        });
+    }
 
     // --- تابع جدید برای نمایش مودال دریافت کد ملی ---
     function showNationalIdModal(ticketNumber) {
@@ -1045,184 +1083,170 @@ function playCounterSound(counterNumber) {
         }
     }
 
+    // --- تابع بهبودیافته برای فراخوانی نوبت ---
+    async function callSpecificTicket(ticket) {
+        if (isCallingInProgress) {
+            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+            return;
+        }
 
-// --- تابع بهبودیافته برای فراخوانی نوبت ---
-async function callSpecificTicket(ticket) {
-    // ✅ جلوگیری از فراخوانی همزمان
-    if (isCallingInProgress) {
-        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-        return;
-    }
+        isCallingInProgress = true;
+        
+        try {
+            const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
+            
+            const counterName = getCounterName();
+            const counterNumber = getCounterNumber();
+            
+            const updatedTicket = await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                ticket.$id, 
+                {
+                    status: 'در حال سرویس',
+                    called_by: currentUser.$id,
+                    called_by_name: currentUser.name || currentUser.email,
+                    called_by_counter_name: counterName,
+                    call_time: new Date().toISOString()
+                }
+            );
 
-    isCallingInProgress = true;
-    
-    try {
-        // ✅ نمایش پیام "منتظر بمانید"
-        const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-        
-        const counterName = getCounterName();
-        const counterNumber = getCounterNumber();
-        
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            ticket.$id, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name || currentUser.email,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
-            }
-        );
-            // به‌روزرسانی فوری
             await fetchTickets();
             updateTotalWaitingCount();
         
-        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-        await fetchTickets();
-        
-        // ✅ بستن پیام انتظار
-        closeWaitingNotification(waitingPopup);
-        
-        // ✅ فقط درخواست پخش صدا به display (بدون انتظار)
-        console.log(`🎵 Main: Requesting sound from display for ticket ${updatedTicket.specific_ticket}`);
-        playCallSound(updatedTicket).catch(error => {
-            console.error('Main: Sound request error (non-blocking):', error);
-        });
-        
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        const popupMessage = `
-            <div class="ticket-popup-header">
-                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-                ${updatedTicket.returned_from_photography ? 
-                    '<span class="photography-badge">📸 بازگشته از عکاسی</span>' : ''}
-                ${updatedTicket.priority === 'high' ? 
-                    '<span class="priority-badge">⚡ اولویت بالا</span>' : ''}
-            </div>
-            <div class="ticket-popup-info">
-                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-                <p><strong>باجه:</strong> ${counterName} (شماره ${counterNumber})</p>
-                ${updatedTicket.original_counter_name ? 
-                    `<p><strong>باجه مبدا:</strong> ${updatedTicket.original_counter_name}</p>` : ''}
-            </div>
-        `;
-        
-        // ✅ استفاده از نوتیفیکیشن جدید با قابلیت تکرار صوت
-        const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
-        
-        if (userChoice === 'photography') {
-            openPhotographyModal(updatedTicket);
-        } else if (userChoice === 'next') {
-            setTimeout(() => {
-                callNextTicketWithOptions();
-            }, 1000);
+            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            await fetchTickets();
+            
+            closeWaitingNotification(waitingPopup);
+            
+            console.log(`🎵 Main: Requesting sound from display for ticket ${updatedTicket.specific_ticket}`);
+            playCallSound(updatedTicket).catch(error => {
+                console.error('Main: Sound request error (non-blocking):', error);
+            });
+            
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            const popupMessage = `
+                <div class="ticket-popup-header">
+                    <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+                    ${updatedTicket.returned_from_photography ? 
+                        '<span class="photography-badge">📸 بازگشته از عکاسی</span>' : ''}
+                    ${updatedTicket.priority === 'high' ? 
+                        '<span class="priority-badge">⚡ اولویت بالا</span>' : ''}
+                </div>
+                <div class="ticket-popup-info">
+                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                    <p><strong>باجه:</strong> ${counterName} (شماره ${counterNumber})</p>
+                    ${updatedTicket.original_counter_name ? 
+                        `<p><strong>باجه مبدا:</strong> ${updatedTicket.original_counter_name}</p>` : ''}
+                </div>
+            `;
+            
+            const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
+            
+            if (userChoice === 'photography') {
+                openPhotographyModal(updatedTicket);
+            } else if (userChoice === 'next') {
+                setTimeout(() => {
+                    callNextTicketWithOptions();
+                }, 1000);
+            }
+            
+            await updateAllDisplays();
+            
+        } catch (error) {
+            console.error('Error calling specific ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+        } finally {
+            isCallingInProgress = false;
         }
-        
-        await updateAllDisplays();
-        
-    } catch (error) {
-        console.error('Error calling specific ticket:', error);
-        showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
-    } finally {
-        // ✅ آزاد کردن قفل فراخوانی
-        isCallingInProgress = false;
-    }
-}
-
-// --- تابع بهبودیافته برای فراخوانی نوبت ---
-async function callNextTicketWithOptions() {
-    // ✅ جلوگیری از فراخوانی همزمان
-    if (isCallingInProgress) {
-        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-        return;
     }
 
-    const selections = getServiceSelections();
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+    // --- تابع بهبودیافته برای فراخوانی نوبت ---
+    async function callNextTicketWithOptions() {
+        if (isCallingInProgress) {
+            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+            return;
+        }
 
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-        return;
+        const selections = getServiceSelections();
+        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+        if (selectedServiceIds.length === 0) {
+            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+            return;
+        }
+
+        const highPriorityReturnedTickets = tickets.filter(t => 
+            t.status === 'در حال انتظار' && 
+            t.returned_from_photography === true &&
+            t.priority === 'high' &&
+            selectedServiceIds.includes(t.service_id)
+        ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        if (highPriorityReturnedTickets.length > 0) {
+            console.log('🚨 Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
+            await callSpecificTicket(highPriorityReturnedTickets[0]);
+            return;
+        }
+
+        const returnedTickets = tickets.filter(t => 
+            t.status === 'در حال انتظار' && 
+            t.returned_from_photography === true &&
+            selectedServiceIds.includes(t.service_id)
+        ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        if (returnedTickets.length > 0) {
+            console.log('📸 Calling returned ticket:', returnedTickets[0]);
+            await callSpecificTicket(returnedTickets[0]);
+            return;
+        }
+
+        const waitingPhotographyItems = photographyHistory.filter(item => 
+            item.status === 'در انتظار' && !item.photoTaken
+        );
+
+        if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
+            console.log('🎯 Processing photography ticket as photography user');
+            await processPhotographyTicket();
+            return;
+        }
+
+        console.log('📋 Calling regular ticket');
+        await callNextRegularTicket();
     }
-
-    // ✅ اولویت اول: نوبت‌های بازگشته از عکاسی با اولویت بالا
-    const highPriorityReturnedTickets = tickets.filter(t => 
-        t.status === 'در حال انتظار' && 
-        t.returned_from_photography === true &&
-        t.priority === 'high' &&
-        selectedServiceIds.includes(t.service_id)
-    ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-    if (highPriorityReturnedTickets.length > 0) {
-        console.log('🚨 Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
-        await callSpecificTicket(highPriorityReturnedTickets[0]);
-        return;
-    }
-
-    // ✅ اولویت دوم: نوبت‌های بازگشته از عکاسی عادی
-    const returnedTickets = tickets.filter(t => 
-        t.status === 'در حال انتظار' && 
-        t.returned_from_photography === true &&
-        selectedServiceIds.includes(t.service_id)
-    ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-    if (returnedTickets.length > 0) {
-        console.log('📸 Calling returned ticket:', returnedTickets[0]);
-        await callSpecificTicket(returnedTickets[0]);
-        return;
-    }
-
-    // ✅ اولویت سوم: نوبت‌های عکاسی در انتظار (فقط اگر کاربر عکاسی است)
-    const waitingPhotographyItems = photographyHistory.filter(item => 
-        item.status === 'در انتظار' && !item.photoTaken
-    );
-
-    if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
-        console.log('🎯 Processing photography ticket as photography user');
-        await processPhotographyTicket();
-        return;
-    }
-
-    // ✅ اولویت چهارم: فراخوانی نوبت‌های عادی
-    console.log('📋 Calling regular ticket');
-    await callNextRegularTicket();
-}
 
     // تابع جدید برای بررسی و تنظیم شماره باجه
     async function checkAndSetCounterName() {
         const userPrefs = getUserPrefs();
         
-        // فقط اگر کاربر لاگین کرده و تنظیمات کامل نیست، مودال نمایش داده شود
         if (currentUser && (!userPrefs.counter_name || !userPrefs.counter_number)) {
-            // تأخیر کوتاه برای اطمینان از بارگذاری کامل UI
             setTimeout(() => {
                 openCounterSettingsModal();
             }, 1000);
         }
     }
 
-async function fetchData() {
-    if (!currentUser) return;
-    
-    console.log('🔄 Starting to fetch all data...');
-    
-    try {
-        await Promise.all([
-            fetchServices(), 
-            fetchTickets()
-        ]);
+    async function fetchData() {
+        if (!currentUser) return;
         
-        console.log('✅ All data fetched successfully');
-        renderUI();
+        console.log('🔄 Starting to fetch all data...');
         
-    } catch (error) {
-        console.error('❌ Error in fetchData:', error);
-        showPopupNotification('<p>خطا در دریافت داده‌ها از سرور!</p>');
+        try {
+            await Promise.all([
+                fetchServices(), 
+                fetchTickets()
+            ]);
+            
+            console.log('✅ All data fetched successfully');
+            renderUI();
+            
+        } catch (error) {
+            console.error('❌ Error in fetchData:', error);
+            showPopupNotification('<p>خطا در دریافت داده‌ها از سرور!</p>');
+        }
     }
-}
 
     async function fetchServices() {
         try {
@@ -1232,7 +1256,6 @@ async function fetchData() {
             console.error('Error fetching services:', error);
         }
     }
-
 
     function renderUI() {
         if (!currentUser) return;
@@ -1304,98 +1327,87 @@ async function fetchData() {
         totalWaitingContainer.style.display = 'none';
     }
 
-// --- سیستم real-time پیشرفته ---
-function setupRealtimeSubscriptions() {
-    // کانال نوبت‌ها
-    const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-    
-    client.subscribe(ticketChannel, (response) => {
-        console.log('📡 Real-time ticket update:', response);
+    // --- سیستم real-time پیشرفته ---
+    function setupRealtimeSubscriptions() {
+        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
         
-        // هنگام هر تغییر در نوبت‌ها، داده‌ها را کاملاً refresh کن
-        if (response.events.includes('databases.*.collections.*.documents.*.create') ||
-            response.events.includes('databases.*.collections.*.documents.*.update') ||
-            response.events.includes('databases.*.collections.*.documents.*.delete')) {
+        client.subscribe(ticketChannel, (response) => {
+            console.log('📡 Real-time ticket update:', response);
             
-            console.log('🔄 Refreshing ALL tickets data due to real-time change');
-            
-            // دریافت تمام داده‌های تازه از سرور
-            setTimeout(async () => {
-                await fetchTickets(); // دریافت تمام نوبت‌ها
-                updateTotalWaitingCount(); // به‌روزرسانی شمارنده
-                renderServiceButtons(); // به‌روزرسانی دکمه‌های خدمات
-                updateHistoryTable(); // به‌روزرسانی تاریخچه
-                updateCurrentTicketDisplay(); // به‌روزرسانی نوبت فعلی
-            }, 500);
-        }
-    });
-    
-    // کانال خدمات
-    const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
-    client.subscribe(serviceChannel, (response) => {
-        console.log('📡 Real-time service update:', response);
-        setTimeout(async () => {
-            await fetchServices();
-            renderServiceButtons();
-            updateServiceCheckboxes();
-        }, 500);
-    });
-    
-    // کانال عکاسی
-    const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
-    client.subscribe(photographyChannel, (response) => {
-        console.log('📡 Real-time photography update:', response);
-        setTimeout(() => {
-            loadPhotographyHistory();
-        }, 500);
-    });
-}
-    // --- UI RENDERING ---
-    function updateTotalWaitingCount() {
-        const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
-        document.getElementById('total-waiting-count').textContent = waitingCount;
-    }
-
-function renderServiceButtons() {
-    serviceButtonsContainer.innerHTML = '';
-    services.forEach(service => {
-        const button = document.createElement('button');
-        button.className = 'service-btn';
-        
-        const isDisabled = service.disabled === true;
-        
-        // محاسبه دقیق تعداد منتظران از تمام نوبت‌ها
-        const waitingCount = tickets.filter(t => 
-            t.service_id === service.$id && 
-            t.status === 'در حال انتظار'
-        ).length;
-        
-        if (isDisabled) {
-            button.classList.add('disabled-service');
-        }
-        
-        button.innerHTML = `
-            <div>
-                <div class="service-name">${service.name}</div>
-                <div class="waiting-count">منتظران: ${waitingCount}</div>
-            </div>
-            <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
-            ${isDisabled ? '<div class="service-disabled-label">(غیرفعال)</div>' : ''}
-        `;
-        
-        button.addEventListener('click', () => {
-            if (isDisabled) {
-                showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
-            } else {
-                checkAvailabilityAndOpenForm(service.$id);
+            if (response.events.includes('databases.*.collections.*.documents.*.create') ||
+                response.events.includes('databases.*.collections.*.documents.*.update') ||
+                response.events.includes('databases.*.collections.*.documents.*.delete')) {
+                
+                console.log('🔄 Refreshing ALL tickets data due to real-time change');
+                
+                setTimeout(async () => {
+                    await fetchTickets();
+                    updateTotalWaitingCount();
+                    renderServiceButtons();
+                    updateHistoryTable();
+                    updateCurrentTicketDisplay();
+                }, 500);
             }
         });
         
-        serviceButtonsContainer.appendChild(button);
-    });
-    
-    console.log(`🎯 Service buttons rendered for ${services.length} services (using ${tickets.length} total tickets)`);
-}
+        const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
+        client.subscribe(serviceChannel, (response) => {
+            console.log('📡 Real-time service update:', response);
+            setTimeout(async () => {
+                await fetchServices();
+                renderServiceButtons();
+                updateServiceCheckboxes();
+            }, 500);
+        });
+        
+        const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
+        client.subscribe(photographyChannel, (response) => {
+            console.log('📡 Real-time photography update:', response);
+            setTimeout(() => {
+                loadPhotographyHistory();
+            }, 500);
+        });
+    }
+
+    function renderServiceButtons() {
+        serviceButtonsContainer.innerHTML = '';
+        services.forEach(service => {
+            const button = document.createElement('button');
+            button.className = 'service-btn';
+            
+            const isDisabled = service.disabled === true;
+            
+            const waitingCount = tickets.filter(t => 
+                t.service_id === service.$id && 
+                t.status === 'در حال انتظار'
+            ).length;
+            
+            if (isDisabled) {
+                button.classList.add('disabled-service');
+            }
+            
+            button.innerHTML = `
+                <div>
+                    <div class="service-name">${service.name}</div>
+                    <div class="waiting-count">منتظران: ${waitingCount}</div>
+                </div>
+                <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
+                ${isDisabled ? '<div class="service-disabled-label">(غیرفعال)</div>' : ''}
+            `;
+            
+            button.addEventListener('click', () => {
+                if (isDisabled) {
+                    showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
+                } else {
+                    checkAvailabilityAndOpenForm(service.$id);
+                }
+            });
+            
+            serviceButtonsContainer.appendChild(button);
+        });
+        
+        console.log(`🎯 Service buttons rendered for ${services.length} services (using ${tickets.length} total tickets)`);
+    }
 
     async function updateServiceCheckboxes() {
         if (!currentUser) return;
@@ -1431,74 +1443,45 @@ function renderServiceButtons() {
             serviceCheckboxes.appendChild(div);
         });
     }
-// --- تابع بهبود یافته برای نمایش تاریخچه با اسکرول ---
-function updateHistoryTable() {
-    const ticketHistoryTable = document.querySelector('#ticket-history tbody');
-    if (!ticketHistoryTable) return;
-    
-    ticketHistoryTable.innerHTML = '';
-    
-    // نمایش تمام نوبت‌ها با اسکرول
-    tickets.forEach(ticket => {
-        const service = services.find(s => s.$id === ticket.service_id);
-        const row = document.createElement('tr');
+
+    // --- تابع بهبود یافته برای نمایش تاریخچه با اسکرول ---
+    function updateHistoryTable() {
+        const ticketHistoryTable = document.querySelector('#ticket-history tbody');
+        if (!ticketHistoryTable) return;
         
-        // اضافه کردن کلاس برای نوبت‌های خاص
-        if (ticket.returned_from_photography) {
-            row.classList.add('returned-ticket');
-        }
-        if (ticket.priority === 'high') {
-            row.classList.add('priority-high');
-        }
+        ticketHistoryTable.innerHTML = '';
         
-        row.innerHTML = `
-            <td>${ticket.general_ticket || 'پاس'}</td>
-            <td>${ticket.specific_ticket || 'پاس'}</td>
-            <td>${ticket.first_name} ${ticket.last_name}</td>
-            <td>${ticket.national_id || '---'}</td>
-            <td>${service ? service.name : '---'}</td>
-            <td>${ticket.registered_by_name || '---'}</td>
-            <td>${formatDate(ticket.$createdAt)}</td>
-            <td>${ticket.called_by_name || '---'}</td>
-            <td>${formatDate(ticket.call_time)}</td>
-            <td>
-                ${ticket.status}
-                ${ticket.returned_from_photography ? '<br><small class="photography-origin">📸 بازگشته از عکاسی</small>' : ''}
-            </td>
-        `;
-        ticketHistoryTable.appendChild(row);
-    });
-    
-    console.log(`📊 History table updated with ${tickets.length} tickets (with scroll)`);
-}
-
-// --- تابع برای نمایش اطلاعات آماری ---
-function showStatistics() {
-    const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
-    const inServiceCount = tickets.filter(t => t.status === 'در حال سرویس').length;
-    const completedCount = tickets.filter(t => t.status === 'تکمیل شده').length;
-    const returnedCount = tickets.filter(t => t.returned_from_photography).length;
-    
-    console.log(`
-    📊 آمار سیستم:
-    • کل نوبت‌ها: ${tickets.length}
-    • در انتظار: ${waitingCount}
-    • در حال سرویس: ${inServiceCount}
-    • تکمیل شده: ${completedCount}
-    • بازگشته از عکاسی: ${returnedCount}
-    `);
-    
-    // نمایش در کنسول برای دیباگ
-    return {
-        total: tickets.length,
-        waiting: waitingCount,
-        inService: inServiceCount,
-        completed: completedCount,
-        returned: returnedCount
-    };
-}
-
-
+        tickets.forEach(ticket => {
+            const service = services.find(s => s.$id === ticket.service_id);
+            const row = document.createElement('tr');
+            
+            if (ticket.returned_from_photography) {
+                row.classList.add('returned-ticket');
+            }
+            if (ticket.priority === 'high') {
+                row.classList.add('priority-high');
+            }
+            
+            row.innerHTML = `
+                <td>${ticket.general_ticket || 'پاس'}</td>
+                <td>${ticket.specific_ticket || 'پاس'}</td>
+                <td>${ticket.first_name} ${ticket.last_name}</td>
+                <td>${ticket.national_id || '---'}</td>
+                <td>${service ? service.name : '---'}</td>
+                <td>${ticket.registered_by_name || '---'}</td>
+                <td>${formatDate(ticket.$createdAt)}</td>
+                <td>${ticket.called_by_name || '---'}</td>
+                <td>${formatDate(ticket.call_time)}</td>
+                <td>
+                    ${ticket.status}
+                    ${ticket.returned_from_photography ? '<br><small class="photography-origin">📸 بازگشته از عکاسی</small>' : ''}
+                </td>
+            `;
+            ticketHistoryTable.appendChild(row);
+        });
+        
+        console.log(`📊 History table updated with ${tickets.length} tickets (with scroll)`);
+    }
 
     function updateCurrentTicketDisplay() {
         currentTicketDisplay.innerHTML = '';
@@ -1622,7 +1605,7 @@ function showStatistics() {
                 DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
                 [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
-                // به‌روزرسانی فوری
+
             await fetchTickets();
             updateTotalWaitingCount();
 
@@ -1689,7 +1672,6 @@ function showStatistics() {
 
         try {
             await Promise.all(creationPromises);
-                        // به‌روزرسانی فوری
             await fetchTickets();
             updateTotalWaitingCount();
             showPopupNotification(`<p>نوبت پاس شده با موفقیت ثبت شد.</p>`);
@@ -1702,243 +1684,287 @@ function showStatistics() {
         }
     }
 
-// --- تابع بهبودیافته callNextRegularTicket ---
-async function callNextRegularTicket() {
-    // ✅ جلوگیری از فراخوانی همزمان
-    if (isCallingInProgress) {
-        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-        return;
-    }
-
-    isCallingInProgress = true;
-
-    try {
-        // ✅ نمایش پیام "منتظر بمانید"
-        const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-
-        const selections = getServiceSelections();
-        const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
-
-        if (selectedServiceIds.length === 0) {
-            showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+    // --- تابع بهبودیافته callNextRegularTicket ---
+    async function callNextRegularTicket() {
+        if (isCallingInProgress) {
+            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
             return;
         }
 
-        let ticketToCall = null;
-        
-        const waitingTickets = tickets
-            .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
-            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+        isCallingInProgress = true;
 
-        const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
-        
-        if (passedTickets.length > 0) {
-            ticketToCall = passedTickets[0];
-        } else {
-            const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
-            if (regularTickets.length > 0) {
-                ticketToCall = regularTickets[0];
-                
-                const passedToUpdate = tickets.filter(t => 
-                    t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
-                    t.service_id === ticketToCall.service_id
-                );
-                const updatePromises = passedToUpdate.map(t => 
-                    databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
-                );
-                if (updatePromises.length > 0) await Promise.all(updatePromises);
+        try {
+            const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
+
+            const selections = getServiceSelections();
+            const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+
+            if (selectedServiceIds.length === 0) {
+                showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+                return;
             }
+
+            let ticketToCall = null;
+            
+            const waitingTickets = tickets
+                .filter(t => t.status === 'در حال انتظار' && selectedServiceIds.includes(t.service_id))
+                .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
+
+            const passedTickets = waitingTickets.filter(t => t.ticket_type === 'pass' && t.delay_count === 0);
+            
+            if (passedTickets.length > 0) {
+                ticketToCall = passedTickets[0];
+            } else {
+                const regularTickets = waitingTickets.filter(t => t.ticket_type === 'regular');
+                if (regularTickets.length > 0) {
+                    ticketToCall = regularTickets[0];
+                    
+                    const passedToUpdate = tickets.filter(t => 
+                        t.ticket_type === 'pass' && t.status === 'در حال انتظار' && t.delay_count > 0 &&
+                        t.service_id === ticketToCall.service_id
+                    );
+                    const updatePromises = passedToUpdate.map(t => 
+                        databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, t.$id, { delay_count: t.delay_count - 1 })
+                    );
+                    if (updatePromises.length > 0) await Promise.all(updatePromises);
+                }
+            }
+
+            if (ticketToCall) {
+                try {
+                    const counterName = getCounterName();
+                    const counterNumber = getCounterNumber();
+                    const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+                        status: 'در حال سرویس',
+                        called_by: currentUser.$id,
+                        called_by_name: currentUser.name,
+                        called_by_counter_name: counterName,
+                        call_time: new Date().toISOString()
+                    });
+                    
+                    lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+                    
+                    closeWaitingNotification(waitingPopup);
+                    
+                    await fetchTickets();
+                    
+                    console.log(`🎵 Main: Calling regular ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
+                    await playCallSound(updatedTicket);
+                    
+                    const service = services.find(s => s.$id === updatedTicket.service_id);
+                    const popupMessage = `
+                        <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
+                        <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                        <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                        <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                        <p><strong>باجه:</strong> ${counterName}</p>
+                    `;
+                    
+                    const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
+                    
+                    if (userChoice === 'photography') {
+                        openPhotographyModal(updatedTicket);
+                    } else if (userChoice === 'next') {
+                        setTimeout(() => {
+                            callNextTicketWithOptions();
+                        }, 1000);
+                    }
+                    
+                    await updateAllDisplays();
+                    
+                } catch (error) {
+                    console.error('Error calling next ticket:', error);
+                    showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
+                }
+            } else {
+                showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
+            }
+        } finally {
+            isCallingInProgress = false;
+        }
+    }
+
+    // --- فراخوانی نوبت گذشته خاص ---
+    async function callPastTicket() {
+        if (isCallingInProgress) {
+            showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+            return;
         }
 
-        if (ticketToCall) {
-            try {
-                const counterName = getCounterName();
-                const counterNumber = getCounterNumber();
-                const updatedTicket = await databases.updateDocument(DATABASE_ID, TICKETS_COLLECTION_ID, ticketToCall.$id, {
+        isCallingInProgress = true;
+
+        try {
+            const ticketNumber = pastTicketInput.value.trim();
+            
+            if (!ticketNumber) {
+                showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
+                pastTicketInput.classList.add('error');
+                return;
+            }
+
+            if (!currentUser) {
+                showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
+                return;
+            }
+
+            const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
+
+            const pastTicket = tickets.find(t => 
+                t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
+            );
+
+            if (!pastTicket) {
+                showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
+                pastTicketInput.classList.add('error');
+                return;
+            }
+
+            const counterName = getCounterName();
+            const counterNumber = getCounterNumber();
+            
+            const updatedTicket = await databases.updateDocument(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, 
+                pastTicket.$id, 
+                {
                     status: 'در حال سرویس',
                     called_by: currentUser.$id,
-                    called_by_name: currentUser.name,
+                    called_by_name: currentUser.name || currentUser.email,
                     called_by_counter_name: counterName,
                     call_time: new Date().toISOString()
-                });
-                
-                lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-                
-                // ✅ بستن پیام انتظار
-                closeWaitingNotification(waitingPopup);
-                
-                await fetchTickets();
-                
-                // ✅ پخش صوت فراخوانی برای نوبت عادی
-                console.log(`🎵 Main: Calling regular ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
-                await playCallSound(updatedTicket);
-                
-                const service = services.find(s => s.$id === updatedTicket.service_id);
-                const popupMessage = `
-                    <span class="ticket-number">فراخوان: ${updatedTicket.specific_ticket || 'پاس'}</span>
-                    <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-                    <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-                    <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-                    <p><strong>باجه:</strong> ${counterName}</p>
-                `;
-                
-                const userChoice = await showAdvancedPopupNotification(updatedTicket, popupMessage);
-                
-                if (userChoice === 'photography') {
-                    openPhotographyModal(updatedTicket);
-                } else if (userChoice === 'next') {
-                    setTimeout(() => {
-                        callNextTicketWithOptions();
-                    }, 1000);
                 }
-                
-                await updateAllDisplays();
-                
-            } catch (error) {
-                console.error('Error calling next ticket:', error);
-                showPopupNotification('<p>خطا در فراخوانی نوبت!</p>');
-            }
-        } else {
-            showPopupNotification('<p>هیچ نوبتی در صف انتظار برای خدمات انتخابی نیست.</p>');
-        }
-    } finally {
-        // ✅ آزاد کردن قفل فراخوانی
-        isCallingInProgress = false;
-    }
-}
+            );
 
-// --- فراخوانی نوبت گذشته خاص ---
-async function callPastTicket() {
-    // ✅ جلوگیری از فراخوانی همزمان
-    if (isCallingInProgress) {
-        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-        return;
-    }
-
-    isCallingInProgress = true;
-
-    try {
-        const ticketNumber = pastTicketInput.value.trim();
-        
-        if (!ticketNumber) {
-            showPopupNotification('<p>لطفا شماره نوبت گذشته را وارد کنید.</p>');
+            lastCalledTicket[currentUser.$id] = updatedTicket.$id;
+            
+            closeWaitingNotification(waitingPopup);
+            
+            console.log(`🎵 Main: Calling past ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
+            await playCallSound(updatedTicket);
+            
+            const service = services.find(s => s.$id === updatedTicket.service_id);
+            
+            const popupMessage = `
+                <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
+                <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
+                <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
+                <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
+                <p><strong>باجه:</strong> ${counterName}</p>
+            `;
+            showPopupNotification(popupMessage);
+            
+            pastTicketInput.value = '';
+            pastTicketInput.classList.remove('error');
+            pastTicketInput.classList.add('success');
+            setTimeout(() => pastTicketInput.classList.remove('success'), 2000);
+            
+            await fetchData();
+            
+        } catch (error) {
+            console.error('Error calling past ticket:', error);
+            showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
             pastTicketInput.classList.add('error');
-            return;
+        } finally {
+            isCallingInProgress = false;
         }
-
-        if (!currentUser) {
-            showPopupNotification('<p>لطفا ابتدا وارد سیستم شوید.</p>');
-            return;
-        }
-
-        // ✅ نمایش پیام "منتظر بمانید"
-        const waitingPopup = showWaitingNotification('در حال فراخوانی نوبت... لطفاً منتظر بمانید');
-
-        const pastTicket = tickets.find(t => 
-            t.specific_ticket == ticketNumber || t.general_ticket == ticketNumber
-        );
-
-        if (!pastTicket) {
-            showPopupNotification(`<p>نوبت ${ticketNumber} در سیستم یافت نشد.</p>`);
-            pastTicketInput.classList.add('error');
-            return;
-        }
-
-        const counterName = getCounterName();
-        const counterNumber = getCounterNumber();
-        
-        const updatedTicket = await databases.updateDocument(
-            DATABASE_ID, 
-            TICKETS_COLLECTION_ID, 
-            pastTicket.$id, 
-            {
-                status: 'در حال سرویس',
-                called_by: currentUser.$id,
-                called_by_name: currentUser.name || currentUser.email,
-                called_by_counter_name: counterName,
-                call_time: new Date().toISOString()
-            }
-        );
-
-        lastCalledTicket[currentUser.$id] = updatedTicket.$id;
-        
-        // ✅ بستن پیام انتظار
-        closeWaitingNotification(waitingPopup);
-        
-        // ✅ پخش صوت برای نوبت گذشته
-        console.log(`🎵 Main: Calling past ticket ${updatedTicket.specific_ticket} for counter ${counterNumber}`);
-        await playCallSound(updatedTicket);
-        
-        const service = services.find(s => s.$id === updatedTicket.service_id);
-        
-        const popupMessage = `
-            <span class="ticket-number">${updatedTicket.specific_ticket || 'پاس'}</span>
-            <p><strong>نام:</strong> ${updatedTicket.first_name} ${updatedTicket.last_name}</p>
-            <p><strong>کد ملی:</strong> ${updatedTicket.national_id}</p>
-            <p><strong>خدمت:</strong> ${service?.name || '---'}</p>
-            <p><strong>باجه:</strong> ${counterName}</p>
-        `;
-        showPopupNotification(popupMessage);
-        
-        pastTicketInput.value = '';
-        pastTicketInput.classList.remove('error');
-        pastTicketInput.classList.add('success');
-        setTimeout(() => pastTicketInput.classList.remove('success'), 2000);
-        
-        await fetchData();
-        
-    } catch (error) {
-        console.error('Error calling past ticket:', error);
-        showPopupNotification('<p>خطا در فراخوانی نوبت گذشته!</p>');
-        pastTicketInput.classList.add('error');
-    } finally {
-        // ✅ آزاد کردن قفل فراخوانی
-        isCallingInProgress = false;
     }
-}
     
-// --- تابع اصلاح شده برای پاک کردن همه نوبت‌ها و تاریخچه عکاسی ---
-async function resetAllTickets() {
-    if (!confirm('⚠️ هشدار: این عمل غیرقابل بازگشت است!\n\nآیا مطمئن هستید که می‌خواهید:\n• تمام نوبت‌ها\n• تمام تاریخچه عکاسی\n• لیست انتظار عکاسی\n\nرا پاک کنید؟')) return;
-    
-    try {
-        showPopupNotification('<p>در حال پاک کردن داده‌ها... لطفا منتظر بمانید.</p>');
+    // --- تابع اصلاح شده برای پاک کردن همه نوبت‌ها و تاریخچه عکاسی ---
+    async function resetAllTickets() {
+        if (!confirm('⚠️ هشدار: این عمل غیرقابل بازگشت است!\n\nآیا مطمئن هستید که می‌خواهید:\n• تمام نوبت‌ها\n• تمام تاریخچه عکاسی\n• لیست انتظار عکاسی\n\nرا پاک کنید؟')) return;
         
-        let deletedTicketsCount = 0;
-        let deletedPhotographyCount = 0;
-
-        // پاک کردن تمام نوبت‌ها با حلقه
         try {
-            let hasMoreTickets = true;
-            while (hasMoreTickets) {
-                const ticketsResponse = await databases.listDocuments(
-                    DATABASE_ID, 
-                    TICKETS_COLLECTION_ID, 
-                    [Query.limit(100)]
-                );
-                
-                if (ticketsResponse.documents.length === 0) {
-                    hasMoreTickets = false;
-                    break;
+            showPopupNotification('<p>در حال پاک کردن داده‌ها... لطفا منتظر بمانید.</p>');
+            
+            let deletedTicketsCount = 0;
+            let deletedPhotographyCount = 0;
+
+            try {
+                let hasMoreTickets = true;
+                while (hasMoreTickets) {
+                    const ticketsResponse = await databases.listDocuments(
+                        DATABASE_ID, 
+                        TICKETS_COLLECTION_ID, 
+                        [Query.limit(100)]
+                    );
+                    
+                    if (ticketsResponse.documents.length === 0) {
+                        hasMoreTickets = false;
+                        break;
+                    }
+                    
+                    const deletePromises = ticketsResponse.documents.map(doc => 
+                        databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id)
+                    );
+                    await Promise.all(deletePromises);
+                    deletedTicketsCount += ticketsResponse.documents.length;
+                    
+                    console.log(`Deleted ${ticketsResponse.documents.length} tickets, total: ${deletedTicketsCount}`);
                 }
-                
-                const deletePromises = ticketsResponse.documents.map(doc => 
-                    databases.deleteDocument(DATABASE_ID, TICKETS_COLLECTION_ID, doc.$id)
-                );
-                await Promise.all(deletePromises);
-                deletedTicketsCount += ticketsResponse.documents.length;
-                
-                console.log(`Deleted ${ticketsResponse.documents.length} tickets, total: ${deletedTicketsCount}`);
+                console.log(`✅ Total tickets deleted: ${deletedTicketsCount}`);
+            } catch (ticketError) {
+                console.error('Error deleting tickets:', ticketError);
+                showPopupNotification('<p>خطا در پاک کردن برخی نوبت‌ها!</p>');
             }
-            console.log(`✅ Total tickets deleted: ${deletedTicketsCount}`);
-        } catch (ticketError) {
-            console.error('Error deleting tickets:', ticketError);
-            showPopupNotification('<p>خطا در پاک کردن برخی نوبت‌ها!</p>');
-        }
 
-        // پاک کردن تمام تاریخچه عکاسی با حلقه
+            try {
+                let hasMorePhotography = true;
+                while (hasMorePhotography) {
+                    const photographyResponse = await databases.listDocuments(
+                        DATABASE_ID, 
+                        PHOTOGRAPHY_COLLECTION_ID, 
+                        [Query.limit(100)]
+                    );
+                    
+                    if (photographyResponse.documents.length === 0) {
+                        hasMorePhotography = false;
+                        break;
+                    }
+                    
+                    const deletePhotographyPromises = photographyResponse.documents.map(doc => 
+                        databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
+                    );
+                    await Promise.all(deletePhotographyPromises);
+                    deletedPhotographyCount += photographyResponse.documents.length;
+                    
+                    console.log(`Deleted ${photographyResponse.documents.length} photography records, total: ${deletedPhotographyCount}`);
+                }
+                console.log(`✅ Total photography records deleted: ${deletedPhotographyCount}`);
+            } catch (photographyError) {
+                console.error('Error deleting photography history:', photographyError);
+                showPopupNotification('<p>خطا در پاک کردن برخی رکوردهای عکاسی!</p>');
+            }
+
+            photographyHistory = [];
+            tickets = [];
+            
+            updatePhotographyUI();
+            await fetchData();
+            renderUI();
+            
+            showPopupNotification(`
+                <p>✅ پاکسازی با موفقیت انجام شد:</p>
+                <p>• ${deletedTicketsCount} نوبت پاک شد</p>
+                <p>• ${deletedPhotographyCount} رکورد عکاسی پاک شد</p>
+                <p>• لیست انتظار عکاسی پاک شد</p>
+            `);
+            
+        } catch (error) {
+            console.error('Error in reset operation:', error);
+            showPopupNotification('<p>❌ خطا در پاک کردن داده‌ها. لطفا دوباره تلاش کنید.</p>');
+        }
+    }
+
+    // --- تابع اصلاح شده برای پاک کردن فقط تاریخچه عکاسی ---
+    async function resetPhotographyHistoryOnly() {
+        if (!confirm('آیا مطمئن هستید که می‌خواهید فقط تاریخچه عکاسی را پاک کنید؟')) return;
+        
         try {
+            showPopupNotification('<p>در حال پاک کردن تاریخچه عکاسی... لطفا منتظر بمانید.</p>');
+            
+            let deletedCount = 0;
             let hasMorePhotography = true;
+            
             while (hasMorePhotography) {
                 const photographyResponse = await databases.listDocuments(
                     DATABASE_ID, 
@@ -1951,83 +1977,25 @@ async function resetAllTickets() {
                     break;
                 }
                 
-                const deletePhotographyPromises = photographyResponse.documents.map(doc => 
+                const deletePromises = photographyResponse.documents.map(doc => 
                     databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
                 );
-                await Promise.all(deletePhotographyPromises);
-                deletedPhotographyCount += photographyResponse.documents.length;
+                await Promise.all(deletePromises);
+                deletedCount += photographyResponse.documents.length;
                 
-                console.log(`Deleted ${photographyResponse.documents.length} photography records, total: ${deletedPhotographyCount}`);
-            }
-            console.log(`✅ Total photography records deleted: ${deletedPhotographyCount}`);
-        } catch (photographyError) {
-            console.error('Error deleting photography history:', photographyError);
-            showPopupNotification('<p>خطا در پاک کردن برخی رکوردهای عکاسی!</p>');
-        }
-
-        // به‌روزرسانی state برنامه
-        photographyHistory = [];
-        tickets = [];
-        
-        // به‌روزرسانی UI
-        updatePhotographyUI();
-        await fetchData();
-        renderUI();
-        
-        showPopupNotification(`
-            <p>✅ پاکسازی با موفقیت انجام شد:</p>
-            <p>• ${deletedTicketsCount} نوبت پاک شد</p>
-            <p>• ${deletedPhotographyCount} رکورد عکاسی پاک شد</p>
-            <p>• لیست انتظار عکاسی پاک شد</p>
-        `);
-        
-    } catch (error) {
-        console.error('Error in reset operation:', error);
-        showPopupNotification('<p>❌ خطا در پاک کردن داده‌ها. لطفا دوباره تلاش کنید.</p>');
-    }
-}
-
-// --- تابع اصلاح شده برای پاک کردن فقط تاریخچه عکاسی ---
-async function resetPhotographyHistoryOnly() {
-    if (!confirm('آیا مطمئن هستید که می‌خواهید فقط تاریخچه عکاسی را پاک کنید؟')) return;
-    
-    try {
-        showPopupNotification('<p>در حال پاک کردن تاریخچه عکاسی... لطفا منتظر بمانید.</p>');
-        
-        let deletedCount = 0;
-        let hasMorePhotography = true;
-        
-        while (hasMorePhotography) {
-            const photographyResponse = await databases.listDocuments(
-                DATABASE_ID, 
-                PHOTOGRAPHY_COLLECTION_ID, 
-                [Query.limit(100)]
-            );
-            
-            if (photographyResponse.documents.length === 0) {
-                hasMorePhotography = false;
-                break;
+                console.log(`Deleted ${photographyResponse.documents.length} photography records, total: ${deletedCount}`);
             }
             
-            const deletePromises = photographyResponse.documents.map(doc => 
-                databases.deleteDocument(DATABASE_ID, PHOTOGRAPHY_COLLECTION_ID, doc.$id)
-            );
-            await Promise.all(deletePromises);
-            deletedCount += photographyResponse.documents.length;
+            photographyHistory = [];
+            updatePhotographyUI();
             
-            console.log(`Deleted ${photographyResponse.documents.length} photography records, total: ${deletedCount}`);
+            showPopupNotification(`<p>✅ ${deletedCount} رکورد از تاریخچه عکاسی پاک شد.</p>`);
+            
+        } catch (error) {
+            console.error('Error resetting photography history:', error);
+            showPopupNotification('<p>❌ خطا در پاک کردن تاریخچه عکاسی.</p>');
         }
-        
-        photographyHistory = [];
-        updatePhotographyUI();
-        
-        showPopupNotification(`<p>✅ ${deletedCount} رکورد از تاریخچه عکاسی پاک شد.</p>`);
-        
-    } catch (error) {
-        console.error('Error resetting photography history:', error);
-        showPopupNotification('<p>❌ خطا در پاک کردن تاریخچه عکاسی.</p>');
     }
-}
 
     // --- AUTO RESET FUNCTIONALITY ---
     async function checkAutoReset() {
@@ -2065,7 +2033,6 @@ async function resetPhotographyHistoryOnly() {
         const userPrefs = getUserPrefs();
         counterNameInput.value = userPrefs.counter_name || '';
         
-        // اضافه کردن فیلد شماره باجه
         if (!document.getElementById('counter-number-input')) {
             const numberInput = document.createElement('input');
             numberInput.type = 'text';
@@ -2117,7 +2084,6 @@ async function resetPhotographyHistoryOnly() {
             showPopupNotification('<p>تنظیمات باجه با موفقیت ذخیره شد.</p>');
             closeCounterSettingsModal();
             
-            // به‌روزرسانی UI
             updateUIForUserRole();
             
         } catch (error) {
@@ -2535,108 +2501,102 @@ async function resetPhotographyHistoryOnly() {
         updatePhotographyUI();
     }
 
-// --- تابع جدید برای نوتیفیکیشن عکاسی با قابلیت تکرار صوت ---
-function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
-    return new Promise((resolve) => {
-        const popup = document.getElementById('popup-notification');
-        const popupText = document.getElementById('popup-text');
-        
-        popupText.innerHTML = '';
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'popup-with-buttons';
-        
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'popup-close-btn';
-        closeBtn.innerHTML = '×';
-        closeBtn.title = 'بستن';
-        closeBtn.onclick = () => {
-            closePopup();
-            setTimeout(() => resolve('close'), 300);
-        };
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.innerHTML = htmlContent;
-        
-        const buttonsDiv = document.createElement('div');
-        buttonsDiv.className = 'popup-buttons';
-        
-        // ✅ دکمه تکرار صوت برای عکاسی
-        const repeatSoundBtn = document.createElement('button');
-        repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
-        repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
-        repeatSoundBtn.onclick = () => {
-            console.log('🔁 User requested photography sound repetition');
-            playPhotographyCallSound(photographyItem);
-            // افکت بصری
-            repeatSoundBtn.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                repeatSoundBtn.style.transform = 'scale(1)';
-            }, 150);
-        };
-        
-        // ✅ دکمه عکس گرفته شد
-        const photoTakenBtn = document.createElement('button');
-        photoTakenBtn.className = 'popup-btn popup-photography-btn';
-        photoTakenBtn.textContent = 'عکس گرفته شد';
-        photoTakenBtn.onclick = () => {
-            closePopup();
-            setTimeout(() => resolve('photo_taken'), 300);
-        };
-        
-        // ✅ دکمه بعدی
-        const skipBtn = document.createElement('button');
-        skipBtn.className = 'popup-btn popup-next-btn';
-        skipBtn.textContent = 'بعدی';
-        skipBtn.onclick = () => {
-            closePopup();
-            setTimeout(() => resolve('skip'), 300);
-        };
-        
-        buttonsDiv.appendChild(repeatSoundBtn);
-        buttonsDiv.appendChild(photoTakenBtn);
-        buttonsDiv.appendChild(skipBtn);
-        
-        contentDiv.appendChild(closeBtn);
-        contentDiv.appendChild(messageDiv);
-        contentDiv.appendChild(buttonsDiv);
-        
-        popupText.appendChild(contentDiv);
-        
-        popup.style.display = 'flex';
-        setTimeout(() => {
-            popup.classList.add('show');
-        }, 10);
-        
-        // ✅ پخش خودکار صوت برای عکاسی
-        setTimeout(() => {
-            playPhotographyCallSound(photographyItem);
-        }, 500);
-        
-        function closePopup() {
-            popup.classList.remove('show');
-            setTimeout(() => {
-                popup.style.display = 'none';
-            }, 300);
-        }
-        
-        const backgroundCloseHandler = function(e) {
-            if (e.target === popup) {
+    // --- تابع جدید برای نوتیفیکیشن عکاسی با قابلیت تکرار صوت ---
+    function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
+        return new Promise((resolve) => {
+            const popup = document.getElementById('popup-notification');
+            const popupText = document.getElementById('popup-text');
+            
+            popupText.innerHTML = '';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'popup-with-buttons';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'popup-close-btn';
+            closeBtn.innerHTML = '×';
+            closeBtn.title = 'بستن';
+            closeBtn.onclick = () => {
                 closePopup();
-                setTimeout(() => resolve('background'), 300);
+                setTimeout(() => resolve('close'), 300);
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.innerHTML = htmlContent;
+            
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.className = 'popup-buttons';
+            
+            const repeatSoundBtn = document.createElement('button');
+            repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
+            repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
+            repeatSoundBtn.onclick = () => {
+                console.log('🔁 User requested photography sound repetition');
+                playPhotographyCallSound(photographyItem);
+                repeatSoundBtn.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    repeatSoundBtn.style.transform = 'scale(1)';
+                }, 150);
+            };
+            
+            const photoTakenBtn = document.createElement('button');
+            photoTakenBtn.className = 'popup-btn popup-photography-btn';
+            photoTakenBtn.textContent = 'عکس گرفته شد';
+            photoTakenBtn.onclick = () => {
+                closePopup();
+                setTimeout(() => resolve('photo_taken'), 300);
+            };
+            
+            const skipBtn = document.createElement('button');
+            skipBtn.className = 'popup-btn popup-next-btn';
+            skipBtn.textContent = 'بعدی';
+            skipBtn.onclick = () => {
+                closePopup();
+                setTimeout(() => resolve('skip'), 300);
+            };
+            
+            buttonsDiv.appendChild(repeatSoundBtn);
+            buttonsDiv.appendChild(photoTakenBtn);
+            buttonsDiv.appendChild(skipBtn);
+            
+            contentDiv.appendChild(closeBtn);
+            contentDiv.appendChild(messageDiv);
+            contentDiv.appendChild(buttonsDiv);
+            
+            popupText.appendChild(contentDiv);
+            
+            popup.style.display = 'flex';
+            setTimeout(() => {
+                popup.classList.add('show');
+            }, 10);
+            
+            setTimeout(() => {
+                playPhotographyCallSound(photographyItem);
+            }, 500);
+            
+            function closePopup() {
+                popup.classList.remove('show');
+                setTimeout(() => {
+                    popup.style.display = 'none';
+                }, 300);
             }
-        };
-        
-        popup.addEventListener('click', backgroundCloseHandler);
-        
-        const originalClosePopup = closePopup;
-        closePopup = function() {
-            popup.removeEventListener('click', backgroundCloseHandler);
-            originalClosePopup();
-        };
-    });
-}
-
+            
+            const backgroundCloseHandler = function(e) {
+                if (e.target === popup) {
+                    closePopup();
+                    setTimeout(() => resolve('background'), 300);
+                }
+            };
+            
+            popup.addEventListener('click', backgroundCloseHandler);
+            
+            const originalClosePopup = closePopup;
+            closePopup = function() {
+                popup.removeEventListener('click', backgroundCloseHandler);
+                originalClosePopup();
+            };
+        });
+    }
 
     function showSendToPhotographyButton(ticket) {
         const existingButton = document.querySelector('.send-to-photography-btn');
@@ -2661,125 +2621,116 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         }, 30000);
     }
 
-// --- تابع پخش صوت عکاسی - فقط فراخوانی به display ---
-function playPhotographyCallSound(photographyItem) {
-    if (!photographyItem) return;
-    
-    const ticketNumber = photographyItem.ticketNumber || '0001';
-    const counterName = photographyItem.originalCounterName || 'عکاسی';
-    const counterNumber = extractCounterNumber(counterName);
-    
-    console.log(`🎵 Main: Requesting photography sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-    
-    if (window.displaySoundManager) {
-        window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem)
-            .then(() => {
-                console.log('✅ Main: Photography sound request sent to display');
-            })
-            .catch(error => {
-                console.error('❌ Main: Photography sound request failed:', error);
-            });
-    } else {
-        console.log('🔇 Display not available for photography sound');
-    }
-}
-
-// --- تابع global برای ارتباط با display ---
-function setupDisplaySoundManager() {
-    // اگر display page باز است، از manager آن استفاده کن
-    if (window.displaySoundManager) {
-        console.log('✅ Display sound manager is available');
-        return window.displaySoundManager;
-    }
-    
-    // اگر نه، یک proxy ایجاد کن
-    console.log('⚠️ Display sound manager not available, using proxy');
-    return {
-        playCallAnnouncement: (ticketNumber, counterNumber, ticketData) => {
-            console.log(`🔇 Proxy: Would play - Ticket ${ticketNumber}, Counter ${counterNumber}`);
-            return Promise.resolve();
-        },
-        playPhotographyAnnouncement: (ticketNumber, counterNumber, ticketData) => {
-            console.log(`🔇 Proxy: Would play photography - Ticket ${ticketNumber}, Counter ${counterNumber}`);
-            return Promise.resolve();
-        },
-        repeatLastAnnouncement: () => {
-            console.log('🔇 Proxy: Would repeat last announcement');
-            return Promise.resolve();
+    // --- تابع پخش صوت عکاسی - فقط فراخوانی به display ---
+    function playPhotographyCallSound(photographyItem) {
+        if (!photographyItem) return;
+        
+        const ticketNumber = photographyItem.ticketNumber || '0001';
+        const counterName = photographyItem.originalCounterName || 'عکاسی';
+        const counterNumber = extractCounterNumber(counterName);
+        
+        console.log(`🎵 Main: Requesting photography sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+        
+        if (window.displaySoundManager) {
+            window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem)
+                .then(() => {
+                    console.log('✅ Main: Photography sound request sent to display');
+                })
+                .catch(error => {
+                    console.error('❌ Main: Photography sound request failed:', error);
+                });
+        } else {
+            console.log('🔇 Display not available for photography sound');
         }
-    };
-}
-
-
-// --- تابع استخراج شماره باجه - بهبود یافته ---
-function extractCounterNumber(counterName) {
-    if (!counterName) return '1';
-    
-    console.log('🔍 Main: Extracting counter number from:', counterName);
-    
-    // روش ۱: استخراج اعداد از انتهای رشته
-    const numbersFromEnd = counterName.match(/\d+$/);
-    if (numbersFromEnd) {
-        const num = numbersFromEnd[0];
-        console.log(`✅ Main: Counter number extracted from end: ${num}`);
-        return num;
     }
-    
-    // روش ۲: استخراج اولین عدد در رشته
-    const numbersAnywhere = counterName.match(/\d+/);
-    if (numbersAnywhere) {
-        const num = numbersAnywhere[0];
-        console.log(`✅ Main: Counter number extracted from anywhere: ${num}`);
-        return num;
+
+    // --- تابع global برای ارتباط با display ---
+    function setupDisplaySoundManager() {
+        if (window.displaySoundManager) {
+            console.log('✅ Display sound manager is available');
+            return window.displaySoundManager;
+        }
+        
+        console.log('⚠️ Display sound manager not available, using proxy');
+        return {
+            playCallAnnouncement: (ticketNumber, counterNumber, ticketData) => {
+                console.log(`🔇 Proxy: Would play - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                return Promise.resolve();
+            },
+            playPhotographyAnnouncement: (ticketNumber, counterNumber, ticketData) => {
+                console.log(`🔇 Proxy: Would play photography - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                return Promise.resolve();
+            },
+            repeatLastAnnouncement: () => {
+                console.log('🔇 Proxy: Would repeat last announcement');
+                return Promise.resolve();
+            }
+        };
     }
-    
-    // روش ۳: جستجوی کلمات فارسی
-    const wordToNumber = {
-        'یک': '1', 'اول': '1', '۱': '1',
-        'دو': '2', 'دوم': '2', '۲': '2',
-        'سه': '3', 'سوم': '3', '۳': '3', 
-        'چهار': '4', 'چهارم': '4', '۴': '4',
-        'پنج': '5', 'پنجم': '5', '۵': '5',
-        'شش': '6', 'ششم': '6', '۶': '6',
-        'هفت': '7', 'هفتم': '7', '۷': '7',
-        'هشت': '8', 'هشتم': '8', '۸': '8',
-        'نه': '9', 'نهم': '9', '۹': '9',
-        'ده': '10', 'دهم': '10', '۱۰': '10',
-        'یازده': '11', 'یازدهم': '11', '۱۱': '11',
-        'دوازده': '12', 'دوازدهم': '12', '۱۲': '12'
-    };
-    
-    for (const [word, num] of Object.entries(wordToNumber)) {
-        if (counterName.includes(word)) {
-            console.log(`✅ Main: Counter number extracted from word "${word}": ${num}`);
+
+    // --- تابع استخراج شماره باجه - بهبود یافته ---
+    function extractCounterNumber(counterName) {
+        if (!counterName) return '1';
+        
+        console.log('🔍 Main: Extracting counter number from:', counterName);
+        
+        const numbersFromEnd = counterName.match(/\d+$/);
+        if (numbersFromEnd) {
+            const num = numbersFromEnd[0];
+            console.log(`✅ Main: Counter number extracted from end: ${num}`);
             return num;
         }
-    }
-    
-    console.log('❌ Main: No counter number found, using default: 1');
-    return '1';
-}
-
-
-// --- تست ارتباط با display ---
-function testDisplayConnection() {
-    console.log('🔄 Testing display connection...');
-    
-    if (window.displaySoundManager) {
-        console.log('✅ Display connection: ACTIVE');
         
-        // تست سریع
-        window.displaySoundManager.playCallAnnouncement('9999', '1')
-            .then(() => console.log('✅ Display test: SUCCESS'))
-            .catch(err => console.error('❌ Display test: FAILED', err));
-    } else {
-        console.log('❌ Display connection: INACTIVE');
-        console.log('💡 Please make sure display.html is open in another tab');
+        const numbersAnywhere = counterName.match(/\d+/);
+        if (numbersAnywhere) {
+            const num = numbersAnywhere[0];
+            console.log(`✅ Main: Counter number extracted from anywhere: ${num}`);
+            return num;
+        }
+        
+        const wordToNumber = {
+            'یک': '1', 'اول': '1', '۱': '1',
+            'دو': '2', 'دوم': '2', '۲': '2',
+            'سه': '3', 'سوم': '3', '۳': '3', 
+            'چهار': '4', 'چهارم': '4', '۴': '4',
+            'پنج': '5', 'پنجم': '5', '۵': '5',
+            'شش': '6', 'ششم': '6', '۶': '6',
+            'هفت': '7', 'هفتم': '7', '۷': '7',
+            'هشت': '8', 'هشتم': '8', '۸': '8',
+            'نه': '9', 'نهم': '9', '۹': '9',
+            'ده': '10', 'دهم': '10', '۱۰': '10',
+            'یازده': '11', 'یازدهم': '11', '۱۱': '11',
+            'دوازده': '12', 'دوازدهم': '12', '۱۲': '12'
+        };
+        
+        for (const [word, num] of Object.entries(wordToNumber)) {
+            if (counterName.includes(word)) {
+                console.log(`✅ Main: Counter number extracted from word "${word}": ${num}`);
+                return num;
+            }
+        }
+        
+        console.log('❌ Main: No counter number found, using default: 1');
+        return '1';
     }
-}
 
-// تست بعد از ۳ ثانیه
-setTimeout(testDisplayConnection, 3000);
+    // --- تست ارتباط با display ---
+    function testDisplayConnection() {
+        console.log('🔄 Testing display connection...');
+        
+        if (window.displaySoundManager) {
+            console.log('✅ Display connection: ACTIVE');
+            
+            window.displaySoundManager.playCallAnnouncement('9999', '1')
+                .then(() => console.log('✅ Display test: SUCCESS'))
+                .catch(err => console.error('❌ Display test: FAILED', err));
+        } else {
+            console.log('❌ Display connection: INACTIVE');
+            console.log('💡 Please make sure display.html is open in another tab');
+        }
+    }
+
+    setTimeout(testDisplayConnection, 3000);
 
     function updateUIForUserRole() {
         if (isPhotographyUser) {
@@ -2826,37 +2777,35 @@ setTimeout(testDisplayConnection, 3000);
     // --- اضافه کردن کنترل‌های صدا به UI ---
     function addSoundControlsToUI() {
         // ❌ حذف کنترل‌های صدا از script.js
-        // صدا فقط در display.js پخش می‌شود
     }
 
     // --- Initialize App ---
-// فراخوانی در initialization
-async function initializeApp() {
-    try {
-        currentUser = await account.get();
-        
-        const userPrefs = getUserPrefs();
-        isPhotographyUser = userPrefs.is_photography_user || false;
-        photographyRoleCheckbox.checked = isPhotographyUser;
-        
-        showLoggedInUI();
-        await fetchData();
-        await loadPhotographyHistory();      
-        await checkAndSetCounterName();
-        setupRealtimeSubscriptions();
-        checkAutoReset();
-        updatePhotographyUI();
-        updateUIForUserRole();
-        setupPhotographyEventListeners();
-        setupDisplaySoundManager();
-        
-        console.log('App initialized successfully');
-        
-    } catch (error) {
-        console.log('User not logged in, showing login form');
-        showLoggedOutUI();
+    async function initializeApp() {
+        try {
+            currentUser = await account.get();
+            
+            const userPrefs = getUserPrefs();
+            isPhotographyUser = userPrefs.is_photography_user || false;
+            photographyRoleCheckbox.checked = isPhotographyUser;
+            
+            showLoggedInUI();
+            await fetchData();
+            await loadPhotographyHistory();      
+            await checkAndSetCounterName();
+            setupRealtimeSubscriptions();
+            checkAutoReset();
+            updatePhotographyUI();
+            updateUIForUserRole();
+            setupPhotographyEventListeners();
+            setupDisplaySoundManager();
+            
+            console.log('App initialized successfully');
+            
+        } catch (error) {
+            console.log('User not logged in, showing login form');
+            showLoggedOutUI();
+        }
     }
-}
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
@@ -2868,12 +2817,12 @@ async function initializeApp() {
     callNextBtn.addEventListener('click', callNextTicketWithOptions);
     passTicketBtn.addEventListener('click', openPassServiceModal);
     
-            const resetPhotographyBtn = document.getElementById('reset-photography-btn');
-        if (resetPhotographyBtn) {
-            resetPhotographyBtn.addEventListener('click', resetPhotographyHistoryOnly);
-        } else {
-            console.error('Reset photography button not found');
-        }
+    const resetPhotographyBtn = document.getElementById('reset-photography-btn');
+    if (resetPhotographyBtn) {
+        resetPhotographyBtn.addEventListener('click', resetPhotographyHistoryOnly);
+    } else {
+        console.error('Reset photography button not found');
+    }
     
     submitTicketBtn.addEventListener('click', () => {
         const firstName = document.getElementById('first-name').value;
