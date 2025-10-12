@@ -19,7 +19,141 @@ body {
     gap: 15px;
 }
 
-/* بخش لیست عکاسی در سمت چپ */
+/* بخش اصلی نمایش نوبت‌ها در سمت چپ */
+.main-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    order: 1; /* قرارگیری در سمت چپ */
+}
+
+.display-header {
+    text-align: center;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 15px;
+}
+
+.system-title {
+    font-size: 3.5rem;
+    font-weight: 900;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    color: #fff;
+}
+
+.waiting-count {
+    font-size: 2rem;
+    font-weight: 500;
+    color: #ffeb3b;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.tickets-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    height: 100%;
+}
+
+.ticket-card {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    border-radius: 20px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.ticket-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+}
+
+.ticket-card.recent {
+    background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
+    animation: pulse-glow 2s infinite;
+}
+
+.ticket-card.old {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+}
+
+.ticket-card.returned-from-photography {
+    background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
+    animation: pulse-returned 3s infinite;
+}
+
+/* شماره نوبت بزرگتر */
+.ticket-number-large {
+    font-size: 6rem; /* بزرگتر از قبل */
+    font-weight: 900;
+    margin-bottom: 15px;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+    color: #fff;
+    line-height: 1;
+}
+
+.ticket-info {
+    font-size: 1.6rem; /* کمی بزرگتر */
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+.counter-name {
+    font-size: 1.8rem; /* کمی بزرگتر */
+    font-weight: 700;
+    color: #ffeb3b;
+    margin-top: 8px;
+}
+
+.photography-badge {
+    background: rgba(255, 255, 255, 0.9);
+    color: #9C27B0;
+    padding: 8px 16px; /* کمی بزرگتر */
+    border-radius: 20px;
+    font-size: 1.2rem; /* کمی بزرگتر */
+    font-weight: 700;
+    margin-top: 10px;
+    display: inline-block;
+}
+
+.ticket-time {
+    font-size: 2rem; /* کمی بزرگتر */
+    font-weight: 500;
+    color: #e3f2fd;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px 20px; /* کمی بزرگتر */
+    border-radius: 10px;
+}
+
+.ticket-card.placeholder {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+}
+
+.ticket-card.placeholder .ticket-number-large {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 5rem; /* بزرگ برای حالت placeholder */
+}
+
+/* بخش لیست عکاسی در سمت راست */
 .photography-display {
     flex: 0 0 400px; /* عرض ثابت برای لیست عکاسی */
     background: rgba(255, 255, 255, 0.1);
@@ -30,7 +164,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     flex-direction: column;
-    order: 1; /* قرارگیری در سمت چپ */
+    order: 2; /* قرارگیری در سمت راست */
 }
 
 .photography-header {
@@ -170,140 +304,6 @@ body {
     color: rgba(255, 255, 255, 0.8);
     font-family: monospace;
     direction: ltr;
-}
-
-/* بخش اصلی نمایش نوبت‌ها در سمت راست */
-.main-display {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    order: 2; /* قرارگیری در سمت راست */
-}
-
-.display-header {
-    text-align: center;
-    padding: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    margin-bottom: 15px;
-}
-
-.system-title {
-    font-size: 3.5rem;
-    font-weight: 900;
-    margin-bottom: 10px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    color: #fff;
-}
-
-.waiting-count {
-    font-size: 2rem;
-    font-weight: 500;
-    color: #ffeb3b;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.tickets-container {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 15px;
-    height: 100%;
-}
-
-.ticket-card {
-    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-    border-radius: 20px;
-    padding: 25px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.ticket-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
-}
-
-.ticket-card.recent {
-    background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%);
-    animation: pulse-glow 2s infinite;
-}
-
-.ticket-card.old {
-    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
-}
-
-.ticket-card.returned-from-photography {
-    background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
-    animation: pulse-returned 3s infinite;
-}
-
-/* شماره نوبت بزرگتر */
-.ticket-number-large {
-    font-size: 6rem; /* بزرگتر از قبل */
-    font-weight: 900;
-    margin-bottom: 15px;
-    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
-    color: #fff;
-    line-height: 1;
-}
-
-.ticket-info {
-    font-size: 1.6rem; /* کمی بزرگتر */
-    margin-bottom: 15px;
-    line-height: 1.6;
-}
-
-.counter-name {
-    font-size: 1.8rem; /* کمی بزرگتر */
-    font-weight: 700;
-    color: #ffeb3b;
-    margin-top: 8px;
-}
-
-.photography-badge {
-    background: rgba(255, 255, 255, 0.9);
-    color: #9C27B0;
-    padding: 8px 16px; /* کمی بزرگتر */
-    border-radius: 20px;
-    font-size: 1.2rem; /* کمی بزرگتر */
-    font-weight: 700;
-    margin-top: 10px;
-    display: inline-block;
-}
-
-.ticket-time {
-    font-size: 2rem; /* کمی بزرگتر */
-    font-weight: 500;
-    color: #e3f2fd;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 10px 20px; /* کمی بزرگتر */
-    border-radius: 10px;
-}
-
-.ticket-card.placeholder {
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px dashed rgba(255, 255, 255, 0.3);
-}
-
-.ticket-card.placeholder .ticket-number-large {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 5rem; /* بزرگ برای حالت placeholder */
 }
 
 /* انیمیشن‌ها */
