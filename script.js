@@ -594,34 +594,43 @@ function renderPhotographyList() {
         await updateTotalWaitingCount();
         updatePhotographyUI();
     }
-// --- تابع بهبودیافته برای به‌روزرسانی تعداد منتظران ---
+// --- تابع نهایی برای به‌روزرسانی تعداد منتظران ---
 async function updateTotalWaitingCount() {
     try {
-        // محاسبه از آرایه tickets که توسط real-time به‌روز می‌شود
+        // اطمینان از اینکه tickets به‌روز است
+        if (tickets.length === 0) {
+            await fetchTickets();
+        }
+        
         const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
         const totalWaitingElement = document.getElementById('total-waiting-count');
         
         if (totalWaitingElement) {
             totalWaitingElement.textContent = waitingCount;
-            console.log(`✅ Total waiting count updated: ${waitingCount}`);
+            console.log(`✅ Total waiting count: ${waitingCount} (from ${tickets.length} total tickets)`);
         }
         
         return waitingCount;
         
     } catch (error) {
         console.error('Error updating total waiting count:', error);
+        
+        // Fallback
+        const totalWaitingElement = document.getElementById('total-waiting-count');
+        if (totalWaitingElement) {
+            totalWaitingElement.textContent = '0';
+        }
         return 0;
     }
 }
 
-
-
-// --- تغییر در تابع fetchTickets برای به‌روزرسانی خودکار ---
+// --- نسخه بهینه‌شده با فیلتر وضعیت ---
 async function fetchTickets() {
     try {
+        // فقط نوبت‌های فعال را دریافت کنید (برای عملکرد بهتر)
         const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
             Query.orderDesc('$createdAt'),
-            Query.limit(1000) // افزایش limit برای پوشش تمام نوبت‌ها
+            Query.limit(1000) // محدودیت منطقی برای جلوگیری از overload
         ]);
         tickets = response.documents;
         console.log(`📋 Fetched ${tickets.length} tickets from server`);
@@ -1233,39 +1242,46 @@ function setupRealtimeSubscriptions() {
         document.getElementById('total-waiting-count').textContent = waitingCount;
     }
 
-    function renderServiceButtons() {
-        serviceButtonsContainer.innerHTML = '';
-        services.forEach(service => {
-            const button = document.createElement('button');
-            button.className = 'service-btn';
-            
-            const isDisabled = service.disabled === true;
-            const waitingCount = tickets.filter(t => t.service_id === service.$id && t.status === 'در حال انتظار').length;
-            
+function renderServiceButtons() {
+    serviceButtonsContainer.innerHTML = '';
+    services.forEach(service => {
+        const button = document.createElement('button');
+        button.className = 'service-btn';
+        
+        const isDisabled = service.disabled === true;
+        
+        // محاسبه دقیق تعداد منتظران از تمام نوبت‌ها
+        const waitingCount = tickets.filter(t => 
+            t.service_id === service.$id && 
+            t.status === 'در حال انتظار'
+        ).length;
+        
+        if (isDisabled) {
+            button.classList.add('disabled-service');
+        }
+        
+        button.innerHTML = `
+            <div>
+                <div class="service-name">${service.name}</div>
+                <div class="waiting-count">منتظران: ${waitingCount}</div>
+            </div>
+            <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
+            ${isDisabled ? '<div class="service-disabled-label">(غیرفعال)</div>' : ''}
+        `;
+        
+        button.addEventListener('click', () => {
             if (isDisabled) {
-                button.classList.add('disabled-service');
+                showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
+            } else {
+                checkAvailabilityAndOpenForm(service.$id);
             }
-            
-            button.innerHTML = `
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <div class="waiting-count">منتظران: ${waitingCount}</div>
-                </div>
-                <div class="estimation-time">تخمین زمان: ${Math.round(service.manual_time)} دقیقه</div>
-                ${isDisabled ? '<div class="service-disabled-label">(غیرفعال)</div>' : ''}
-            `;
-            
-            button.addEventListener('click', () => {
-                if (isDisabled) {
-                    showPopupNotification('<p>این خدمت در حال حاضر غیرفعال است. امکان ثبت نوبت جدید وجود ندارد.</p>');
-                } else {
-                    checkAvailabilityAndOpenForm(service.$id);
-                }
-            });
-            
-            serviceButtonsContainer.appendChild(button);
         });
-    }
+        
+        serviceButtonsContainer.appendChild(button);
+    });
+    
+    console.log(`🎯 Service buttons rendered for ${services.length} services`);
+}
 
     async function updateServiceCheckboxes() {
         if (!currentUser) return;
@@ -1301,27 +1317,31 @@ function setupRealtimeSubscriptions() {
             serviceCheckboxes.appendChild(div);
         });
     }
-
-    function updateHistoryTable() {
-        ticketHistoryTable.innerHTML = '';
-        tickets.forEach(ticket => {
-            const service = services.find(s => s.$id === ticket.service_id);
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${ticket.general_ticket || 'پاس'}</td>
-                <td>${ticket.specific_ticket || 'پاس'}</td>
-                <td>${ticket.first_name} ${ticket.last_name}</td>
-                <td>${ticket.national_id || '---'}</td>
-                <td>${service ? service.name : '---'}</td>
-                <td>${ticket.registered_by_name || '---'}</td>
-                <td>${formatDate(ticket.$createdAt)}</td>
-                <td>${ticket.called_by_name || '---'}</td>
-                <td>${formatDate(ticket.call_time)}</td>
-                <td>${ticket.status}</td>
-            `;
-            ticketHistoryTable.appendChild(row);
-        });
-    }
+// در تابع updateHistoryTable نیز محدودیت را بردارید:
+function updateHistoryTable() {
+    ticketHistoryTable.innerHTML = '';
+    
+    // نمایش تمام نوبت‌ها بدون محدودیت
+    tickets.forEach(ticket => {
+        const service = services.find(s => s.$id === ticket.service_id);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${ticket.general_ticket || 'پاس'}</td>
+            <td>${ticket.specific_ticket || 'پاس'}</td>
+            <td>${ticket.first_name} ${ticket.last_name}</td>
+            <td>${ticket.national_id || '---'}</td>
+            <td>${service ? service.name : '---'}</td>
+            <td>${ticket.registered_by_name || '---'}</td>
+            <td>${formatDate(ticket.$createdAt)}</td>
+            <td>${ticket.called_by_name || '---'}</td>
+            <td>${formatDate(ticket.call_time)}</td>
+            <td>${ticket.status}</td>
+        `;
+        ticketHistoryTable.appendChild(row);
+    });
+    
+    console.log(`📊 History table updated with ${tickets.length} tickets`);
+}
 
     function updateCurrentTicketDisplay() {
         currentTicketDisplay.innerHTML = '';
