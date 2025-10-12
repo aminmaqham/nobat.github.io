@@ -2047,3 +2047,35 @@ html, body {
     padding: 20px;
     font-style: italic;
 }
+
+/* به فایل styles.css اضافه کنید */
+.table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.table-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* استایل برای اسکرول زیبا */
+.table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

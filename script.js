@@ -594,12 +594,14 @@ function renderPhotographyList() {
         await updateTotalWaitingCount();
         updatePhotographyUI();
     }
-// --- تابع بهبود یافته برای به‌روزرسانی تعداد منتظران ---
+// --- تابع کامل برای به‌روزرسانی تعداد منتظران ---
 async function updateTotalWaitingCount() {
     try {
         // اگر tickets خالی است، ابتدا داده‌ها را دریافت کن
-        if (tickets.length === 0) {
+        if (!tickets || tickets.length === 0) {
+            console.log('🔄 No tickets data, fetching first...');
             await fetchTickets();
+            return;
         }
         
         // محاسبه دقیق از تمام نوبت‌ها
@@ -608,39 +610,135 @@ async function updateTotalWaitingCount() {
         
         if (totalWaitingElement) {
             totalWaitingElement.textContent = waitingCount;
-            console.log(`✅ Total waiting count: ${waitingCount} (calculated from ${tickets.length} total tickets)`);
+            console.log(`✅ Total waiting count updated: ${waitingCount} (calculated from ${tickets.length} total tickets)`);
+            
+            // تغییر رنگ برای اعداد بالا (اختیاری)
+            if (waitingCount > 20) {
+                totalWaitingElement.style.color = '#d32f2f';
+                totalWaitingElement.style.fontWeight = 'bold';
+            } else if (waitingCount > 10) {
+                totalWaitingElement.style.color = '#f57c00';
+            } else {
+                totalWaitingElement.style.color = '';
+                totalWaitingElement.style.fontWeight = '';
+            }
         }
         
         return waitingCount;
         
     } catch (error) {
-        console.error('Error updating total waiting count:', error);
+        console.error('❌ Error updating total waiting count:', error);
         
         // Fallback
         const totalWaitingElement = document.getElementById('total-waiting-count');
         if (totalWaitingElement) {
             totalWaitingElement.textContent = '0';
+            totalWaitingElement.style.color = '#d32f2f';
         }
         return 0;
     }
 }
 
-// --- تابع اصلاح شده برای دریافت تمام نوبت‌ها ---
+// --- تابع کامل و بهبود یافته برای دریافت تمام نوبت‌ها ---
 async function fetchTickets() {
     try {
-        // ❌ حذف کامل Query.limit برای دریافت تمام نوبت‌ها
-        const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
-            Query.orderDesc('$createdAt')
-            // هیچ محدودیتی وجود ندارد
-        ]);
-        tickets = response.documents;
-        console.log(`📋 Fetched ALL tickets: ${tickets.length} tickets from server`);
+        let allTickets = [];
+        let currentOffset = 0;
+        const limit = 100; // تعداد در هر درخواست
+        let hasMore = true;
+        let requestCount = 0;
+
+        console.log('🔄 Starting to fetch all tickets...');
+
+        // دریافت تدریجی تمام نوبت‌ها
+        while (hasMore) {
+            requestCount++;
+            console.log(`📋 Fetching batch ${requestCount} (offset: ${currentOffset})`);
+            
+            const response = await databases.listDocuments(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, [
+                    Query.orderDesc('$createdAt'),
+                    Query.limit(limit),
+                    Query.offset(currentOffset)
+                ]
+            );
+            
+            if (response.documents.length === 0) {
+                console.log('✅ Reached end of tickets');
+                hasMore = false;
+                break;
+            }
+            
+            allTickets = allTickets.concat(response.documents);
+            currentOffset += limit;
+            
+            console.log(`📦 Batch ${requestCount}: ${response.documents.length} tickets, total so far: ${allTickets.length}`);
+            
+            // اگر تعداد کمتر از limit بود، یعنی به انتها رسیدیم
+            if (response.documents.length < limit) {
+                console.log('✅ All tickets fetched successfully');
+                hasMore = false;
+            }
+
+            // اضافه کردن تاخیر کوچک برای جلوگیری از rate limiting
+            if (hasMore) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        tickets = allTickets;
+        console.log(`🎉 Successfully fetched ALL tickets: ${tickets.length} total tickets in ${requestCount} requests`);
+        
+        // نمایش آمار دقیق
+        const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
+        const inServiceCount = tickets.filter(t => t.status === 'در حال سرویس').length;
+        const completedCount = tickets.filter(t => t.status === 'تکمیل شده').length;
+        
+        console.log(`
+        📊 Detailed Statistics:
+        • Total tickets: ${tickets.length}
+        • Waiting: ${waitingCount}
+        • In Service: ${inServiceCount}
+        • Completed: ${completedCount}
+        • Regular tickets: ${tickets.filter(t => t.ticket_type === 'regular').length}
+        • Pass tickets: ${tickets.filter(t => t.ticket_type === 'pass').length}
+        • Returned from photography: ${tickets.filter(t => t.returned_from_photography).length}
+        `);
         
         // به‌روزرسانی فوری تعداد منتظران
         updateTotalWaitingCount();
         
+        return tickets;
+        
     } catch (error) {
-        console.error('Error fetching tickets:', error);
+        console.error('❌ Error fetching tickets:', error);
+        
+        // Fallback: دریافت حداقل داده‌ها
+        try {
+            console.log('🔄 Trying fallback method...');
+            const response = await databases.listDocuments(
+                DATABASE_ID, 
+                TICKETS_COLLECTION_ID, [
+                    Query.orderDesc('$createdAt'),
+                    Query.limit(1000) // محدودیت منطقی برای fallback
+                ]
+            );
+            tickets = response.documents;
+            console.log(`📋 Fallback successful: Fetched ${tickets.length} tickets`);
+            
+            // نمایش آمار fallback
+            const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
+            console.log(`📊 Fallback stats - Total: ${tickets.length}, Waiting: ${waitingCount}`);
+            
+            updateTotalWaitingCount();
+            return tickets;
+            
+        } catch (fallbackError) {
+            console.error('❌ Fallback also failed:', fallbackError);
+            showPopupNotification('<p>خطا در دریافت داده‌های نوبت‌ها!</p>');
+            return [];
+        }
     }
 }
     // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
@@ -1101,11 +1199,25 @@ async function callNextTicketWithOptions() {
         }
     }
 
-    async function fetchData() {
-        if (!currentUser) return;
-        await Promise.all([fetchServices(), fetchTickets()]);
+async function fetchData() {
+    if (!currentUser) return;
+    
+    console.log('🔄 Starting to fetch all data...');
+    
+    try {
+        await Promise.all([
+            fetchServices(), 
+            fetchTickets()
+        ]);
+        
+        console.log('✅ All data fetched successfully');
         renderUI();
+        
+    } catch (error) {
+        console.error('❌ Error in fetchData:', error);
+        showPopupNotification('<p>خطا در دریافت داده‌ها از سرور!</p>');
     }
+}
 
     async function fetchServices() {
         try {
@@ -1314,14 +1426,26 @@ function renderServiceButtons() {
             serviceCheckboxes.appendChild(div);
         });
     }
-// در تابع updateHistoryTable نیز محدودیت را بردارید:
+// --- تابع بهبود یافته برای نمایش تاریخچه با اسکرول ---
 function updateHistoryTable() {
+    const ticketHistoryTable = document.querySelector('#ticket-history tbody');
+    if (!ticketHistoryTable) return;
+    
     ticketHistoryTable.innerHTML = '';
     
-    // نمایش تمام نوبت‌ها بدون محدودیت
+    // نمایش تمام نوبت‌ها با اسکرول
     tickets.forEach(ticket => {
         const service = services.find(s => s.$id === ticket.service_id);
         const row = document.createElement('tr');
+        
+        // اضافه کردن کلاس برای نوبت‌های خاص
+        if (ticket.returned_from_photography) {
+            row.classList.add('returned-ticket');
+        }
+        if (ticket.priority === 'high') {
+            row.classList.add('priority-high');
+        }
+        
         row.innerHTML = `
             <td>${ticket.general_ticket || 'پاس'}</td>
             <td>${ticket.specific_ticket || 'پاس'}</td>
@@ -1332,13 +1456,44 @@ function updateHistoryTable() {
             <td>${formatDate(ticket.$createdAt)}</td>
             <td>${ticket.called_by_name || '---'}</td>
             <td>${formatDate(ticket.call_time)}</td>
-            <td>${ticket.status}</td>
+            <td>
+                ${ticket.status}
+                ${ticket.returned_from_photography ? '<br><small class="photography-origin">📸 بازگشته از عکاسی</small>' : ''}
+            </td>
         `;
         ticketHistoryTable.appendChild(row);
     });
     
-    console.log(`📊 History table updated with ${tickets.length} tickets`);
+    console.log(`📊 History table updated with ${tickets.length} tickets (with scroll)`);
 }
+
+// --- تابع برای نمایش اطلاعات آماری ---
+function showStatistics() {
+    const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
+    const inServiceCount = tickets.filter(t => t.status === 'در حال سرویس').length;
+    const completedCount = tickets.filter(t => t.status === 'تکمیل شده').length;
+    const returnedCount = tickets.filter(t => t.returned_from_photography).length;
+    
+    console.log(`
+    📊 آمار سیستم:
+    • کل نوبت‌ها: ${tickets.length}
+    • در انتظار: ${waitingCount}
+    • در حال سرویس: ${inServiceCount}
+    • تکمیل شده: ${completedCount}
+    • بازگشته از عکاسی: ${returnedCount}
+    `);
+    
+    // نمایش در کنسول برای دیباگ
+    return {
+        total: tickets.length,
+        waiting: waitingCount,
+        inService: inServiceCount,
+        completed: completedCount,
+        returned: returnedCount
+    };
+}
+
+
 
     function updateCurrentTicketDisplay() {
         currentTicketDisplay.innerHTML = '';
