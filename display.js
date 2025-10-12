@@ -235,28 +235,28 @@ stopAllAudio() {
 
 
 
-// ✅ پخش اعلان کامل - دیباگ شده
 async playSingleAnnouncement(ticketNumber, counterNumber) {
     try {
-        console.log('🎵 Starting announcement sequence...');
+        console.log('🎵 Starting announcement...');
+        console.log('📊 Input - Ticket:', ticketNumber, 'Counter:', counterNumber);
         
         // 1. پخش شماره نوبت
-        console.log(`🔢 Step 1: Playing ticket number: ${ticketNumber}`);
         await this.playNumberSound(ticketNumber);
         
-        // 2. پخش شماره باجه
-        console.log(`🔢 Step 2: Playing counter number (ignoring input: ${counterNumber})`);
-        await this.playCounterSound(counterNumber); // اینجا counterNumber نادیده گرفته می‌شود
+        // 2. از شماره باجه دریافتی استفاده کن (نه از user-greeting)
+        console.log('🔢 Using counter number from input:', counterNumber);
+        await this.playCounterSound(counterNumber);
         
-        console.log('✅ Announcement sequence completed');
+        console.log('✅ Announcement completed');
         
     } catch (error) {
-        console.error('❌ Display: Error in single announcement:', error);
+        console.error('❌ Error in announcement:', error);
         throw error;
     }
 }
-        // ✅ پخش یک اعلان کامل برای نوبت عکاسی
-// ✅ پخش یک اعلان کامل برای نوبت عکاسی - بدون bajeh
+
+
+
 // ✅ پخش یک اعلان کامل برای نوبت عکاسی - بدون تأخیر
 async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
     try {
@@ -277,20 +277,19 @@ async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
     }
 }
 
-// ✅ پخش شماره باجه - کاملاً اصلاح شده
+// ✅ پخش شماره باجه - ساده‌شده
 async playCounterSound(counterNumber) {
     if (!this.isAudioEnabled || !this.userInteracted) {
         throw new Error('Audio disabled or user not interacted');
     }
     
-    console.log('🔍 playCounterSound called with:', counterNumber);
-    
-    // همیشه از user-greeting استفاده کن، بدون توجه به ورودی
-    const finalCounterNumber = extractCounterNumberFromGreeting();
-    console.log('🔢 Final counter number to play:', finalCounterNumber);
+    console.log('🔊 playCounterSound called with:', counterNumber);
     
     // تبدیل به عدد
-    const counterNum = parseInt(finalCounterNumber) || 1;
+    const counterNum = parseInt(counterNumber) || 1;
+    
+    // محدود کردن به 1-20
+    const safeCounterNum = Math.max(1, Math.min(20, counterNum));
     
     // تبدیل عدد به نام انگلیسی
     const numberToEnglish = {
@@ -300,19 +299,17 @@ async playCounterSound(counterNumber) {
         16: 'sixteen', 17: 'seventeen', 18: 'eighteen', 19: 'nineteen', 20: 'twenty'
     };
     
-    const englishName = numberToEnglish[counterNum] || 'one';
+    const englishName = numberToEnglish[safeCounterNum] || 'one';
     const counterFile = `${englishName}.mp3`;
     
-    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${counterNum})`);
+    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${safeCounterNum})`);
     
     try {
         await this.playAudioFile(`sounds2/${counterFile}`);
         console.log('✅ Counter sound played successfully');
     } catch (error) {
         console.error(`❌ Error playing counter sound ${counterFile}:`, error);
-        
-        // فال‌بک
-        console.log('🔄 Falling back to default counter sound: one.mp3');
+        // فال‌بک به شماره 1
         await this.playAudioFile('sounds2/one.mp3');
     }
 }

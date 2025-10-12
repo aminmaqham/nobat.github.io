@@ -142,10 +142,9 @@ class SoundManager {
 }
 
 
-    // --- توابع کمکی برای دسترسی امن ---
-    function getUserPrefs() {
-        return currentUser ? (currentUser.prefs || {}) : {};
-    }
+function getUserPrefs() {
+    return currentUser ? (currentUser.prefs || {}) : {};
+}
 
     function getCounterName() {
         const prefs = getUserPrefs();
@@ -154,6 +153,7 @@ class SoundManager {
 
     function getCounterNumber() {
         const prefs = getUserPrefs();
+        console.log('🔍 User prefs for counter:', prefs);
         return prefs.counter_number || '1';
     }
 
@@ -869,17 +869,14 @@ function playAudioFile(filePath) {
     return Promise.resolve();
 }
 
-// --- تابع پخش صوت - فقط فراخوانی به display ---
 function playCallSound(ticket) {
     if (!ticket) return Promise.resolve();
     
     const ticketNumber = ticket.specific_ticket || '0001';
-    const counterName = getCounterName();
-    const counterNumber = getCounterNumber();
+    const counterNumber = getCounterNumber(); // این باید "5" برگرداند
     
     console.log(`🎵 Main: Requesting sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    // فقط درخواست به display ارسال شود
     if (window.displaySoundManager) {
         return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
             .then(() => {
