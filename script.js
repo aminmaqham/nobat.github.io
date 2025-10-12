@@ -120,16 +120,27 @@ class SoundManager {
         return Promise.resolve();
     }
 
-    // سایر توابع فقط برای سازگاری
-    async playLocalAnnouncement() { return Promise.resolve(); }
-    async playNumberSound() { return Promise.resolve(); }
-    async playCounterSound() { return Promise.resolve(); }
+    // سایر توابع غیرفعال شده
+    async playLocalAnnouncement() { 
+        console.log('🔇 Local announcement disabled - using display only');
+        return Promise.resolve(); 
+    }
+    
+    async playNumberSound() { 
+        console.log('🔇 Number sound disabled - using display only');
+        return Promise.resolve(); 
+    }
+    
+    async playCounterSound() { 
+        console.log('🔇 Counter sound disabled - using display only');
+        return Promise.resolve(); 
+    }
+    
     setVolume() { /* انجام nothing */ }
     toggleSound() { /* انجام nothing */ }
     loadSettings() { /* انجام nothing */ }
 }
 
-const soundManager = new SoundManager();
 
     // --- توابع کمکی برای دسترسی امن ---
     function getUserPrefs() {
@@ -845,19 +856,20 @@ function showAdvancedPopupNotification(ticket, htmlContent) {
 
 
 
-// --- تابع پخش شماره نوبت ---
+// --- تابع پخش شماره نوبت - غیرفعال شده ---
 function playNumberSound(number) {
-    return new Promise((resolve, reject) => {
-        const formattedNumber = String(number).padStart(4, '0');
-        const audioPath = `sounds/${formattedNumber}.mp3`;
-        playAudioFile(audioPath)
-            .then(resolve)
-            .catch(reject);
-    });
+    console.log('🔇 Number sound playing is handled by display page ONLY');
+    return Promise.resolve();
 }
 
 
-// --- تابع تکرار صوت - فقط فراخوانی به display ---
+// --- تابع پخش فایل صوتی - غیرفعال شده ---
+function playAudioFile(filePath) {
+    console.log(`🔇 Audio file playing is handled by display page ONLY: ${filePath}`);
+    return Promise.resolve();
+}
+
+// --- تابع پخش صوت - فقط فراخوانی به display ---
 function playCallSound(ticket) {
     if (!ticket) return Promise.resolve();
     
@@ -867,7 +879,7 @@ function playCallSound(ticket) {
     
     console.log(`🎵 Main: Requesting sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
-    // فقط درخواست به display ارسال شود، نه پخش مستقیم
+    // فقط درخواست به display ارسال شود
     if (window.displaySoundManager) {
         return window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket)
             .then(() => {
@@ -882,13 +894,9 @@ function playCallSound(ticket) {
     }
 }
 
-function playNumberSound(number) {
-    console.log('🔇 Number sound playing is handled by display page');
-    return Promise.resolve();
-}
-
+// --- تابع پخش شماره باجه - غیرفعال شده ---  
 function playCounterSound(counterNumber) {
-    console.log('🔇 Counter sound playing is handled by display page');
+    console.log('🔇 Counter sound playing is handled by display page ONLY');
     return Promise.resolve();
 }
 
@@ -2656,7 +2664,7 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         }, 30000);
     }
 
-// --- تابع برای عکاسی - فقط فراخوانی به display ---
+// --- تابع پخش صوت عکاسی - فقط فراخوانی به display ---
 function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
