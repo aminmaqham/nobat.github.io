@@ -562,28 +562,26 @@ async preloadImportantSounds() {
     const photographyWaiting = document.querySelector('.photography-waiting');
 
     // --- UI Update Functions ---
-// --- به‌روزرسانی تابع updateDisplay ---
-async function updateDisplay() {
-    try {
-        const ticketsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            TICKETS_COLLECTION_ID,
-            [
-                Query.equal('status', 'در حال سرویس'),
-                Query.orderDesc('call_time'),
-                Query.limit(3)
-            ]
-        );
+    async function updateDisplay() {
+        try {
+            const ticketsResponse = await databases.listDocuments(
+                DATABASE_ID,
+                TICKETS_COLLECTION_ID,
+                [
+                    Query.equal('status', 'در حال سرویس'),
+                    Query.orderDesc('call_time'),
+                    Query.limit(3)
+                ]
+            );
 
-        const calledTickets = ticketsResponse.documents;
-        updateTicketsDisplay(calledTickets);
-        await updatePhotographyDisplay();
-        await updateServicesWaitingList(); // اضافه کردن فراخوانی تابع جدید
+            const calledTickets = ticketsResponse.documents;
+            updateTicketsDisplay(calledTickets);
+            await updatePhotographyDisplay();
 
-    } catch (error) {
-        console.error("Error fetching data:", error);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
     }
-}
 
     async function updatePhotographyDisplay() {
         try {
@@ -709,8 +707,6 @@ async function preloadImportantSounds() {
 
 
 
-
-
 // --- تابع استخراج شماره باجه - کاملاً اصلاح شده ---
 function extractCounterNumber(counterName) {
     if (!counterName) {
@@ -777,10 +773,9 @@ function extractCounterNumber(counterName) {
     return '1';
 }
 
-// --- به‌روزرسانی تابع setupRealtime ---
+// --- Realtime Subscription ---
 function setupRealtime() {
     const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-    const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
     const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
     
     let lastProcessedTicketId = null;
@@ -788,45 +783,31 @@ function setupRealtime() {
     client.subscribe(ticketChannel, response => {
         console.log('Display: Realtime update received:', response);
         
-        if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`) ||
-            response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.create`) ||
-            response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.delete`)) {
-            
-            // به‌روزرسانی لیست منتظران هنگام تغییر در نوبت‌ها
-            updateServicesWaitingList();
-            
-            if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
-                const updatedTicket = response.payload;
+        if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
+            const updatedTicket = response.payload;
 
-                if (updatedTicket.status === 'در حال سرویس') {
-                    // جلوگیری از پردازش تکراری
-                    if (lastProcessedTicketId === updatedTicket.$id) {
-                        console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
-                        return;
-                    }
-                    
-                    lastProcessedTicketId = updatedTicket.$id;
-                    
-                    console.log('Display: New ticket called via real-time:', updatedTicket);
-                    
-                    const ticketNumber = updatedTicket.specific_ticket || '0001';
-                    const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
-                    
-                    console.log(`🎵 Display: Auto-playing via real-time: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-                    
-                    // ✅ پخش صدا از طریق real-time (فقط در display)
-                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
+            if (updatedTicket.status === 'در حال سرویس') {
+                // جلوگیری از پردازش تکراری
+                if (lastProcessedTicketId === updatedTicket.$id) {
+                    console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
+                    return;
                 }
+                
+                lastProcessedTicketId = updatedTicket.$id;
+                
+                console.log('Display: New ticket called via real-time:', updatedTicket);
+                
+                const ticketNumber = updatedTicket.specific_ticket || '0001';
+                const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
+                
+                console.log(`🎵 Display: Auto-playing via real-time: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                
+                // ✅ پخش صدا از طریق real-time (فقط در display)
+                displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
             }
         }
         
         updateDisplay();
-    });
-    
-    client.subscribe(serviceChannel, response => {
-        console.log('Display: Services updated via real-time');
-        // به‌روزرسانی لیست سرویس‌ها هنگام تغییر در خدمات
-        updateServicesWaitingList();
     });
     
     client.subscribe(photographyChannel, response => {
@@ -849,7 +830,6 @@ function setupRealtime() {
         updatePhotographyDisplay();
     });
 }
-
     // --- تابع پخش شماره باجه - بهبود یافته ---
 async function playCounterSound(counterNumber) {
     if (!this.isAudioEnabled || !this.userInteracted) {
@@ -882,161 +862,16 @@ async function playCounterSound(counterNumber) {
     }
 }
 
-// --- تابع جدید برای به‌روزرسانی لیست منتظران ---
-async function updateWaitingList() {
-    try {
-        // دریافت تمام نوبت‌های در حال انتظار
-        const waitingTicketsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            TICKETS_COLLECTION_ID,
-            [
-                Query.equal('status', 'در حال انتظار'),
-                Query.orderAsc('$createdAt')
-            ]
-        );
-
-        // دریافت لیست خدمات
-        const servicesResponse = await databases.listDocuments(
-            DATABASE_ID,
-            SERVICES_COLLECTION_ID,
-            [Query.orderAsc('name')]
-        );
-
-        const waitingTickets = waitingTicketsResponse.documents;
-        const services = servicesResponse.documents;
-
-        // محاسبه تعداد کل منتظران
-        const totalWaiting = waitingTickets.length;
-        document.getElementById('total-waiting-count').textContent = totalWaiting;
-
-        // گروه‌بندی نوبت‌ها بر اساس خدمت
-        const serviceWaitingCounts = {};
+    // --- Initial Load ---
+    function initializeDisplay() {
+        console.log('🚀 Initializing display system...');
         
-        services.forEach(service => {
-            // فقط خدمات فعال را نمایش بده
-            if (service.disabled !== true) {
-                serviceWaitingCounts[service.$id] = {
-                    name: service.name,
-                    count: 0
-                };
-            }
-        });
-
-        // شمارش نوبت‌های هر خدمت
-        waitingTickets.forEach(ticket => {
-            if (serviceWaitingCounts[ticket.service_id]) {
-                serviceWaitingCounts[ticket.service_id].count++;
-            }
-        });
-
-        // نمایش لیست منتظران هر خدمت
-        const serviceWaitingContainer = document.getElementById('service-waiting-container');
-        serviceWaitingContainer.innerHTML = '';
-
-        Object.values(serviceWaitingCounts).forEach(service => {
-            if (service.count > 0) {
-                const serviceItem = document.createElement('div');
-                serviceItem.className = 'service-waiting-item';
-                serviceItem.innerHTML = `
-                    <span class="service-name">${service.name}:</span>
-                    <span class="service-count">${service.count}</span>
-                `;
-                serviceWaitingContainer.appendChild(serviceItem);
-            }
-        });
-
-        // اگر هیچ منتظری نبود پیام مناسب نمایش بده
-        if (Object.values(serviceWaitingCounts).every(service => service.count === 0)) {
-            serviceWaitingContainer.innerHTML = '<div class="service-waiting-item">هیچ نوبتی در انتظار نیست</div>';
-        }
-
-    } catch (error) {
-        console.error("Error updating waiting list:", error);
-    }
-}
-
-// --- تابع جدید برای به‌روزرسانی لیست سرویس‌ها و منتظران ---
-async function updateServicesWaitingList() {
-    try {
-        // دریافت تمام نوبت‌های در حال انتظار
-        const waitingTicketsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            TICKETS_COLLECTION_ID,
-            [
-                Query.equal('status', 'در حال انتظار'),
-                Query.orderAsc('$createdAt')
-            ]
-        );
-
-        // دریافت لیست خدمات
-        const servicesResponse = await databases.listDocuments(
-            DATABASE_ID,
-            SERVICES_COLLECTION_ID,
-            [Query.orderAsc('name')]
-        );
-
-        const waitingTickets = waitingTicketsResponse.documents;
-        const services = servicesResponse.documents;
-
-        // محاسبه تعداد کل منتظران
-        const totalWaiting = waitingTickets.length;
-        document.getElementById('total-waiting-count').textContent = totalWaiting;
-
-        // ایجاد آرایه‌ای از خدمات فعال
-        const activeServices = services.filter(service => service.disabled !== true);
+        updateDisplay();
+        setupRealtime();
+        setInterval(updateDisplay, 30000);
         
-        // شمارش نوبت‌های هر خدمت
-        const serviceWaitingCounts = activeServices.map(service => {
-            const count = waitingTickets.filter(ticket => ticket.service_id === service.$id).length;
-            return {
-                name: service.name,
-                count: count,
-                serviceId: service.$id
-            };
-        });
-
-        // مرتب‌سازی بر اساس تعداد منتظران (بیشترین به کمترین)
-        serviceWaitingCounts.sort((a, b) => b.count - a.count);
-
-        // نمایش لیست سرویس‌ها و تعداد منتظران
-        const servicesWaitingList = document.getElementById('services-waiting-list');
-        servicesWaitingList.innerHTML = '';
-
-        if (serviceWaitingCounts.length === 0) {
-            const emptyItem = document.createElement('div');
-            emptyItem.className = 'service-waiting-item empty';
-            emptyItem.innerHTML = '<div class="service-name">هیچ سرویس فعالی وجود ندارد</div>';
-            servicesWaitingList.appendChild(emptyItem);
-        } else {
-            serviceWaitingCounts.forEach(service => {
-                const serviceItem = document.createElement('div');
-                serviceItem.className = 'service-waiting-item';
-                serviceItem.innerHTML = `
-                    <div class="service-name">${service.name}</div>
-                    <div class="service-count">${service.count}</div>
-                `;
-                servicesWaitingList.appendChild(serviceItem);
-            });
-        }
-
-    } catch (error) {
-        console.error("Error updating services waiting list:", error);
-        const servicesWaitingList = document.getElementById('services-waiting-list');
-        servicesWaitingList.innerHTML = '<div class="service-waiting-item empty"><div class="service-name">خطا در بارگذاری اطلاعات</div></div>';
+        console.log('✅ Display system initialized');
     }
-}
-
-
-// --- به‌روزرسانی تابع initializeDisplay ---
-function initializeDisplay() {
-    console.log('🚀 Initializing display system...');
-    
-    updateDisplay();
-    setupRealtime();
-    setInterval(updateDisplay, 30000);
-    
-    console.log('✅ Display system initialized');
-}
 
     // --- Start the Display ---
     initializeDisplay();
