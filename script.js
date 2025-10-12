@@ -550,7 +550,7 @@ async function returnTicketToOriginalCounter(ticketId, originalCounterName) {
             `;
         }
     }
-    
+
 function renderPhotographyList() {
     if (!photographyListContainer) return;
     
@@ -594,16 +594,42 @@ function renderPhotographyList() {
         await updateTotalWaitingCount();
         updatePhotographyUI();
     }
-
-    async function updateTotalWaitingCount() {
-        try {
-            const waitingTickets = tickets.filter(t => t.status === 'در حال انتظار');
-            document.getElementById('total-waiting-count').textContent = waitingTickets.length;
-        } catch (error) {
-            console.error('Error updating total waiting count:', error);
+// --- تابع بهبودیافته برای به‌روزرسانی تعداد منتظران ---
+async function updateTotalWaitingCount() {
+    try {
+        // محاسبه از آرایه tickets که توسط real-time به‌روز می‌شود
+        const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
+        const totalWaitingElement = document.getElementById('total-waiting-count');
+        
+        if (totalWaitingElement) {
+            totalWaitingElement.textContent = waitingCount;
+            console.log(`✅ Total waiting count updated: ${waitingCount}`);
         }
+        
+        return waitingCount;
+        
+    } catch (error) {
+        console.error('Error updating total waiting count:', error);
+        return 0;
     }
+}
 
+
+
+// --- تغییر در تابع fetchTickets برای به‌روزرسانی خودکار ---
+async function fetchTickets() {
+    try {
+        const response = await databases.listDocuments(DATABASE_ID, TICKETS_COLLECTION_ID, [
+            Query.orderDesc('$createdAt'),
+            Query.limit(1000) // افزایش limit برای پوشش تمام نوبت‌ها
+        ]);
+        tickets = response.documents;
+        console.log(`📋 Fetched ${tickets.length} tickets from server`);
+        
+    } catch (error) {
+        console.error('Error fetching tickets:', error);
+    }
+}
     // --- نوتیفیکیشن پیشرفته با دکمه‌ها ---
 function showAdvancedPopupNotification(ticket, htmlContent) {
     return new Promise((resolve) => {
@@ -903,6 +929,7 @@ function playCounterSound(counterNumber) {
         }
     }
 
+
 // --- تابع بهبودیافته برای فراخوانی نوبت ---
 async function callSpecificTicket(ticket) {
     // ✅ جلوگیری از فراخوانی همزمان
@@ -932,6 +959,9 @@ async function callSpecificTicket(ticket) {
                 call_time: new Date().toISOString()
             }
         );
+            // به‌روزرسانی فوری
+            await fetchTickets();
+            updateTotalWaitingCount();
         
         lastCalledTicket[currentUser.$id] = updatedTicket.$id;
         await fetchTickets();
@@ -1155,20 +1185,48 @@ async function callNextTicketWithOptions() {
     }
 
     // --- REALTIME ---
-    function setupRealtimeSubscriptions() {
-        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        client.subscribe(ticketChannel, () => fetchData());
+function setupRealtimeSubscriptions() {
+    // کانال نوبت‌ها
+    const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+    
+    client.subscribe(ticketChannel, (response) => {
+        console.log('📡 Real-time ticket update:', response);
         
-        const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
-        client.subscribe(serviceChannel, () => fetchData());
-        
-        const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
-        client.subscribe(photographyChannel, (response) => {
-            console.log('Photography history updated via real-time:', response);
-            loadPhotographyHistory();
+        // هنگام هر تغییر در نوبت‌ها، داده‌ها را refresh کن
+        if (response.events.includes('databases.*.collections.*.documents.*.create') ||
+            response.events.includes('databases.*.collections.*.documents.*.update') ||
+            response.events.includes('databases.*.collections.*.documents.*.delete')) {
+            
+            console.log('🔄 Refreshing tickets data due to real-time change');
+            
+            // دریافت داده‌های تازه از سرور
+            fetchTickets().then(() => {
+                // به‌روزرسانی فوری UI
+                updateTotalWaitingCount();
+                renderServiceButtons();
+                updateHistoryTable();
+                updateCurrentTicketDisplay();
+            });
+        }
+    });
+    
+    // کانال خدمات
+    const serviceChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
+    client.subscribe(serviceChannel, (response) => {
+        console.log('📡 Real-time service update:', response);
+        fetchServices().then(() => {
+            renderServiceButtons();
+            updateServiceCheckboxes();
         });
-    }
-
+    });
+    
+    // کانال عکاسی
+    const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
+    client.subscribe(photographyChannel, (response) => {
+        console.log('📡 Real-time photography update:', response);
+        loadPhotographyHistory();
+    });
+}
     // --- UI RENDERING ---
     function updateTotalWaitingCount() {
         const waitingCount = tickets.filter(t => t.status === 'در حال انتظار').length;
@@ -1387,6 +1445,10 @@ async function callNextTicketWithOptions() {
                 DATABASE_ID, TICKETS_COLLECTION_ID, ID.unique(), newTicketData,
                 [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
             );
+                // به‌روزرسانی فوری
+            await fetchTickets();
+            updateTotalWaitingCount();
+
             const popupMessage = `
                 <span class="ticket-number">نوبت شما: ${createdTicket.specific_ticket}</span>
                 <p>نوبت کلی: ${createdTicket.general_ticket}</p>
@@ -1450,6 +1512,9 @@ async function callNextTicketWithOptions() {
 
         try {
             await Promise.all(creationPromises);
+                        // به‌روزرسانی فوری
+            await fetchTickets();
+            updateTotalWaitingCount();
             showPopupNotification(`<p>نوبت پاس شده با موفقیت ثبت شد.</p>`);
             closeTicketForm();
         } catch (error) {
@@ -2599,19 +2664,13 @@ async function initializeApp() {
         
         showLoggedInUI();
         await fetchData();
-        await loadPhotographyHistory();
-        
-        // تنظیمات باجه فقط بعد از لاگین چک شود
+        await loadPhotographyHistory();      
         await checkAndSetCounterName();
-        
         setupRealtimeSubscriptions();
         checkAutoReset();
         updatePhotographyUI();
         updateUIForUserRole();
-        
         setupPhotographyEventListeners();
-        
-        // راه‌اندازی ارتباط با display
         setupDisplaySoundManager();
         
         console.log('App initialized successfully');
