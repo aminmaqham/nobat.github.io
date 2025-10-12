@@ -235,16 +235,17 @@ stopAllAudio() {
 
 
 // ✅ پخش یک اعلان کامل برای نوبت عادی - بدون bajeh
+// ✅ پخش یک اعلان کامل برای نوبت عادی - بدون تأخیر
 async playSingleAnnouncement(ticketNumber, counterNumber) {
     try {
         // پخش شماره نوبت
         console.log(`🔢 Display: Playing ticket number: ${ticketNumber}`);
         await this.playNumberSound(ticketNumber);
         
-        await this.delay(800);
+        // ❌ حذف تأخیر بین پخش‌ها
+        // await this.delay(800);
         
-        // ❌ حذف بخش "به باجه"
-        // مستقیم به سراغ پخش شماره باجه برو
+        // پخش شماره باجه
         console.log(`🔢 Display: Playing counter number: ${counterNumber}`);
         await this.playCounterSound(counterNumber);
         
@@ -255,16 +256,17 @@ async playSingleAnnouncement(ticketNumber, counterNumber) {
 }
         // ✅ پخش یک اعلان کامل برای نوبت عکاسی
 // ✅ پخش یک اعلان کامل برای نوبت عکاسی - بدون bajeh
+// ✅ پخش یک اعلان کامل برای نوبت عکاسی - بدون تأخیر
 async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
     try {
         // پخش شماره نوبت
         console.log(`🔢 Display: Playing photography ticket number: ${ticketNumber}`);
         await this.playNumberSound(ticketNumber);
         
-        await this.delay(800);
+        // ❌ حذف تأخیر بین پخش‌ها
+        // await this.delay(800);
         
-        // ❌ حذف بخش "به باجه"
-        // مستقیم به سراغ پخش شماره باجه برو
+        // پخش شماره باجه
         console.log(`🔢 Display: Playing photography counter number: ${counterNumber}`);
         await this.playCounterSound(counterNumber);
         
@@ -280,47 +282,42 @@ async playCounterSound(counterNumber) {
         throw new Error('Audio disabled or user not interacted');
     }
     
-    // تبدیل به عدد و اعتبارسنجی
-    let counterNum;
-    if (counterNumber === 'عکاسی' || !counterNumber) {
-        counterNum = 1; // پیش‌فرض برای عکاسی
-    } else {
-        counterNum = parseInt(counterNumber.toString().replace(/^0+/, '') || '1');
+    // اگر counterNumber داده نشده، از user-greeting استخراج کن
+    let finalCounterNumber = counterNumber;
+    if (!finalCounterNumber || finalCounterNumber === 'عکاسی' || finalCounterNumber === 'undefined') {
+        finalCounterNumber = extractCounterNumberFromGreeting();
     }
     
-    if (isNaN(counterNum) || counterNum < 1 || counterNum > 99) {
-        console.warn(`⚠️ Invalid counter number: ${counterNumber}, using default: 1`);
+    // تبدیل به عدد و اعتبارسنجی
+    let counterNum;
+    if (finalCounterNumber === 'عکاسی' || !finalCounterNumber) {
+        counterNum = 1; // پیش‌فرض برای عکاسی
+    } else {
+        counterNum = parseInt(finalCounterNumber.toString().replace(/^0+/, '') || '1');
+    }
+    
+    if (isNaN(counterNum) || counterNum < 1 || counterNum > 20) {
+        console.warn(`⚠️ Invalid counter number: ${finalCounterNumber}, using default: 1`);
         counterNum = 1;
     }
     
     // تبدیل عدد به نام انگلیسی
     const numberToEnglish = {
-        1: 'one',
-        2: 'two', 
-        3: 'three',
-        4: 'four',
-        5: 'five',
-        6: 'six',
-        7: 'seven',
-        8: 'eight',
-        9: 'nine',
-        10: 'ten',
-        11: 'eleven',
-        12: 'twelve',
-        13: 'thirteen',
-        14: 'fourteen',
-        15: 'fifteen',
-        16: 'sixteen',
-        17: 'seventeen',
-        18: 'eighteen',
-        19: 'nineteen',
-        20: 'twenty'
+        1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
+        6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten',
+        11: 'eleven', 12: 'twelve', 13: 'thirteen', 14: 'fourteen', 15: 'fifteen',
+        16: 'sixteen', 17: 'seventeen', 18: 'eighteen', 19: 'nineteen', 20: 'twenty'
     };
     
-    const englishName = numberToEnglish[counterNum] || 'one';
-    const counterFile = `${englishName}.mp3`;
+    const englishName = numberToEnglish[counterNum];
+    if (!englishName) {
+        console.warn(`⚠️ No English name for counter number: ${counterNum}, using default: one`);
+        counterNum = 1;
+    }
     
-    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${counterNum}, original: ${counterNumber})`);
+    const counterFile = `${numberToEnglish[counterNum] || 'one'}.mp3`;
+    
+    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${counterNum}, original: ${finalCounterNumber})`);
     
     try {
         await this.playAudioFile(`sounds2/${counterFile}`);
@@ -780,35 +777,39 @@ function setupRealtime() {
     
     let lastProcessedTicketId = null;
     
-    client.subscribe(ticketChannel, response => {
-        console.log('Display: Realtime update received:', response);
-        
-        if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
-            const updatedTicket = response.payload;
+        // در تابع setupRealtime، هنگام پخش صدا از user-greeting استفاده کن
+            client.subscribe(ticketChannel, response => {
+            console.log('Display: Realtime update received:', response);
+            
+            if (response.events.includes(`databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents.*.update`)) {
+                const updatedTicket = response.payload;
 
-            if (updatedTicket.status === 'در حال سرویس') {
-                // جلوگیری از پردازش تکراری
-                if (lastProcessedTicketId === updatedTicket.$id) {
-                    console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
-                    return;
+                if (updatedTicket.status === 'در حال سرویس') {
+                    // جلوگیری از پردازش تکراری
+                    if (lastProcessedTicketId === updatedTicket.$id) {
+                        console.log('🔇 Skipping duplicate ticket processing:', updatedTicket.$id);
+                        return;
+                    }
+                    
+                    lastProcessedTicketId = updatedTicket.$id;
+                    
+                    console.log('Display: New ticket called via real-time:', updatedTicket);
+                    
+                    const ticketNumber = updatedTicket.specific_ticket || '0001';
+                    
+                    // ❌ از user-greeting استفاده کن، نه از called_by_counter_name
+                    // const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
+                    const counterNumber = extractCounterNumberFromGreeting();
+                    
+                    console.log(`🎵 Display: Auto-playing via real-time: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+                    
+                    // پخش صدا از طریق real-time
+                    displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
                 }
-                
-                lastProcessedTicketId = updatedTicket.$id;
-                
-                console.log('Display: New ticket called via real-time:', updatedTicket);
-                
-                const ticketNumber = updatedTicket.specific_ticket || '0001';
-                const counterNumber = extractCounterNumber(updatedTicket.called_by_counter_name);
-                
-                console.log(`🎵 Display: Auto-playing via real-time: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-                
-                // ✅ پخش صدا از طریق real-time (فقط در display)
-                displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, updatedTicket);
             }
-        }
-        
-        updateDisplay();
-    });
+            
+            updateDisplay();
+});
     
     client.subscribe(photographyChannel, response => {
         console.log('Display: Photography history updated via real-time');
@@ -830,6 +831,57 @@ function setupRealtime() {
         updatePhotographyDisplay();
     });
 }
+
+// --- تابع استخراج شماره باجه از user-greeting ---
+function extractCounterNumberFromGreeting() {
+    try {
+        const greetingElement = document.getElementById('user-greeting');
+        if (!greetingElement) {
+            console.log('❌ user-greeting element not found, using default: 1');
+            return '1';
+        }
+        
+        const greetingText = greetingElement.textContent || '';
+        console.log('🔍 Extracting counter number from greeting:', greetingText);
+        
+        // استخراج عدد از متن
+        const numbers = greetingText.match(/\d+/g);
+        if (numbers && numbers.length > 0) {
+            const counterNum = numbers[0];
+            console.log(`✅ Counter number extracted from greeting: ${counterNum}`);
+            return counterNum;
+        }
+        
+        // اگر عدد پیدا نشد، از کلمات فارسی استفاده کن
+        const wordToNumber = {
+            'یک': '1', 'اول': '1', '۱': '1',
+            'دو': '2', 'دوم': '2', '۲': '2',
+            'سه': '3', 'سوم': '3', '۳': '3', 
+            'چهار': '4', 'چهارم': '4', '۴': '4',
+            'پنج': '5', 'پنجم': '5', '۵': '5',
+            'شش': '6', 'ششم': '6', '۶': '6',
+            'هفت': '7', 'هفتم': '7', '۷': '7',
+            'هشت': '8', 'هشتم': '8', '۸': '8',
+            'نه': '9', 'نهم': '9', '۹': '9',
+            'ده': '10', 'دهم': '10', '۱۰': '10'
+        };
+        
+        for (const [word, num] of Object.entries(wordToNumber)) {
+            if (greetingText.includes(word)) {
+                console.log(`✅ Counter number extracted from word "${word}": ${num}`);
+                return num;
+            }
+        }
+        
+        console.log('❌ No counter number found in greeting, using default: 1');
+        return '1';
+        
+    } catch (error) {
+        console.error('Error extracting counter number from greeting:', error);
+        return '1';
+    }
+}
+
     // --- تابع پخش شماره باجه - بهبود یافته ---
 async function playCounterSound(counterNumber) {
     if (!this.isAudioEnabled || !this.userInteracted) {
