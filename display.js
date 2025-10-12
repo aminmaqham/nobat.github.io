@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 1. پخش شماره نوبت
                 await this.playNumberSound(ticketNumber);
                 
-                // 2. از شماره باجه دریافتی استفاده کن (نه از user-greeting)
+                // 2. پخش شماره باجه
                 console.log('🔢 Using counter number from input:', counterNumber);
                 await this.playCounterSound(counterNumber);
                 
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ✅ پخش یک اعلان کامل برای نوبت عکاسی - بدون تأخیر
+        // ✅ پخش یک اعلان کامل برای نوبت عکاسی
         async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
             try {
                 // پخش شماره نوبت
@@ -282,15 +282,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // تبدیل به عدد
             const counterNum = parseInt(counterNumber) || 1;
             
-            // محدود کردن به 1-20
-            const safeCounterNum = Math.max(1, Math.min(20, counterNum));
+            // محدود کردن به 1-10
+            const safeCounterNum = Math.max(1, Math.min(10, counterNum));
             
             // تبدیل عدد به نام انگلیسی
             const numberToEnglish = {
                 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
-                6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten',
-                11: 'eleven', 12: 'twelve', 13: 'thirteen', 14: 'fourteen', 15: 'fifteen',
-                16: 'sixteen', 17: 'seventeen', 18: 'eighteen', 19: 'nineteen', 20: 'twenty'
+                6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'
             };
             
             const englishName = numberToEnglish[safeCounterNum] || 'one';
@@ -340,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ✅ پخش فایل صوتی - مقاوم در برابر خطا با timeout کمتر
+        // ✅ پخش فایل صوتی - مقاوم در برابر خطا
         async playAudioFile(filePath) {
             return new Promise((resolve, reject) => {
                 if (!this.isAudioEnabled || !this.userInteracted) {
@@ -419,13 +417,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 audio.addEventListener('canplaythrough', onCanPlay, { once: true });
                 audio.addEventListener('error', onError, { once: true });
 
-                // ❌ کاهش timeout به 3 ثانیه
+                // افزایش timeout به 10 ثانیه
                 loadTimeout = setTimeout(() => {
                     if (!hasResolved) {
                         console.warn(`⏰ Display: Audio timeout: ${filePath}`);
                         rejectOnce(new Error('Audio load timeout'));
                     }
-                }, 3000);
+                }, 10000);
 
                 // تنظیم src و شروع بارگذاری
                 audio.src = filePath;
@@ -458,19 +456,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         }
 
-        // ✅ پیش‌بارگذاری صداهای مهم - اصلاح شده برای فایل‌های انگلیسی
+        // ✅ پیش‌بارگذاری صداهای مهم
         async preloadImportantSounds() {
             if (!this.userInteracted) return;
             
             console.log('🔄 Preloading important sounds...');
             
             // فایل‌های انگلیسی برای شماره‌های باجه
-            const englishNumbers = [
-                'one', 'two', 'three', 'four', 'five', 
-                'six', 'seven', 'eight', 'nine', 'ten',
-                'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
-                'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'
-            ];
+            const englishNumbers = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
             
             const importantSounds = englishNumbers.map(name => `${name}.mp3`);
             
@@ -512,14 +505,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 audio.src = filePath;
             });
         }
-
-        // ✅ تأخیر
-        delay(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
     }
 
+    // ایجاد نمونه و قرار دادن در global scope
     const displaySoundManager = new DisplaySoundManager();
+    window.displaySoundManager = displaySoundManager;
 
     // --- DOM Elements ---
     const ticketsContainer = document.querySelector('.tickets-container');
@@ -624,7 +614,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // استفاده از طراحی جدید با عدد بزرگ و بدون "کیوسک الکترونیکی"
         photographyList.innerHTML = photographyItems.map((item, index) => `
             <div class="photography-item ${index === 0 ? 'new-item' : ''}">
                 <div class="photography-number">${index + 1}</div>
@@ -647,7 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // در display.js - گوش دادن به درخواست‌های صدا از طریق Appwrite
+    // گوش دادن به درخواست‌های صدا از طریق Appwrite
     function setupAudioRealtime() {
         const audioChannel = `databases.${DATABASE_ID}.collections.${AUDIO_ANNOUNCEMENTS_COLLECTION_ID}.documents`;
         
@@ -688,81 +677,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- تابع استخراج شماره باجه - کاملاً اصلاح شده ---
-    function extractCounterNumber(counterName) {
-        if (!counterName) {
-            console.log('❌ No counter name provided, using default: 1');
-            return '1';
-        }
-        
-        console.log('🔍 Extracting counter number from:', counterName);
-        
-        // اگر شماره مستقیم داده شده
-        if (/^\d+$/.test(counterName)) {
-            const num = counterName;
-            console.log(`✅ Counter number is direct: ${num}`);
-            return num;
-        }
-        
-        // روش ۱: استخراج اعداد از انتهای رشته
-        const numbersFromEnd = counterName.match(/\d+$/);
-        if (numbersFromEnd) {
-            const num = numbersFromEnd[0];
-            console.log(`✅ Counter number extracted from end: ${num}`);
-            return num;
-        }
-        
-        // روش ۲: استخراج اولین عدد در رشته
-        const numbersAnywhere = counterName.match(/\d+/);
-        if (numbersAnywhere) {
-            const num = numbersAnywhere[0];
-            console.log(`✅ Counter number extracted from anywhere: ${num}`);
-            return num;
-        }
-        
-        // روش ۳: جستجوی کلمات فارسی
-        const wordToNumber = {
-            'یک': '1', 'اول': '1', '۱': '1',
-            'دو': '2', 'دوم': '2', '۲': '2',
-            'سه': '3', 'سوم': '3', '۳': '3', 
-            'چهار': '4', 'چهارم': '4', '۴': '4',
-            'پنج': '5', 'پنجم': '5', '۵': '5',
-            'شش': '6', 'ششم': '6', '۶': '6',
-            'هفت': '7', 'هفتم': '7', '۷': '7',
-            'هشت': '8', 'هشتم': '8', '۸': '8',
-            'نه': '9', 'نهم': '9', '۹': '9',
-            'ده': '10', 'دهم': '10', '۱۰': '10',
-            'یازده': '11', 'یازدهم': '11', '۱۱': '11',
-            'دوازده': '12', 'دوازدهم': '12', '۱۲': '12'
-        };
-        
-        const lowerCaseName = counterName.toLowerCase();
-        for (const [word, num] of Object.entries(wordToNumber)) {
-            if (lowerCaseName.includes(word)) {
-                console.log(`✅ Counter number extracted from word "${word}": ${num}`);
-                return num;
-            }
-        }
-        
-        // روش ۴: برای نام‌های خاص
-        if (counterName.includes('عکاسی')) {
-            console.log('✅ Counter is photography, using: 1');
-            return '1';
-        }
-        
-        console.log('❌ No counter number found, using default: 1');
-        return '1';
-    }
-
-    // در فایل display.js - تابع setupRealtime را پیدا کرده و اینگونه تغییر دهید:
+    // تابع setupRealtime
     function setupRealtime() {
         const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
         const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
         
         client.subscribe(ticketChannel, response => {
             console.log('Display: Realtime update received (UI ONLY):', response);
-            
-            // ❌ فقط UI را آپدیت کن، صدا پخش نکن
             updateDisplay(); // فقط UI آپدیت شود
         });
         
@@ -772,13 +693,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // در display.js - تابع initializeDisplay
+    // تابع initializeDisplay
     function initializeDisplay() {
         console.log('🚀 Initializing display system...');
         
         updateDisplay();
         setupRealtime();
-        setupAudioRealtime(); // ✅ این خط را اضافه کنید
+        setupAudioRealtime();
         setInterval(updateDisplay, 30000);
         
         console.log('✅ Display system initialized');
@@ -792,8 +713,3 @@ document.addEventListener('DOMContentLoaded', () => {
         displaySoundManager.repeatLastAnnouncement();
     };
 });
-
-// --- در انتهای فایل display.js ---
-// ✅ قرار دادن displaySoundManager در global scope برای دسترسی از script.js
-window.displaySoundManager = displaySoundManager;
-console.log('✅ Display sound manager exposed to global scope');
