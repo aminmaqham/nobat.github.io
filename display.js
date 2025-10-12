@@ -705,29 +705,7 @@ async function preloadImportantSounds() {
     }
 }
 
-// --- تابع تست سیستم صوتی - اصلاح شده ---
-async function testSoundSystem() {
-    console.log('🎵 Testing sound system...');
-    
-    try {
-        // تست شماره نوبت (با فرمت صحیح)
-        await displaySoundManager.playNumberSound('1');
-        await displaySoundManager.delay(1000);
-        
-        // تست شماره باجه با فایل انگلیسی
-        await displaySoundManager.playCounterSound('5'); // باید five.mp3 پخش شود
-        
-        console.log('✅ Sound system test completed successfully');
-    } catch (error) {
-        console.error('❌ Sound system test failed:', error);
-    }
-}
-// فراخوانی تست بعد از بارگذاری کامل
-setTimeout(() => {
-    if (displaySoundManager.userInteracted) {
-        testSoundSystem();
-    }
-}, 5000);
+
 
 // --- تابع استخراج شماره باجه - کاملاً اصلاح شده ---
 function extractCounterNumber(counterName) {
