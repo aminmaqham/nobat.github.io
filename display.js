@@ -351,7 +351,7 @@ async playNumberSound(number) {
 }
 
 
-// ✅ پخش فایل صوتی - مقاوم در برابر خطا
+// ✅ پخش فایل صوتی - مقاوم در برابر خطا با timeout کمتر
 async playAudioFile(filePath) {
     return new Promise((resolve, reject) => {
         if (!this.isAudioEnabled || !this.userInteracted) {
@@ -417,13 +417,6 @@ async playAudioFile(filePath) {
                     })
                     .catch(error => {
                         console.error(`❌ Display: Play error for ${filePath}:`, error);
-                        
-                        if (error.name === 'NotAllowedError') {
-                            console.log('🔇 Play not allowed, waiting for user interaction');
-                            this.userInteracted = false;
-                            this.showAudioPrompt();
-                        }
-                        
                         rejectOnce(error);
                     });
             }
@@ -431,25 +424,24 @@ async playAudioFile(filePath) {
 
         const onError = (e) => {
             console.error(`❌ Display: Audio load error: ${filePath}`, e);
-            rejectOnce(new Error(`File not found: ${filePath}`));
+            rejectOnce(new Error(`File not found or cannot load: ${filePath}`));
         };
 
         audio.addEventListener('canplaythrough', onCanPlay, { once: true });
         audio.addEventListener('error', onError, { once: true });
 
-        // تایم‌اوت کوتاه‌تر برای خطاهای 404
+        // ❌ کاهش timeout به 3 ثانیه
         loadTimeout = setTimeout(() => {
             if (!hasResolved) {
                 console.warn(`⏰ Display: Audio timeout: ${filePath}`);
                 rejectOnce(new Error('Audio load timeout'));
             }
-        }, 2000); // کاهش از 3 ثانیه به 2 ثانیه
+        }, 3000);
 
         // تنظیم src و شروع بارگذاری
         audio.src = filePath;
     });
 }
-
         // ✅ پخش صدا از کش
         playCachedAudio(audio, resolve, reject) {
             const audioClone = new Audio();
@@ -486,8 +478,7 @@ async preloadImportantSounds() {
     const englishNumbers = [
         'one', 'two', 'three', 'four', 'five', 
         'six', 'seven', 'eight', 'nine', 'ten',
-        'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
-        'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'
+        
     ];
     
     const importantSounds = englishNumbers.map(name => `${name}.mp3`);
