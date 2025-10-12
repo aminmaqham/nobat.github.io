@@ -664,7 +664,6 @@ function updatePhotographyList(photographyItems) {
             <div class="photography-number">${index + 1}</div>
             <div class="photography-info">
                 <div class="photography-ticket">${item.ticketNumber}</div>
-                <div class="photography-customer-name">${item.firstName} ${item.lastName}</div>
                 <div class="photography-national-id">${item.nationalId}</div>
                 <div class="photography-status status-waiting">
                     در انتظار
