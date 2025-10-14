@@ -154,8 +154,8 @@ body {
 }
 
 /* بخش لیست منتظران در وسط */
-.waiting-display {
-    flex: 0 0 300px; /* عرض ثابت برای لیست منتظران */
+.waiting-list-display {
+    flex: 0 0 350px; /* عرض ثابت برای لیست منتظران */
     background: rgba(255, 255, 255, 0.1);
     border-radius: 15px;
     padding: 15px;
@@ -167,7 +167,7 @@ body {
     order: 2; /* قرارگیری در وسط */
 }
 
-.waiting-header {
+.waiting-list-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -176,7 +176,7 @@ body {
     border-bottom: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-.waiting-header h2 {
+.waiting-list-header h2 {
     font-size: 2rem;
     color: #ffeb3b;
 }
@@ -203,14 +203,14 @@ body {
 }
 
 .service-name {
-    font-size: 1.4rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: #fff;
     margin-bottom: 8px;
 }
 
 .waiting-count {
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     color: #ffeb3b;
     font-weight: 500;
 }
@@ -528,8 +528,8 @@ body {
         font-size: 1.4rem;
     }
     
-    .waiting-display {
-        flex: 0 0 250px;
+    .waiting-list-display {
+        flex: 0 0 300px;
     }
     
     .photography-display {
@@ -550,13 +550,13 @@ body {
         font-size: 4rem;
     }
     
-    .waiting-header h2,
+    .waiting-list-header h2,
     .photography-header h2 {
         font-size: 1.6rem;
     }
     
-    .waiting-display {
-        flex: 0 0 200px;
+    .waiting-list-display {
+        flex: 0 0 250px;
     }
     
     .photography-display {
@@ -567,7 +567,7 @@ body {
 /* پشتیبانی از مرورگرهای بسیار قدیمی */
 @supports not (backdrop-filter: blur(10px)) {
     .display-header,
-    .waiting-display,
+    .waiting-list-display,
     .photography-display {
         background: rgba(0, 0, 0, 0.3);
     }
