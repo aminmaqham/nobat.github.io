@@ -485,39 +485,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updatePhotographyDisplay() {
-        photographyListElement.innerHTML = '';
+function updatePhotographyDisplay() {
+    photographyListElement.innerHTML = '';
+    
+    if (photographyList.length === 0) {
+        photographyListElement.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+        photographyWaitingElement.textContent = 'منتظران: ۰';
+        return;
+    }
+    
+    photographyWaitingElement.textContent = `منتظران: ${photographyList.length}`;
+    
+    photographyList.forEach((item, index) => {
+        const photographyItem = document.createElement('div');
+        photographyItem.className = 'photography-item';
         
-        if (photographyList.length === 0) {
-            photographyListElement.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-            photographyWaitingElement.textContent = 'منتظران: ۰';
-            return;
+        if (item.$id === lastPhotographyTicketId) {
+            photographyItem.classList.add('new-item');
         }
         
-        photographyWaitingElement.textContent = `منتظران: ${photographyList.length}`;
-        
-        photographyList.forEach((item, index) => {
-            const photographyItem = document.createElement('div');
-            photographyItem.className = 'photography-item';
-            
-            if (item.$id === lastPhotographyTicketId) {
-                photographyItem.classList.add('new-item');
-            }
-            
-            photographyItem.innerHTML = `
-                <div class="photography-number">${index + 1}</div>
-                <div class="photography-info">
+        photographyItem.innerHTML = `
+            <div class="photography-number">${index + 1}</div>
+            <div class="photography-info">
+                <div class="photography-ticket-line">
                     <div class="photography-ticket">${item.ticketNumber || '---'}</div>
-                    <div class="photography-customer-name">${item.firstName || ''} ${item.lastName || ''}</div>
-                    <div class="photography-national-id">${item.nationalId || '---'}</div>
-                    <div class="photography-status status-waiting">در انتظار عکاسی</div>
+                    <div class="photography-status status-waiting">در انتظار</div>
                 </div>
-            `;
-            
-            photographyListElement.appendChild(photographyItem);
-        });
-    }
-
+                <div class="photography-national-id">${item.nationalId || '---'}</div>
+            </div>
+        `;
+        
+        photographyListElement.appendChild(photographyItem);
+    });
+}
     // --- Data Fetching Functions ---
     async function fetchLastCalledTickets() {
         try {
