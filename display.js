@@ -590,14 +590,14 @@ function updateWaitingListDisplay() {
     console.log(`✅ Waiting list updated: ${waitingList.length} tickets in ${serviceGroups.size} services`);
 }
 
-// 🔥 اضافه کردن نشانگر وضعیت آنلاین
+// 🔥 نسخه با متن فارسی در سمت راست
 function addOnlineStatusIndicator() {
     const statusIndicator = document.createElement('div');
     statusIndicator.id = 'online-status';
     statusIndicator.innerHTML = `
         <div class="status-indicator online">
             <span class="status-dot"></span>
-            <span class="status-text">آنلاین</span>
+            <span class="status-text">وضعیت: آنلاین</span>
         </div>
     `;
     
@@ -609,19 +609,22 @@ function addOnlineStatusIndicator() {
         #online-status {
             position: fixed;
             top: 10px;
-            left: 10px;
+            right: 10px;
+            left: auto;
             z-index: 1000;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             color: white;
-            padding: 8px 12px;
-            border-radius: 20px;
+            padding: 6px 12px;
+            border-radius: 15px;
             font-family: 'Vazirmatn', sans-serif;
-            font-size: 12px;
+            font-size: 11px;
+            direction: rtl;
+            border: 1px solid rgba(255,255,255,0.2);
         }
         .status-indicator {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
         .status-dot {
             width: 8px;
@@ -632,6 +635,9 @@ function addOnlineStatusIndicator() {
         }
         .status-indicator.offline .status-dot {
             background: #f44336;
+        }
+        .status-text {
+            font-weight: 500;
         }
         @keyframes pulse {
             0% { opacity: 1; }
