@@ -412,27 +412,28 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         return counterNames[counterNumber] || `باجه ${counterNumber}`;
     }
-
-    function createTicketCard(ticket, index) {
-        const card = document.createElement('div');
-        card.className = `ticket-card ${index === 0 ? 'recent' : 'old'}`;
-        
-        const ticketNumber = ticket.specific_ticket || 'پاس';
-        const counterName = ticket.called_by_counter_name || 'باجه';
-        const callTime = ticket.call_time || ticket.$createdAt;
-        
-        card.innerHTML = `
-            <div class="ticket-number-large">${ticketNumber}</div>
-            <div class="ticket-info">
-                <div>${counterName}</div>
-                <div class="counter-name">${ticket.service_name || 'خدمات'}</div>
-                ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
-            </div>
-            <div class="ticket-time">${formatTime(callTime)}</div>
-        `;
-        
-        return card;
-    }
+function createTicketCard(ticket, index) {
+    const card = document.createElement('div');
+    card.className = `ticket-card ${index === 0 ? 'recent' : 'old'}`;
+    
+    const ticketNumber = ticket.specific_ticket || 'پاس';
+    const counterName = ticket.called_by_counter_name || 'باجه';
+    const callTime = ticket.call_time || ticket.$createdAt;
+    const customerName = `${ticket.first_name || ''} ${ticket.last_name || ''}`.trim() || 'نامشخص';
+    
+    card.innerHTML = `
+        <div class="ticket-number-large">${ticketNumber}</div>
+        <div class="ticket-info">
+            <div>${counterName}</div>
+            <div class="counter-name">${ticket.service_name || 'خدمات'}</div>
+            <div class="customer-name">${customerName}</div>
+            ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
+        </div>
+        <div class="ticket-time">${formatTime(callTime)}</div>
+    `;
+    
+    return card;
+}
 
     function updateTicketsDisplay(tickets) {
         ticketsContainer.innerHTML = '';
@@ -490,11 +491,11 @@ function updatePhotographyDisplay() {
     
     if (photographyList.length === 0) {
         photographyListElement.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-        photographyWaitingElement.textContent = 'منتظران: ۰';
+        photographyWaitingElement.textContent = '۰';
         return;
     }
     
-    photographyWaitingElement.textContent = `منتظران: ${photographyList.length}`;
+    photographyWaitingElement.textContent = `${photographyList.length}`;
     
     photographyList.forEach((item, index) => {
         const photographyItem = document.createElement('div');
@@ -509,7 +510,7 @@ function updatePhotographyDisplay() {
             <div class="photography-info">
                 <div class="photography-ticket-line">
                     <div class="photography-ticket">${item.ticketNumber || '---'}</div>
-                    <div class="photography-status status-waiting">در انتظار</div>
+                    <div class="photography-status">در انتظار</div>
                 </div>
                 <div class="photography-national-id">${item.nationalId || '---'}</div>
             </div>
