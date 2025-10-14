@@ -153,75 +153,6 @@ body {
     font-size: 5rem; /* بزرگ برای حالت placeholder */
 }
 
-/* بخش لیست منتظران در وسط */
-.waiting-list-display {
-    flex: 0 0 350px; /* عرض ثابت برای لیست منتظران */
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    padding: 15px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    display: flex;
-    flex-direction: column;
-    order: 2; /* قرارگیری در وسط */
-}
-
-.waiting-list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.waiting-list-header h2 {
-    font-size: 2rem;
-    color: #ffeb3b;
-}
-
-.waiting-list {
-    flex: 1;
-    overflow-y: auto;
-}
-
-.waiting-item {
-    display: flex;
-    flex-direction: column;
-    padding: 15px;
-    margin-bottom: 10px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.3s ease;
-}
-
-.waiting-item:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
-}
-
-.service-name {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 8px;
-}
-
-.waiting-count {
-    font-size: 1.3rem;
-    color: #ffeb3b;
-    font-weight: 500;
-}
-
-.waiting-empty {
-    text-align: center;
-    padding: 40px;
-    font-size: 1.3rem;
-    color: rgba(255, 255, 255, 0.7);
-}
-
 /* بخش لیست عکاسی در سمت راست */
 .photography-display {
     flex: 0 0 400px; /* عرض ثابت برای لیست عکاسی */
@@ -233,7 +164,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     flex-direction: column;
-    order: 3; /* قرارگیری در سمت راست */
+    order: 2; /* قرارگیری در سمت راست */
 }
 
 .photography-header {
@@ -488,24 +419,20 @@ body {
 }
 
 /* اسکرول بار استایل */
-.waiting-list::-webkit-scrollbar,
 .photography-list::-webkit-scrollbar {
     width: 8px;
 }
 
-.waiting-list::-webkit-scrollbar-track,
 .photography-list::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
 }
 
-.waiting-list::-webkit-scrollbar-thumb,
 .photography-list::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 4px;
 }
 
-.waiting-list::-webkit-scrollbar-thumb:hover,
 .photography-list::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
 }
@@ -528,10 +455,6 @@ body {
         font-size: 1.4rem;
     }
     
-    .waiting-list-display {
-        flex: 0 0 300px;
-    }
-    
     .photography-display {
         flex: 0 0 350px;
     }
@@ -550,13 +473,8 @@ body {
         font-size: 4rem;
     }
     
-    .waiting-list-header h2,
     .photography-header h2 {
         font-size: 1.6rem;
-    }
-    
-    .waiting-list-display {
-        flex: 0 0 250px;
     }
     
     .photography-display {
@@ -567,7 +485,6 @@ body {
 /* پشتیبانی از مرورگرهای بسیار قدیمی */
 @supports not (backdrop-filter: blur(10px)) {
     .display-header,
-    .waiting-list-display,
     .photography-display {
         background: rgba(0, 0, 0, 0.3);
     }

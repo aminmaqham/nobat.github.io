@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPWRITE_PROJECT_ID = '68a8d1b0000e80bdc1f3';
     const DATABASE_ID = '68a8d24b003cd6609e37';
     const TICKETS_COLLECTION_ID = '68a8d63a003a3a6afa24';
-    const SERVICES_COLLECTION_ID = '68a8d28b002ce97317ae';
     const PHOTOGRAPHY_COLLECTION_ID = 'photography_history';
     const AUDIO_ANNOUNCEMENTS_COLLECTION_ID = 'audio_announcements';
 
@@ -330,487 +329,387 @@ document.addEventListener('DOMContentLoaded', () => {
                 await this.playAudioFile(audioPath);
             } catch (error) {
                 console.error(`❌ Error playing number sound ${audioPath}:`, error);
-                throw error;
+                
+                // فال‌بک: استفاده از فایل پیش‌فرض
+                if (formattedNumber !== '0001') {
+                    console.log('🔄 Falling back to default number sound: 0001.mp3');
+                    await this.playAudioFile('sounds/0001.mp3');
+                }
             }
         }
 
-        // ✅ پخش فایل صوتی با کش کردن
+        // ✅ پخش فایل صوتی - مقاوم در برابر خطا
         async playAudioFile(filePath) {
             return new Promise((resolve, reject) => {
-                if (!this.userInteracted) {
-                    reject(new Error('User has not interacted with document yet'));
+                if (!this.isAudioEnabled || !this.userInteracted) {
+                    reject(new Error('Audio disabled or user not interacted'));
                     return;
                 }
-                
+
+                console.log(`🔊 Display: Loading audio: ${filePath}`);
+
                 // بررسی کش
                 if (this.audioCache.has(filePath)) {
-                    const audio = this.audioCache.get(filePath);
-                    audio.currentTime = 0;
-                    audio.play().then(resolve).catch(reject);
+                    const cachedAudio = this.audioCache.get(filePath);
+                    console.log(`✅ Display: Using cached audio: ${filePath}`);
+                    this.playCachedAudio(cachedAudio, resolve, reject);
                     return;
                 }
-                
-                // ایجاد المان صوتی جدید
-                const audio = new Audio(filePath);
+
+                // بارگذاری جدید
+                const audio = new Audio();
                 audio.volume = this.volume;
+                audio.preload = 'auto';
                 
-                audio.onended = () => {
-                    console.log(`✅ Audio finished: ${filePath}`);
-                    resolve();
+                let hasResolved = false;
+                let loadTimeout;
+
+                const resolveOnce = () => {
+                    if (!hasResolved) {
+                        hasResolved = true;
+                        clearTimeout(loadTimeout);
+                        console.log(`✅ Display: Audio completed: ${filePath}`);
+                        resolve();
+                    }
                 };
-                
-                audio.onerror = (error) => {
-                    console.error(`❌ Audio error: ${filePath}`, error);
-                    this.audioCache.delete(filePath);
-                    reject(error);
+
+                const rejectOnce = (error) => {
+                    if (!hasResolved) {
+                        hasResolved = true;
+                        clearTimeout(loadTimeout);
+                        console.error(`❌ Display: Audio error for ${filePath}:`, error);
+                        reject(error);
+                    }
                 };
-                
-                // ذخیره در کش
-                this.audioCache.set(filePath, audio);
-                
-                // پخش
-                audio.play().then(resolve).catch(reject);
+
+                const onCanPlay = () => {
+                    console.log(`✅ Display: Audio ready: ${filePath}`);
+                    
+                    const playPromise = audio.play();
+                    
+                    if (playPromise !== undefined) {
+                        playPromise
+                            .then(() => {
+                                console.log(`🎵 Display: Audio playing: ${filePath}`);
+                                audio.addEventListener('ended', resolveOnce, { once: true });
+                                audio.addEventListener('error', rejectOnce, { once: true });
+                                
+                                // ذخیره در کش
+                                if (!this.audioCache.has(filePath)) {
+                                    const audioClone = new Audio();
+                                    audioClone.src = audio.src;
+                                    audioClone.preload = 'auto';
+                                    this.audioCache.set(filePath, audioClone);
+                                }
+                            })
+                            .catch(error => {
+                                console.error(`❌ Display: Play error for ${filePath}:`, error);
+                                rejectOnce(error);
+                            });
+                    }
+                };
+
+                const onError = (e) => {
+                    console.error(`❌ Display: Audio load error: ${filePath}`, e);
+                    rejectOnce(new Error(`File not found or cannot load: ${filePath}`));
+                };
+
+                audio.addEventListener('canplaythrough', onCanPlay, { once: true });
+                audio.addEventListener('error', onError, { once: true });
+
+                // افزایش timeout به 10 ثانیه
+                loadTimeout = setTimeout(() => {
+                    if (!hasResolved) {
+                        console.warn(`⏰ Display: Audio timeout: ${filePath}`);
+                        rejectOnce(new Error('Audio load timeout'));
+                    }
+                }, 10000);
+
+                // تنظیم src و شروع بارگذاری
+                audio.src = filePath;
             });
+        }
+
+        // ✅ پخش صدا از کش
+        playCachedAudio(audio, resolve, reject) {
+            const audioClone = new Audio();
+            audioClone.src = audio.src;
+            audioClone.volume = this.volume;
+            
+            const playPromise = audioClone.play();
+            
+            playPromise
+                .then(() => {
+                    audioClone.addEventListener('ended', () => {
+                        console.log('✅ Display: Cached audio completed');
+                        resolve();
+                    }, { once: true });
+                    
+                    audioClone.addEventListener('error', (error) => {
+                        console.error('❌ Display: Cached audio error:', error);
+                        reject(error);
+                    }, { once: true });
+                })
+                .catch(error => {
+                    console.error('❌ Display: Cached audio play error:', error);
+                    reject(error);
+                });
         }
 
         // ✅ پیش‌بارگذاری صداهای مهم
-        preloadImportantSounds() {
+        async preloadImportantSounds() {
             if (!this.userInteracted) return;
             
-            const importantSounds = [
-                'sounds/0001.mp3',
-                'sounds2/one.mp3',
-                'sounds2/two.mp3',
-                'sounds2/three.mp3'
-            ];
+            console.log('🔄 Preloading important sounds...');
             
-            importantSounds.forEach(sound => {
-                const audio = new Audio();
-                audio.src = sound;
-                audio.preload = 'auto';
-                audio.load();
-                this.audioCache.set(sound, audio);
-            });
+            // فایل‌های انگلیسی برای شماره‌های باجه
+            const englishNumbers = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
             
-            console.log('🔊 Preloaded important sounds');
-        }
-
-        // ✅ فعال/غیرفعال کردن صدا
-        toggleAudio() {
-            this.isAudioEnabled = !this.isAudioEnabled;
-            console.log(`🔊 Audio ${this.isAudioEnabled ? 'enabled' : 'disabled'}`);
+            const importantSounds = englishNumbers.map(name => `${name}.mp3`);
             
-            if (!this.isAudioEnabled) {
-                this.stopAllAudio();
+            // پیش‌بارگذاری موازی برای عملکرد بهتر
+            const preloadPromises = importantSounds.map(soundFile => 
+                this.preloadAudioFile(`sounds2/${soundFile}`)
+            );
+            
+            try {
+                await Promise.all(preloadPromises);
+                console.log('✅ Important sounds preloaded');
+            } catch (error) {
+                console.warn('⚠️ Some sounds failed to preload:', error);
             }
-            
-            return this.isAudioEnabled;
         }
 
-        // ✅ تنظیم حجم
-        setVolume(volume) {
-            this.volume = Math.max(0, Math.min(1, volume));
-            console.log(`🔊 Volume set to: ${this.volume}`);
-            
-            // به‌روزرسانی حجم برای تمام صداهای کش‌شده
-            this.audioCache.forEach(audio => {
-                audio.volume = this.volume;
+        // ✅ پیش‌بارگذاری فایل صوتی
+        async preloadAudioFile(filePath) {
+            return new Promise((resolve) => {
+                if (this.audioCache.has(filePath)) {
+                    resolve();
+                    return;
+                }
+
+                const audio = new Audio();
+                audio.preload = 'auto';
+                
+                audio.addEventListener('canplaythrough', () => {
+                    this.audioCache.set(filePath, audio);
+                    console.log(`✅ Preloaded: ${filePath}`);
+                    resolve();
+                }, { once: true });
+                
+                audio.addEventListener('error', () => {
+                    console.warn(`❌ Failed to preload: ${filePath}`);
+                    resolve();
+                }, { once: true });
+                
+                audio.src = filePath;
             });
         }
     }
 
-    // --- Initialize Sound Manager ---
-    const soundManager = new DisplaySoundManager();
-
-    // --- State Management ---
-    let lastCalledTickets = [];
-    let waitingList = [];
-    let photographyList = [];
-    let services = [];
-    let lastProcessedTicketId = null;
-    let lastPhotographyTicketId = null;
+    // ایجاد نمونه و قرار دادن در global scope
+    const displaySoundManager = new DisplaySoundManager();
+    window.displaySoundManager = displaySoundManager;
 
     // --- DOM Elements ---
     const ticketsContainer = document.querySelector('.tickets-container');
-    const waitingListElement = document.getElementById('waiting-list');
-    const photographyListElement = document.querySelector('.photography-list');
-    const photographyWaitingElement = document.querySelector('.photography-waiting');
+    const photographyList = document.querySelector('.photography-list');
+    const photographyWaiting = document.querySelector('.photography-waiting');
 
-    // --- Helper Functions ---
-    function formatTime(date) {
-        return new Date(date).toLocaleTimeString('fa-IR', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    // --- UI Update Functions ---
+    async function updateDisplay() {
+        try {
+            const ticketsResponse = await databases.listDocuments(
+                DATABASE_ID,
+                TICKETS_COLLECTION_ID,
+                [
+                    Query.equal('status', 'در حال سرویس'),
+                    Query.orderDesc('call_time'),
+                    Query.limit(3)
+                ]
+            );
+
+            const calledTickets = ticketsResponse.documents;
+            updateTicketsDisplay(calledTickets);
+            await updatePhotographyDisplay();
+
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
     }
 
-    function getCounterName(counterNumber) {
-        const counterNames = {
-            1: 'باجه ۱',
-            2: 'باجه ۲',
-            3: 'باجه ۳',
-            4: 'باجه ۴',
-            5: 'باجه ۵',
-            6: 'باجه ۶',
-            7: 'باجه ۷',
-            8: 'باجه ۸',
-            9: 'باجه ۹',
-            10: 'باجه ۱۰'
-        };
-        return counterNames[counterNumber] || `باجه ${counterNumber}`;
-    }
+    async function updatePhotographyDisplay() {
+        try {
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                PHOTOGRAPHY_COLLECTION_ID,
+                [
+                    Query.equal('status', 'در انتظار'),
+                    Query.equal('photoTaken', false),
+                    Query.orderAsc('timestamp'),
+                    Query.limit(10)
+                ]
+            );
+            
+            updatePhotographyList(response.documents);
 
-    function createTicketCard(ticket, index) {
-        const card = document.createElement('div');
-        card.className = `ticket-card ${index === 0 ? 'recent' : 'old'}`;
-        
-        const ticketNumber = ticket.ticket_number || '---';
-        const counterNumber = ticket.counter_number || 1;
-        const calledAt = ticket.called_at ? new Date(ticket.called_at) : new Date();
-        
-        card.innerHTML = `
-            <div class="ticket-number-large">${ticketNumber}</div>
-            <div class="ticket-info">
-                <div>${getCounterName(counterNumber)}</div>
-                <div class="counter-name">${ticket.service_name || 'خدمات'}</div>
-            </div>
-            <div class="ticket-time">${formatTime(calledAt)}</div>
-        `;
-        
-        return card;
+        } catch (error) {
+            console.error("Error fetching photography history:", error);
+        }
     }
 
     function updateTicketsDisplay(tickets) {
         ticketsContainer.innerHTML = '';
         
         if (tickets.length === 0) {
-            const placeholder = document.createElement('div');
-            placeholder.className = 'ticket-card placeholder';
-            placeholder.innerHTML = `
-                <div class="ticket-number-large">---</div>
-                <div class="ticket-info">منتظر فراخوان...</div>
-                <div class="ticket-time">--:--</div>
-            `;
-            ticketsContainer.appendChild(placeholder);
-            return;
-        }
-        
-        tickets.slice(0, 3).forEach((ticket, index) => {
-            const card = createTicketCard(ticket, index);
-            ticketsContainer.appendChild(card);
-        });
-    }
-
-    function updateWaitingListDisplay() {
-        waitingListElement.innerHTML = '';
-        
-        if (waitingList.length === 0) {
-            waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
-            return;
-        }
-        
-        // گروه‌بندی بر اساس سرویس
-        const serviceGroups = {};
-        waitingList.forEach(item => {
-            if (!serviceGroups[item.service_name]) {
-                serviceGroups[item.service_name] = [];
-            }
-            serviceGroups[item.service_name].push(item);
-        });
-        
-        // ایجاد آیتم برای هر سرویس
-        Object.entries(serviceGroups).forEach(([serviceName, items]) => {
-            const waitingItem = document.createElement('div');
-            waitingItem.className = 'waiting-item';
-            waitingItem.innerHTML = `
-                <div class="service-name">${serviceName}</div>
-                <div class="waiting-count">منتظران: ${items.length}</div>
-            `;
-            waitingListElement.appendChild(waitingItem);
-        });
-    }
-
-    function updatePhotographyDisplay() {
-        photographyListElement.innerHTML = '';
-        
-        if (photographyList.length === 0) {
-            photographyListElement.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-            photographyWaitingElement.textContent = 'منتظران: ۰';
-            return;
-        }
-        
-        photographyWaitingElement.textContent = `منتظران: ${photographyList.length}`;
-        
-        // نمایش نوبت‌های عکاسی به صورت ستونی
-        photographyList.forEach((item, index) => {
-            const photographyItem = document.createElement('div');
-            photographyItem.className = 'photography-item';
-            
-            // اگر این نوبت جدید است، کلاس انیمیشن اضافه کن
-            if (item.$id === lastPhotographyTicketId) {
-                photographyItem.classList.add('new-item');
-            }
-            
-            photographyItem.innerHTML = `
-                <div class="photography-number">${index + 1}</div>
-                <div class="photography-info">
-                    <div class="photography-ticket">${item.ticket_number || '---'}</div>
-                    <div class="photography-customer-name">${item.customer_name || '---'}</div>
-                    <div class="photography-national-id">${item.national_id || '---'}</div>
-                    <div class="photography-status status-waiting">در انتظار عکاسی</div>
+            ticketsContainer.innerHTML = `
+                <div class="ticket-card placeholder">
+                    <div class="ticket-number-large">---</div>
+                    <div class="ticket-info">منتظر فراخوان...</div>
+                    <div class="ticket-time">--:--</div>
                 </div>
             `;
+            return;
+        }
+
+        tickets.forEach((ticket, index) => {
+            const ticketElement = document.createElement('div');
+            const callTime = new Date(ticket.call_time);
+            const now = new Date();
+            const minutesDiff = Math.floor((now - callTime) / (1000 * 60));
             
-            photographyListElement.appendChild(photographyItem);
+            let cardClass = 'ticket-card';
+            if (minutesDiff < 2) {
+                cardClass += ' recent';
+            } else {
+                cardClass += ' old';
+            }
+
+            // اضافه کردن کلاس برای نوبت‌های بازگشته از عکاسی
+            if (ticket.returned_from_photography) {
+                cardClass += ' returned-from-photography';
+            }
+
+            ticketElement.className = cardClass;
+            ticketElement.innerHTML = `
+                <div class="ticket-number-large">${ticket.specific_ticket || 'پاس'}</div>
+                <div class="ticket-info">
+                    <div>شماره ${ticket.specific_ticket || 'پاس'} به ${ticket.called_by_counter_name || 'باجه'}</div>
+                    <div class="counter-name">${ticket.called_by_name || 'سیستم'}</div>
+                    ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
+                </div>
+                <div class="ticket-time">${formatTime(callTime)}</div>
+            `;
+            
+            ticketsContainer.appendChild(ticketElement);
         });
     }
 
-    // --- Data Fetching Functions ---
-    async function fetchLastCalledTickets() {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                [
-                    Query.equal('status', 'called'),
-                    Query.orderDesc('called_at'),
-                    Query.limit(3)
-                ]
-            );
-            
-            const tickets = response.documents.map(doc => ({
-                id: doc.$id,
-                ticket_number: doc.ticket_number,
-                counter_number: doc.counter_number,
-                service_name: doc.service_name,
-                called_at: doc.called_at
-            }));
-            
-            return tickets;
-        } catch (error) {
-            console.error('Error fetching last called tickets:', error);
-            return [];
+    function updatePhotographyList(photographyItems) {
+        const waitingCount = photographyItems.length;
+        photographyWaiting.textContent = `منتظران: ${waitingCount}`;
+
+        if (photographyItems.length === 0) {
+            photographyList.innerHTML = '<div class="photography-empty">هیچ نوبتی در انتظار عکاسی وجود ندارد</div>';
+            return;
         }
-    }
-
-    async function fetchWaitingList() {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                [
-                    Query.equal('status', 'waiting'),
-                    Query.orderAsc('created_at')
-                ]
-            );
-            
-            const waiting = response.documents.map(doc => ({
-                id: doc.$id,
-                ticket_number: doc.ticket_number,
-                service_name: doc.service_name,
-                created_at: doc.created_at
-            }));
-            
-            return waiting;
-        } catch (error) {
-            console.error('Error fetching waiting list:', error);
-            return [];
-        }
-    }
-
-    async function fetchPhotographyList() {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                PHOTOGRAPHY_COLLECTION_ID,
-                [
-                    Query.equal('status', 'waiting'),
-                    Query.orderAsc('created_at')
-                ]
-            );
-            
-            return response.documents;
-        } catch (error) {
-            console.error('Error fetching photography list:', error);
-            return [];
-        }
-    }
-
-    async function fetchServices() {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                SERVICES_COLLECTION_ID
-            );
-            
-            return response.documents;
-        } catch (error) {
-            console.error('Error fetching services:', error);
-            return [];
-        }
-    }
-
-    // --- Real-time Updates ---
-    function setupRealTimeUpdates() {
-        // Subscribe to tickets collection
-        const unsubscribeTickets = client.subscribe(
-            `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`,
-            response => {
-                console.log('Real-time update for tickets:', response);
-                handleTicketsUpdate(response);
-            }
-        );
-
-        // Subscribe to photography collection
-        const unsubscribePhotography = client.subscribe(
-            `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`,
-            response => {
-                console.log('Real-time update for photography:', response);
-                handlePhotographyUpdate(response);
-            }
-        );
-
-        return () => {
-            unsubscribeTickets();
-            unsubscribePhotography();
-        };
-    }
-
-    async function handleTicketsUpdate(response) {
-        const { event, payload } = response;
         
-        if (event === 'databases.*.collections.*.documents.*.create' || 
-            event === 'databases.*.collections.*.documents.*.update') {
+        photographyList.innerHTML = photographyItems.map((item, index) => `
+            <div class="photography-item ${index === 0 ? 'new-item' : ''}">
+                <div class="photography-number">${index + 1}</div>
+                <div class="photography-info">
+                    <div class="photography-ticket">${item.ticketNumber}</div>
+                    <div class="photography-customer-name"></div>
+                    <div class="photography-national-id">${item.nationalId}</div>
+                    <div class="photography-status status-waiting">
+                        در انتظار
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function formatTime(date) {
+        return date.toLocaleTimeString('fa-IR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // گوش دادن به درخواست‌های صدا از طریق Appwrite
+    function setupAudioRealtime() {
+        const audioChannel = `databases.${DATABASE_ID}.collections.${AUDIO_ANNOUNCEMENTS_COLLECTION_ID}.documents`;
+        
+        console.log('🔊 Setting up audio real-time listener...');
+        
+        client.subscribe(audioChannel, response => {
+            console.log('🎵 Audio real-time update:', response);
             
-            // اگر نوبت فراخوانده شده
-            if (payload.status === 'called') {
-                console.log('New called ticket detected:', payload);
+            if (response.events.includes(`databases.${DATABASE_ID}.collections.${AUDIO_ANNOUNCEMENTS_COLLECTION_ID}.documents.*.create`)) {
+                const audioRequest = response.payload;
                 
-                // جلوگیری از پردازش تکراری
-                if (payload.$id === lastProcessedTicketId) {
-                    console.log('Skipping duplicate ticket processing');
+                // جلوگیری از پردازش درخواست‌های قدیمی
+                const requestTime = new Date(audioRequest.timestamp);
+                const now = new Date();
+                const timeDiff = (now - requestTime) / 1000; // تفاوت به ثانیه
+                
+                if (timeDiff > 10) { // اگر درخواست بیش از 10 ثانیه قدیمی است، نادیده بگیر
+                    console.log('🔇 Ignoring old audio request:', timeDiff, 'seconds ago');
                     return;
                 }
                 
-                lastProcessedTicketId = payload.$id;
+                console.log('🎵 New audio request received:', audioRequest);
                 
-                // پخش اعلان صوتی
-                await soundManager.playCallAnnouncement(
-                    payload.ticket_number,
-                    payload.counter_number,
-                    payload
-                );
-                
-                // به‌روزرسانی نمایش
-                await refreshAllData();
+                if (audioRequest.type === 'photography') {
+                    displaySoundManager.playPhotographyAnnouncement(
+                        audioRequest.ticket_number,
+                        audioRequest.counter_number,
+                        audioRequest
+                    );
+                } else {
+                    displaySoundManager.playCallAnnouncement(
+                        audioRequest.ticket_number,
+                        audioRequest.counter_number,
+                        audioRequest
+                    );
+                }
             }
-        }
+        });
+    }
+
+    // تابع setupRealtime
+    function setupRealtime() {
+        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+        const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
         
-        // به‌روزرسانی لیست منتظران برای هر تغییری
-        if (event.includes('.create') || event.includes('.update') || event.includes('.delete')) {
-            await refreshWaitingList();
-        }
-    }
-
-    async function handlePhotographyUpdate(response) {
-        const { event, payload } = response;
+        client.subscribe(ticketChannel, response => {
+            console.log('Display: Realtime update received (UI ONLY):', response);
+            updateDisplay(); // فقط UI آپدیت شود
+        });
         
-        if (event === 'databases.*.collections.*.documents.*.create') {
-            console.log('New photography ticket detected:', payload);
-            
-            // جلوگیری از پردازش تکراری
-            if (payload.$id === lastPhotographyTicketId) {
-                console.log('Skipping duplicate photography ticket processing');
-                return;
-            }
-            
-            lastPhotographyTicketId = payload.$id;
-            
-            // پخش اعلان صوتی برای نوبت عکاسی
-            await soundManager.playPhotographyAnnouncement(
-                payload.ticket_number,
-                payload.counter_number || 1,
-                payload
-            );
-            
-            // به‌روزرسانی نمایش
-            await refreshPhotographyList();
-        }
+        client.subscribe(photographyChannel, response => {
+            console.log('Display: Photography history updated via real-time');
+            updatePhotographyDisplay(); // فقط UI آپدیت شود
+        });
+    }
+
+    // تابع initializeDisplay
+    function initializeDisplay() {
+        console.log('🚀 Initializing display system...');
         
-        // به‌روزرسانی لیست عکاسی برای هر تغییری
-        if (event.includes('.create') || event.includes('.update') || event.includes('.delete')) {
-            await refreshPhotographyList();
-        }
+        updateDisplay();
+        setupRealtime();
+        setupAudioRealtime();
+        setInterval(updateDisplay, 30000);
+        
+        console.log('✅ Display system initialized');
     }
 
-    // --- Data Refresh Functions ---
-    async function refreshAllData() {
-        await Promise.all([
-            refreshLastCalledTickets(),
-            refreshWaitingList(),
-            refreshPhotographyList()
-        ]);
-    }
+    // --- Start the Display ---
+    initializeDisplay();
 
-    async function refreshLastCalledTickets() {
-        lastCalledTickets = await fetchLastCalledTickets();
-        updateTicketsDisplay(lastCalledTickets);
-    }
-
-    async function refreshWaitingList() {
-        waitingList = await fetchWaitingList();
-        updateWaitingListDisplay();
-    }
-
-    async function refreshPhotographyList() {
-        photographyList = await fetchPhotographyList();
-        updatePhotographyDisplay();
-    }
-
-    // --- Initialization ---
-    async function initialize() {
-        try {
-            console.log('Initializing display...');
-            
-            // بارگذاری اولیه داده‌ها
-            await refreshAllData();
-            
-            // راه‌اندازی به‌روزرسانی‌های لحظه‌ای
-            setupRealTimeUpdates();
-            
-            console.log('Display initialized successfully');
-            
-        } catch (error) {
-            console.error('Error initializing display:', error);
-        }
-    }
-
-    // شروع برنامه
-    initialize();
-
-    // به‌روزرسانی دوره‌ای برای اطمینان (هر 30 ثانیه)
-    setInterval(() => {
-        refreshAllData();
-    }, 30000);
-
-    // --- Global Functions for Testing ---
-    window.testAnnouncement = (ticketNumber = 'A001', counterNumber = 1) => {
-        soundManager.playCallAnnouncement(ticketNumber, counterNumber);
-    };
-
-    window.testPhotographyAnnouncement = (ticketNumber = 'P001', counterNumber = 1) => {
-        soundManager.playPhotographyAnnouncement(ticketNumber, counterNumber);
-    };
-
-    window.repeatLastAnnouncement = () => {
-        soundManager.repeatLastAnnouncement();
-    };
-
-    window.toggleAudio = () => {
-        return soundManager.toggleAudio();
-    };
-
-    window.setVolume = (volume) => {
-        soundManager.setVolume(volume);
+    // ✅ اضافه کردن تابع تکرار صوت به global scope
+    window.repeatLastAnnouncement = function() {
+        displaySoundManager.repeatLastAnnouncement();
     };
 });
