@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-// 🔥 **تابع بهبود یافته برای پخش صدا در عکاسی**
+// 🔥 **بهبود تابع playPhotographyCallSound برای اطمینان از ارسال درخواست صدا**
 async function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
@@ -191,7 +191,7 @@ async function playPhotographyCallSound(photographyItem) {
     
     try {
         // ایجاد سند در collection صداها برای display
-        await databases.createDocument(
+        const audioRequest = await databases.createDocument(
             DATABASE_ID,
             AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
             ID.unique(),
@@ -201,18 +201,29 @@ async function playPhotographyCallSound(photographyItem) {
                 counter_name: counterName,
                 type: 'photography',
                 timestamp: new Date().toISOString(),
-                photography_item_id: photographyItem.$id
+                photography_item_id: photographyItem.$id,
+                // اضافه کردن اطلاعات بیشتر برای نمایش
+                first_name: photographyItem.firstName,
+                last_name: photographyItem.lastName,
+                service_name: photographyItem.serviceName
             },
             [Permission.read(Role.any())]
         );
         
-        console.log('✅ Photography sound request sent to Appwrite');
+        console.log('✅ Photography sound request sent to Appwrite:', audioRequest.$id);
         
         // همچنین مستقیماً به display صدا بزنیم (به عنوان fallback)
         if (window.displaySoundManager) {
             console.log('🎵 Also calling display sound manager directly');
-            await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+            try {
+                await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+                console.log('✅ Direct display call successful');
+            } catch (directError) {
+                console.error('❌ Direct display call failed:', directError);
+            }
         }
+        
+        return audioRequest;
         
     } catch (error) {
         console.error('❌ Error sending photography sound request:', error);
@@ -220,8 +231,15 @@ async function playPhotographyCallSound(photographyItem) {
         // Fallback: استفاده مستقیم از display sound manager
         if (window.displaySoundManager) {
             console.log('🔄 Using fallback: direct call to display');
-            await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+            try {
+                await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+                console.log('✅ Fallback display call successful');
+            } catch (fallbackError) {
+                console.error('❌ Fallback display call failed:', fallbackError);
+            }
         }
+        
+        throw error;
     }
 }
 
@@ -1130,6 +1148,7 @@ async function playPhotographyCallSound(photographyItem) {
         }
     }
 
+// 🔥 **اصلاح تابع callNextTicketWithOptions - بخش عکاسی**
 async function callNextTicketWithOptions() {
     if (isCallingInProgress) {
         showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
@@ -2507,7 +2526,7 @@ function setupRealtimeSubscriptions() {
         this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
         validateNationalIdInput(this);
     }
-// 🔥 **تابع اصلاح شده برای فراخوانی نوبت عکاسی با پخش صدا**
+// 🔥 **بهبود تابع processPhotographyTicket برای اطمینان از پخش صدا**
 async function processPhotographyTicket() {
     const waitingItems = photographyHistory.filter(item => 
         item.status === 'در انتظار' && !item.photoTaken
@@ -2524,9 +2543,16 @@ async function processPhotographyTicket() {
     
     const nextItem = sortedItems[0];
     
-    // 🔥 **پخش صدا برای نوبت عکاسی**
-    console.log(`🎵 Main: Requesting photography sound for ticket ${nextItem.ticketNumber}`);
-    await playPhotographyCallSound(nextItem);
+    // 🔥 **اطمینان از پخش صدا قبل از نمایش popup**
+    console.log(`🎵 Main: Starting photography sound process for ticket ${nextItem.ticketNumber}`);
+    
+    try {
+        // پخش صدا از طریق Appwrite برای display
+        await playPhotographyCallSound(nextItem);
+        console.log('✅ Photography sound process completed');
+    } catch (error) {
+        console.error('❌ Photography sound process failed:', error);
+    }
     
     const popupMessage = `
         <span class="ticket-number">نوبت عکاسی: ${nextItem.ticketNumber}</span>
@@ -2552,7 +2578,6 @@ async function processPhotographyTicket() {
     
     updatePhotographyUI();
 }
-
 // 🔥 **اطمینان از پخش صدا در popup عکاسی**
 function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
     return new Promise((resolve) => {
@@ -2675,28 +2700,6 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         }, 30000);
     }
 
-    // --- تابع پخش صوت عکاسی - فقط فراخوانی به display ---
-    function playPhotographyCallSound(photographyItem) {
-        if (!photographyItem) return;
-        
-        const ticketNumber = photographyItem.ticketNumber || '0001';
-        const counterName = photographyItem.originalCounterName || 'عکاسی';
-        const counterNumber = extractCounterNumber(counterName);
-        
-        console.log(`🎵 Main: Requesting photography sound from display: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-        
-        if (window.displaySoundManager) {
-            window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem)
-                .then(() => {
-                    console.log('✅ Main: Photography sound request sent to display');
-                })
-                .catch(error => {
-                    console.error('❌ Main: Photography sound request failed:', error);
-                });
-        } else {
-            console.log('🔇 Display not available for photography sound');
-        }
-    }
 
     // --- تابع global برای ارتباط با display ---
     function setupDisplaySoundManager() {
