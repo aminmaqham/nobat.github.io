@@ -151,18 +151,18 @@ function getServiceName(serviceId) {
     return service ? service.name : '---';
 }
 
-// 🔥 **تابع بهبود یافته برای پخش صدا در نوبت‌های معمولی**
+// 🔥 **اصلاح تابع playCallSound برای رعایت محدودیت طول**
 async function playCallSound(ticket) {
     if (!ticket) return Promise.resolve();
     
-    const ticketNumber = ticket.specific_ticket || '0001';
-    const counterNumber = getCounterNumber() || '5';
-    const counterName = getCounterName() || 'باجه';
+    // 🔥 محدود کردن طول رشته‌ها
+    const ticketNumber = String(ticket.specific_ticket || '0001').substring(0, 255);
+    const counterNumber = String(getCounterNumber() || '5').substring(0, 255);
+    const counterName = String(getCounterName() || 'باجه').substring(0, 255);
     
     console.log(`🎵 Main: Sending sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
     try {
-        // ایجاد سند جدید در collection صداها
         const audioRequest = await databases.createDocument(
             DATABASE_ID,
             AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
@@ -173,9 +173,9 @@ async function playCallSound(ticket) {
                 counter_name: counterName,
                 type: 'normal',
                 timestamp: new Date().toISOString(),
-                first_name: ticket.first_name || '---',
-                last_name: ticket.last_name || '---',
-                service_name: getServiceName(ticket.service_id) || '---'
+                first_name: String(ticket.first_name || '---').substring(0, 255),
+                last_name: String(ticket.last_name || '---').substring(0, 255),
+                service_name: String(getServiceName(ticket.service_id) || '---').substring(0, 255)
             },
             [Permission.read(Role.any())]
         );
@@ -188,12 +188,15 @@ async function playCallSound(ticket) {
         return Promise.resolve();
     }
 }
-// 🔥 **تابع بهبود یافته برای پخش صدا در عکاسی**
+
+
+// 🔥 **اصلاح تابع playPhotographyCallSound برای رعایت محدودیت طول**
 async function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
-    const ticketNumber = photographyItem.ticketNumber || '0001';
-    const counterName = photographyItem.originalCounterName || 'عکاسی';
+    // 🔥 محدود کردن طول رشته‌ها
+    const ticketNumber = String(photographyItem.ticketNumber || '0001').substring(0, 255);
+    const counterName = String(photographyItem.originalCounterName || 'عکاسی').substring(0, 255);
     const counterNumber = extractCounterNumber(counterName);
     
     console.log(`🎵 Main: Sending photography sound request: Ticket ${ticketNumber}, Counter ${counterNumber}`);
@@ -202,21 +205,20 @@ async function playPhotographyCallSound(photographyItem) {
     const displayActive = checkDisplayConnection();
     
     try {
-        // ایجاد سند در collection صداها برای display
         const audioRequest = await databases.createDocument(
             DATABASE_ID,
             AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
             ID.unique(),
             {
                 ticket_number: ticketNumber,
-                counter_number: counterNumber,
+                counter_number: String(counterNumber).substring(0, 255),
                 counter_name: counterName,
                 type: 'photography',
                 timestamp: new Date().toISOString(),
-                photography_item_id: photographyItem.$id || '',
-                first_name: photographyItem.firstName || 'ثبت دستی',
-                last_name: photographyItem.lastName || '',
-                service_name: photographyItem.serviceName || 'عکاسی'
+                photography_item_id: String(photographyItem.$id || '').substring(0, 255),
+                first_name: String(photographyItem.firstName || 'ثبت دستی').substring(0, 255),
+                last_name: String(photographyItem.lastName || '').substring(0, 255),
+                service_name: String(photographyItem.serviceName || 'عکاسی').substring(0, 255)
             },
             [Permission.read(Role.any())]
         );
@@ -238,7 +240,7 @@ async function playPhotographyCallSound(photographyItem) {
     } catch (error) {
         console.error('❌ Error sending photography sound request:', error);
         
-        // Fallback: اگر Appwrite خطا داد، مستقیماً از display استفاده کن
+        // Fallback
         if (displayActive) {
             console.log('🔄 Using fallback: direct call to display');
             try {
@@ -246,12 +248,6 @@ async function playPhotographyCallSound(photographyItem) {
                 console.log('✅ Fallback display call successful');
             } catch (fallbackError) {
                 console.error('❌ Fallback display call failed:', fallbackError);
-                
-                // نشان دادن خطا به کاربر
-                showPopupNotification(`
-                    <p style="color: #d32f2f;">❌ خطا در پخش صدا!</p>
-                    <p>لطفاً صفحه نمایش را بررسی کنید.</p>
-                `);
             }
         }
     }
@@ -2163,45 +2159,52 @@ function checkDisplayConnection() {
         counterSettingsModal.style.display = 'none';
     }
 
-    async function saveCounterSettings() {
-        const counterName = counterNameInput.value.trim();
-        const counterNumberInput = document.getElementById('counter-number-input');
-        const counterNumber = counterNumberInput ? counterNumberInput.value.trim() : '1';
-        
-        if (!counterName) {
-            alert('لطفا نام باجه را وارد کنید.');
-            counterNameInput.focus();
-            return;
-        }
-
-        if (!counterNumber || isNaN(counterNumber) || counterNumber < 1 || counterNumber > 99) {
-            alert('لطفا شماره باجه را به صورت عدد بین 1 تا 99 وارد کنید.');
-            counterNumberInput.focus();
-            return;
-        }
-
-        try {
-            const userPrefs = getUserPrefs();
-            await account.updatePrefs({ 
-                ...userPrefs, 
-                counter_name: counterName,
-                counter_number: counterNumber
-            });
-            
-            currentUser = await account.get();
-            
-            userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
-            
-            showPopupNotification('<p>تنظیمات باجه با موفقیت ذخیره شد.</p>');
-            closeCounterSettingsModal();
-            
-            updateUIForUserRole();
-            
-        } catch (error) {
-            console.error('Error saving counter settings:', error);
-            showPopupNotification('<p>خطا در ذخیره تنظیمات باجه!</p>');
-        }
+    
+    // 🔥 **تابع بهبود یافته برای ذخیره تنظیمات باجه**
+async function saveCounterSettings() {
+    const counterNameInput = document.getElementById('counter-name-input');
+    const counterNumberInput = document.getElementById('counter-number-input');
+    
+    const counterName = counterNameInput.value.trim();
+    const counterNumber = counterNumberInput ? counterNumberInput.value.trim() : '1';
+    
+    if (!counterName) {
+        alert('لطفا نام باجه را وارد کنید.');
+        counterNameInput.focus();
+        return;
     }
+
+    if (!counterNumber || isNaN(counterNumber) || counterNumber < 1 || counterNumber > 99) {
+        alert('لطفا شماره باجه را به صورت عدد بین 1 تا 99 وارد کنید.');
+        counterNumberInput.focus();
+        return;
+    }
+
+    try {
+        const userPrefs = getUserPrefs();
+        await account.updatePrefs({ 
+            ...userPrefs, 
+            counter_name: counterName,
+            counter_number: counterNumber
+        });
+        
+        currentUser = await account.get();
+        
+        userGreeting.textContent = `کاربر: ${currentUser.name || currentUser.email} (باجه: ${counterName})`;
+        
+        showPopupNotification('<p>تنظیمات باجه با موفقیت ذخیره شد.</p>');
+        closeCounterSettingsModal();
+        
+        updateUIForUserRole();
+        
+        console.log('✅ Counter settings saved:', { counterName, counterNumber });
+        
+    } catch (error) {
+        console.error('Error saving counter settings:', error);
+        showPopupNotification('<p>خطا در ذخیره تنظیمات باجه!</p>');
+    }
+}
+
 
     // --- MODAL & FORM LOGIC ---
     function openTicketForm(mode, serviceId = null) {
@@ -2774,51 +2777,59 @@ function showAdvancedPhotographyPopup(photographyItem, htmlContent) {
         };
     }
 
-    // --- تابع استخراج شماره باجه - بهبود یافته ---
-    function extractCounterNumber(counterName) {
-        if (!counterName) return '1';
-        
-        console.log('🔍 Main: Extracting counter number from:', counterName);
-        
-        const numbersFromEnd = counterName.match(/\d+$/);
-        if (numbersFromEnd) {
-            const num = numbersFromEnd[0];
-            console.log(`✅ Main: Counter number extracted from end: ${num}`);
-            return num;
-        }
-        
-        const numbersAnywhere = counterName.match(/\d+/);
-        if (numbersAnywhere) {
-            const num = numbersAnywhere[0];
-            console.log(`✅ Main: Counter number extracted from anywhere: ${num}`);
-            return num;
-        }
-        
-        const wordToNumber = {
-            'یک': '1', 'اول': '1', '۱': '1',
-            'دو': '2', 'دوم': '2', '۲': '2',
-            'سه': '3', 'سوم': '3', '۳': '3', 
-            'چهار': '4', 'چهارم': '4', '۴': '4',
-            'پنج': '5', 'پنجم': '5', '۵': '5',
-            'شش': '6', 'ششم': '6', '۶': '6',
-            'هفت': '7', 'هفتم': '7', '۷': '7',
-            'هشت': '8', 'هشتم': '8', '۸': '8',
-            'نه': '9', 'نهم': '9', '۹': '9',
-            'ده': '10', 'دهم': '10', '۱۰': '10',
-            'یازده': '11', 'یازدهم': '11', '۱۱': '11',
-            'دوازده': '12', 'دوازدهم': '12', '۱۲': '12'
-        };
-        
-        for (const [word, num] of Object.entries(wordToNumber)) {
-            if (counterName.includes(word)) {
-                console.log(`✅ Main: Counter number extracted from word "${word}": ${num}`);
-                return num;
-            }
-        }
-        
-        console.log('❌ Main: No counter number found, using default: 1');
-        return '1';
+// 🔥 **تابع بهبود یافته برای استخراج شماره باجه**
+function extractCounterNumber(counterName) {
+    if (!counterName) return '1';
+    
+    console.log('🔍 Main: Extracting counter number from:', counterName);
+    
+    // اگر شماره مستقیم وجود دارد
+    const directNumber = counterName.match(/^(\d+)$/);
+    if (directNumber) {
+        console.log(`✅ Main: Direct counter number: ${directNumber[1]}`);
+        return directNumber[1];
     }
+    
+    // اعداد از انتها
+    const numbersFromEnd = counterName.match(/\d+$/);
+    if (numbersFromEnd) {
+        const num = numbersFromEnd[0];
+        console.log(`✅ Main: Counter number extracted from end: ${num}`);
+        return num;
+    }
+    
+    // اعداد از هر جای رشته
+    const numbersAnywhere = counterName.match(/\d+/);
+    if (numbersAnywhere) {
+        const num = numbersAnywhere[0];
+        console.log(`✅ Main: Counter number extracted from anywhere: ${num}`);
+        return num;
+    }
+    
+    // تبدیل کلمات فارسی
+    const wordToNumber = {
+        'یک': '1', 'اول': '1', '۱': '1',
+        'دو': '2', 'دوم': '2', '۲': '2',
+        'سه': '3', 'سوم': '3', '۳': '3', 
+        'چهار': '4', 'چهارم': '4', '۴': '4',
+        'پنج': '5', 'پنجم': '5', '۵': '5',
+        'شش': '6', 'ششم': '6', '۶': '6',
+        'هفت': '7', 'هفتم': '7', '۷': '7',
+        'هشت': '8', 'هشتم': '8', '۸': '8',
+        'نه': '9', 'نهم': '9', '۹': '9',
+        'ده': '10', 'دهم': '10', '۱۰': '10'
+    };
+    
+    for (const [word, num] of Object.entries(wordToNumber)) {
+        if (counterName.includes(word)) {
+            console.log(`✅ Main: Counter number extracted from word "${word}": ${num}`);
+            return num;
+        }
+    }
+    
+    console.log('❌ Main: No counter number found, using default: 1');
+    return '1';
+}
 
     // --- تست ارتباط با display ---
     function testDisplayConnection() {
