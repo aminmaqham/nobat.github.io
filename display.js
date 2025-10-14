@@ -17,6 +17,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const databases = new Databases(client);
 
+    // --- توابع تبدیل اعداد به فارسی ---
+    function toPersianNumbers(number) {
+        if (number === null || number === undefined) return '';
+        
+        const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        return number.toString().replace(/\d/g, digit => persianDigits[parseInt(digit)]);
+    }
+
+    function convertNumbersToPersian(text) {
+        if (!text) return '';
+        
+        const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        return text.toString().replace(/\d/g, digit => persianDigits[parseInt(digit)]);
+    }
+
     // --- Sound Manager for Display ---
     class DisplaySoundManager {
         constructor() {
@@ -391,16 +406,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Helper Functions ---
     function formatTime(date) {
-        return new Date(date).toLocaleTimeString('fa-IR', {
+        const timeString = new Date(date).toLocaleTimeString('fa-IR', {
             hour: '2-digit',
             minute: '2-digit'
         });
+        return timeString;
     }
 
     function getCounterName(counterNumber) {
         const counterNames = {
             1: 'باجه ۱',
-            2: 'باجه ۲',
+            2: 'باجه ۲', 
             3: 'باجه ۳',
             4: 'باجه ۴',
             5: 'باجه ۵',
@@ -410,39 +426,42 @@ document.addEventListener('DOMContentLoaded', () => {
             9: 'باجه ۹',
             10: 'باجه ۱۰'
         };
-        return counterNames[counterNumber] || `باجه ${counterNumber}`;
+        return counterNames[counterNumber] || `باجه ${toPersianNumbers(counterNumber)}`;
     }
-function createTicketCard(ticket, index) {
-    const card = document.createElement('div');
-    card.className = `ticket-card ${index === 0 ? 'recent' : 'old'}`;
-    
-    const ticketNumber = ticket.specific_ticket || 'پاس';
-    const counterName = ticket.called_by_counter_name || 'باجه';
-    const callTime = ticket.call_time || ticket.$createdAt;
-    
-    // استخراج نام کاربر از called_by_name
-    let customerName = 'نامشخص';
-    if (ticket.called_by_name) {
-        // حذف "کاربر: " و اطلاعات باجه از رشته
-        const nameParts = ticket.called_by_name.split('(')[0].replace('کاربر:', '').trim();
-        customerName = nameParts || 'نامشخص';
-    } else if (ticket.first_name && ticket.last_name) {
-        customerName = `${ticket.first_name} ${ticket.last_name}`;
+
+    function createTicketCard(ticket, index) {
+        const card = document.createElement('div');
+        card.className = `ticket-card ${index === 0 ? 'recent' : 'old'}`;
+        
+        const ticketNumber = ticket.specific_ticket || 'پاس';
+        const counterName = ticket.called_by_counter_name || 'باجه';
+        const callTime = ticket.call_time || ticket.$createdAt;
+        
+        // تبدیل شماره نوبت به فارسی
+        const persianTicketNumber = convertNumbersToPersian(ticketNumber);
+        
+        // استخراج نام کاربر از called_by_name
+        let customerName = 'نامشخص';
+        if (ticket.called_by_name) {
+            const nameParts = ticket.called_by_name.split('(')[0].replace('کاربر:', '').trim();
+            customerName = nameParts || 'نامشخص';
+        } else if (ticket.first_name && ticket.last_name) {
+            customerName = `${ticket.first_name} ${ticket.last_name}`;
+        }
+        
+        card.innerHTML = `
+            <div class="ticket-number-large">${persianTicketNumber}</div>
+            <div class="ticket-info">
+                <div>${counterName}</div>
+                <div class="counter-name">${ticket.service_name || 'خدمات'}</div>
+                <div class="customer-name">${customerName}</div>
+                ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
+            </div>
+            <div class="ticket-time">${formatTime(callTime)}</div>
+        `;
+        
+        return card;
     }
-    
-    card.innerHTML = `
-        <div class="ticket-number-large">${ticketNumber}</div>
-        <div class="ticket-info">
-            <div>${counterName}</div>
-            <div class="counter-name">${ticket.service_name || 'خدمات'}</div>
-            <div class="customer-name">${customerName}</div>
-            ${ticket.returned_from_photography ? '<div class="photography-badge">📸 بازگشته از عکاسی</div>' : ''}
-        </div>
-        <div class="ticket-time">${formatTime(callTime)}</div>
-    `;
-    
-    return card;
-}
 
     function updateTicketsDisplay(tickets) {
         ticketsContainer.innerHTML = '';
@@ -465,69 +484,79 @@ function createTicketCard(ticket, index) {
         });
     }
 
-function updateWaitingListDisplay() {
-    waitingListElement.innerHTML = '';
-    
-    if (waitingList.length === 0) {
-        waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
-        return;
-    }
-    
-    // گروه‌بندی بر اساس سرویس
-    const serviceGroups = {};
-    waitingList.forEach(item => {
-        const serviceName = item.service_name || 'خدمت ناشناخته';
-        if (!serviceGroups[serviceName]) {
-            serviceGroups[serviceName] = [];
+    function updateWaitingListDisplay() {
+        waitingListElement.innerHTML = '';
+        
+        if (waitingList.length === 0) {
+            waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
+            return;
         }
-        serviceGroups[serviceName].push(item);
-    });
-    
-    // ایجاد آیتم برای هر سرویس
-    Object.entries(serviceGroups).forEach(([serviceName, items]) => {
-        const waitingItem = document.createElement('div');
-        waitingItem.className = 'waiting-item';
-        waitingItem.innerHTML = `
-            <div class="service-name">${serviceName}</div>
-            <div class="waiting-count">${items.length}</div>
-        `;
-        waitingListElement.appendChild(waitingItem);
-    });
-}
+        
+        // گروه‌بندی بر اساس سرویس
+        const serviceGroups = {};
+        waitingList.forEach(item => {
+            const serviceName = item.service_name || 'خدمت ناشناخته';
+            if (!serviceGroups[serviceName]) {
+                serviceGroups[serviceName] = [];
+            }
+            serviceGroups[serviceName].push(item);
+        });
+        
+        // ایجاد آیتم برای هر سرویس
+        Object.entries(serviceGroups).forEach(([serviceName, items]) => {
+            const waitingItem = document.createElement('div');
+            waitingItem.className = 'waiting-item';
+            // تبدیل عدد به فارسی
+            const persianCount = toPersianNumbers(items.length);
+            waitingItem.innerHTML = `
+                <div class="service-name">${serviceName}</div>
+                <div class="waiting-count">${persianCount}</div>
+            `;
+            waitingListElement.appendChild(waitingItem);
+        });
+    }
 
-function updatePhotographyDisplay() {
-    photographyListElement.innerHTML = '';
-    
-    if (photographyList.length === 0) {
-        photographyListElement.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
-        photographyWaitingElement.textContent = '۰';
-        return;
-    }
-    
-    photographyWaitingElement.textContent = `${photographyList.length}`;
-    
-    photographyList.forEach((item, index) => {
-        const photographyItem = document.createElement('div');
-        photographyItem.className = 'photography-item';
+    function updatePhotographyDisplay() {
+        photographyListElement.innerHTML = '';
         
-        if (item.$id === lastPhotographyTicketId) {
-            photographyItem.classList.add('new-item');
+        if (photographyList.length === 0) {
+            photographyListElement.innerHTML = '<div class="photography-empty">هیچ نوبتی در لیست عکاسی وجود ندارد</div>';
+            // تبدیل عدد به فارسی
+            photographyWaitingElement.textContent = toPersianNumbers(0);
+            return;
         }
         
-        photographyItem.innerHTML = `
-            <div class="photography-number">${index + 1}</div>
-            <div class="photography-info">
-                <div class="photography-ticket-line">
-                    <div class="photography-ticket">${item.ticketNumber || '---'}</div>
-                    <div class="photography-status">در انتظار</div>
-                </div>
-                <div class="photography-national-id">${item.nationalId || '---'}</div>
-            </div>
-        `;
+        // تبدیل عدد به فارسی
+        photographyWaitingElement.textContent = toPersianNumbers(photographyList.length);
         
-        photographyListElement.appendChild(photographyItem);
-    });
-}
+        photographyList.forEach((item, index) => {
+            const photographyItem = document.createElement('div');
+            photographyItem.className = 'photography-item';
+            
+            if (item.$id === lastPhotographyTicketId) {
+                photographyItem.classList.add('new-item');
+            }
+            
+            // تبدیل اعداد به فارسی
+            const persianIndex = toPersianNumbers(index + 1);
+            const persianTicketNumber = convertNumbersToPersian(item.ticketNumber || '---');
+            const persianNationalId = convertNumbersToPersian(item.nationalId || '---');
+            
+            photographyItem.innerHTML = `
+                <div class="photography-number">${persianIndex}</div>
+                <div class="photography-info">
+                    <div class="photography-ticket-line">
+                        <div class="photography-ticket">${persianTicketNumber}</div>
+                        <div class="photography-status">در انتظار</div>
+                    </div>
+                    <div class="photography-national-id">${persianNationalId}</div>
+                </div>
+            `;
+            
+            photographyListElement.appendChild(photographyItem);
+        });
+    }
+
     // --- Data Fetching Functions ---
     async function fetchLastCalledTickets() {
         try {
