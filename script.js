@@ -144,42 +144,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const soundManager = new SoundManager();
 
-    // ارسال درخواست صدا از طریق Appwrite
-    async function playCallSound(ticket) {
-        if (!ticket) return Promise.resolve();
+// 🔥 **اصلاح تابع playCallSound برای نوبت‌های معمولی**
+async function playCallSound(ticket) {
+    if (!ticket) return Promise.resolve();
+    
+    const ticketNumber = ticket.specific_ticket || '0001';
+    const counterNumber = getCounterNumber() || '5';
+    const counterName = getCounterName() || 'باجه';
+    
+    console.log(`🎵 Main: Sending sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    
+    try {
+        // ایجاد سند جدید در collection صداها - فقط با attribute های اصلی
+        const audioRequest = await databases.createDocument(
+            DATABASE_ID,
+            AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
+            ID.unique(),
+            {
+                ticket_number: ticketNumber,
+                counter_number: counterNumber,
+                counter_name: counterName,
+                type: 'normal',
+                timestamp: new Date().toISOString()
+            },
+            [Permission.read(Role.any())]
+        );
         
-        const ticketNumber = ticket.specific_ticket || '0001';
-        const counterNumber = getCounterNumber() || '5';
-        const counterName = getCounterName() || 'باجه';
+        console.log('✅ Sound request sent to Appwrite');
+        return Promise.resolve();
         
-        console.log(`🎵 Main: Sending sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-        
-        try {
-            // ایجاد سند جدید در collection صداها
-            const audioRequest = await databases.createDocument(
-                DATABASE_ID,
-                AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
-                ID.unique(),
-                {
-                    ticket_number: ticketNumber,
-                    counter_number: counterNumber,
-                    counter_name: counterName,
-                    type: 'normal',
-                    timestamp: new Date().toISOString()
-                },
-                [Permission.read(Role.any())] // ✅ اصلاح: استفاده از Role.any()
-            );
-            
-            console.log('✅ Sound request sent to Appwrite');
-            return Promise.resolve();
-            
-        } catch (error) {
-            console.error('❌ Error sending sound request:', error);
-            return Promise.resolve();
-        }
+    } catch (error) {
+        console.error('❌ Error sending sound request:', error);
+        return Promise.resolve();
     }
-
-// 🔥 **بهبود تابع playPhotographyCallSound برای اطمینان از ارسال درخواست صدا**
+}
+// 🔥 **اصلاح تابع playPhotographyCallSound - حذف attribute های اضافی**
 async function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
@@ -190,7 +189,7 @@ async function playPhotographyCallSound(photographyItem) {
     console.log(`🎵 Main: Sending photography sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
     
     try {
-        // ایجاد سند در collection صداها برای display
+        // ایجاد سند در collection صداها برای display - فقط با attribute های اصلی
         const audioRequest = await databases.createDocument(
             DATABASE_ID,
             AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
@@ -200,12 +199,8 @@ async function playPhotographyCallSound(photographyItem) {
                 counter_number: counterNumber,
                 counter_name: counterName,
                 type: 'photography',
-                timestamp: new Date().toISOString(),
-                photography_item_id: photographyItem.$id,
-                // اضافه کردن اطلاعات بیشتر برای نمایش
-                first_name: photographyItem.firstName,
-                last_name: photographyItem.lastName,
-                service_name: photographyItem.serviceName
+                timestamp: new Date().toISOString()
+                // ❌ حذف attribute های اضافی که در collection تعریف نشده‌اند
             },
             [Permission.read(Role.any())]
         );
@@ -242,6 +237,7 @@ async function playPhotographyCallSound(photographyItem) {
         throw error;
     }
 }
+
 
     // پاک کردن درخواست‌های قدیمی
     async function cleanupOldAudioRequests() {
