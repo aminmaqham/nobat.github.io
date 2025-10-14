@@ -188,7 +188,7 @@ async function playCallSound(ticket) {
         return Promise.resolve();
     }
 }
-// 🔥 **تابع بهبود یافته برای پخش صدا در عکاسی - با attribute های جدید**
+// 🔥 **تابع بهبود یافته برای پخش صدا در عکاسی**
 async function playPhotographyCallSound(photographyItem) {
     if (!photographyItem) return;
     
@@ -196,10 +196,13 @@ async function playPhotographyCallSound(photographyItem) {
     const counterName = photographyItem.originalCounterName || 'عکاسی';
     const counterNumber = extractCounterNumber(counterName);
     
-    console.log(`🎵 Main: Sending photography sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    console.log(`🎵 Main: Sending photography sound request: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    
+    // بررسی اتصال display
+    const displayActive = checkDisplayConnection();
     
     try {
-        // ایجاد سند در collection صداها برای display - با تمام attribute های جدید
+        // ایجاد سند در collection صداها برای display
         const audioRequest = await databases.createDocument(
             DATABASE_ID,
             AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
@@ -218,21 +221,38 @@ async function playPhotographyCallSound(photographyItem) {
             [Permission.read(Role.any())]
         );
         
-        console.log('✅ Photography sound request sent to Appwrite with all attributes');
+        console.log('✅ Photography sound request sent to Appwrite:', audioRequest.$id);
         
-        // همچنین مستقیماً به display صدا بزنیم (به عنوان fallback)
-        if (window.displaySoundManager) {
+        // اگر display فعال است، مستقیماً هم صدا بزن
+        if (displayActive) {
             console.log('🎵 Also calling display sound manager directly');
-            await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+            try {
+                await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+                console.log('✅ Direct display call successful');
+                
+            } catch (directError) {
+                console.error('❌ Direct display call failed:', directError);
+            }
         }
         
     } catch (error) {
         console.error('❌ Error sending photography sound request:', error);
         
-        // Fallback: استفاده مستقیم از display sound manager
-        if (window.displaySoundManager) {
+        // Fallback: اگر Appwrite خطا داد، مستقیماً از display استفاده کن
+        if (displayActive) {
             console.log('🔄 Using fallback: direct call to display');
-            await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+            try {
+                await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+                console.log('✅ Fallback display call successful');
+            } catch (fallbackError) {
+                console.error('❌ Fallback display call failed:', fallbackError);
+                
+                // نشان دادن خطا به کاربر
+                showPopupNotification(`
+                    <p style="color: #d32f2f;">❌ خطا در پخش صدا!</p>
+                    <p>لطفاً صفحه نمایش را بررسی کنید.</p>
+                `);
+            }
         }
     }
 }
@@ -1434,6 +1454,29 @@ function setupRealtimeSubscriptions() {
         
     } catch (error) {
         console.error('❌ Error setting up real-time subscriptions:', error);
+    }
+}
+
+// 🔥 **تابع بهبود یافته برای بررسی وضعیت display**
+function checkDisplayConnection() {
+    if (window.displaySoundManager) {
+        const status = window.getDisplayStatus ? window.getDisplayStatus() : { soundManager: true };
+        console.log('✅ Display connection: ACTIVE', status);
+        return true;
+    } else {
+        console.log('❌ Display connection: INACTIVE - Please open display.html');
+        
+        // نشان دادن پیام به کاربر
+        setTimeout(() => {
+            if (!window.displaySoundManager) {
+                showPopupNotification(`
+                    <p style="color: #d32f2f; font-weight: bold;">⚠️ سیستم صدا فعال نیست!</p>
+                    <p>لطفاً صفحه نمایش (display.html) را در تب دیگری باز کنید.</p>
+                `);
+            }
+        }, 2000);
+        
+        return false;
     }
 }
 

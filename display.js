@@ -1058,6 +1058,9 @@ async function initialize() {
     // شروع برنامه
     initialize();
 
+        window.displaySoundManager = soundManager;
+
+
     // به‌روزرسانی دوره‌ای برای اطمینان (هر 30 ثانیه)
     setInterval(() => {
         console.log('⏰ Periodic refresh...');
