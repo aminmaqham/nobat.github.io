@@ -456,35 +456,35 @@ function createTicketCard(ticket, index) {
         });
     }
 
-    function updateWaitingListDisplay() {
-        waitingListElement.innerHTML = '';
-        
-        if (waitingList.length === 0) {
-            waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
-            return;
-        }
-        
-        // گروه‌بندی بر اساس سرویس
-        const serviceGroups = {};
-        waitingList.forEach(item => {
-            const serviceName = item.service_name || 'خدمت ناشناخته';
-            if (!serviceGroups[serviceName]) {
-                serviceGroups[serviceName] = [];
-            }
-            serviceGroups[serviceName].push(item);
-        });
-        
-        // ایجاد آیتم برای هر سرویس
-        Object.entries(serviceGroups).forEach(([serviceName, items]) => {
-            const waitingItem = document.createElement('div');
-            waitingItem.className = 'waiting-item';
-            waitingItem.innerHTML = `
-                <div class="service-name">${serviceName}</div>
-                <div class="waiting-count">منتظران: ${items.length}</div>
-            `;
-            waitingListElement.appendChild(waitingItem);
-        });
+function updateWaitingListDisplay() {
+    waitingListElement.innerHTML = '';
+    
+    if (waitingList.length === 0) {
+        waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
+        return;
     }
+    
+    // گروه‌بندی بر اساس سرویس
+    const serviceGroups = {};
+    waitingList.forEach(item => {
+        const serviceName = item.service_name || 'خدمت ناشناخته';
+        if (!serviceGroups[serviceName]) {
+            serviceGroups[serviceName] = [];
+        }
+        serviceGroups[serviceName].push(item);
+    });
+    
+    // ایجاد آیتم برای هر سرویس
+    Object.entries(serviceGroups).forEach(([serviceName, items]) => {
+        const waitingItem = document.createElement('div');
+        waitingItem.className = 'waiting-item';
+        waitingItem.innerHTML = `
+            <div class="service-name">${serviceName}</div>
+            <div class="waiting-count">${items.length}</div>
+        `;
+        waitingListElement.appendChild(waitingItem);
+    });
+}
 
 function updatePhotographyDisplay() {
     photographyListElement.innerHTML = '';
