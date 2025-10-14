@@ -549,37 +549,98 @@ async playAudioFile(filePath) {
         });
     }
 
-    function updateWaitingListDisplay() {
-        waitingListElement.innerHTML = '';
-        
-        if (waitingList.length === 0) {
-            waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
-            return;
-        }
-        
-        // گروه‌بندی بر اساس سرویس
-        const serviceGroups = {};
-        waitingList.forEach(item => {
-            const serviceName = item.service_name || 'خدمت ناشناخته';
-            if (!serviceGroups[serviceName]) {
-                serviceGroups[serviceName] = [];
-            }
-            serviceGroups[serviceName].push(item);
-        });
-        
-        // ایجاد آیتم برای هر سرویس
-        Object.entries(serviceGroups).forEach(([serviceName, items]) => {
-            const waitingItem = document.createElement('div');
-            waitingItem.className = 'waiting-item';
-            // تبدیل عدد به فارسی
-            const persianCount = toPersianNumbers(items.length);
-            waitingItem.innerHTML = `
-                <div class="service-name">${serviceName}</div>
-                <div class="waiting-count">${persianCount}</div>
-            `;
-            waitingListElement.appendChild(waitingItem);
-        });
+// 🔥 تابع بهینه شده برای به‌روزرسانی لیست منتظران
+function updateWaitingListDisplay() {
+    if (!waitingListElement) return;
+    
+    waitingListElement.innerHTML = '';
+    
+    if (waitingList.length === 0) {
+        waitingListElement.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
+        return;
     }
+    
+    // گروه‌بندی بر اساس سرویس با استفاده از Map برای سرعت بیشتر
+    const serviceGroups = new Map();
+    
+    waitingList.forEach(item => {
+        const serviceName = item.service_name || 'خدمت ناشناخته';
+        if (!serviceGroups.has(serviceName)) {
+            serviceGroups.set(serviceName, []);
+        }
+        serviceGroups.get(serviceName).push(item);
+    });
+    
+    // ایجاد آیتم برای هر سرویس
+    serviceGroups.forEach((items, serviceName) => {
+        const waitingItem = document.createElement('div');
+        waitingItem.className = 'waiting-item';
+        
+        // تبدیل عدد به فارسی
+        const persianCount = toPersianNumbers(items.length);
+        
+        waitingItem.innerHTML = `
+            <div class="service-name">${serviceName}</div>
+            <div class="waiting-count">${persianCount}</div>
+        `;
+        
+        waitingListElement.appendChild(waitingItem);
+    });
+    
+    console.log(`✅ Waiting list updated: ${waitingList.length} tickets in ${serviceGroups.size} services`);
+}
+
+// 🔥 اضافه کردن نشانگر وضعیت آنلاین
+function addOnlineStatusIndicator() {
+    const statusIndicator = document.createElement('div');
+    statusIndicator.id = 'online-status';
+    statusIndicator.innerHTML = `
+        <div class="status-indicator online">
+            <span class="status-dot"></span>
+            <span class="status-text">آنلاین</span>
+        </div>
+    `;
+    
+    document.body.appendChild(statusIndicator);
+    
+    // استایل برای نشانگر وضعیت
+    const style = document.createElement('style');
+    style.textContent = `
+        #online-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-family: 'Vazirmatn', sans-serif;
+            font-size: 12px;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.offline .status-dot {
+            background: #f44336;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+}
 
     function updatePhotographyDisplay() {
         photographyListElement.innerHTML = '';
@@ -653,34 +714,43 @@ async playAudioFile(filePath) {
         }
     }
 
-    async function fetchWaitingList() {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                [
-                    Query.equal('status', 'در حال انتظار'),
-                    Query.orderAsc('$createdAt')
-                ]
-            );
-            
-            const servicesData = await fetchServices();
-            const servicesMap = {};
-            servicesData.forEach(service => {
-                servicesMap[service.$id] = service.name;
-            });
-            
-            const waiting = response.documents.map(doc => ({
-                ...doc,
-                service_name: servicesMap[doc.service_id] || 'خدمت ناشناخته'
-            }));
-            
-            return waiting;
-        } catch (error) {
-            console.error('Error fetching waiting list:', error);
-            return [];
+// 🔥 بهبود توابع fetch برای سرعت بیشتر
+async function fetchWaitingList() {
+    try {
+        const response = await databases.listDocuments(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            [
+                Query.equal('status', 'در حال انتظار'),
+                Query.orderAsc('$createdAt')
+            ]
+        );
+        
+        // استفاده از کش سرویس‌ها برای کاهش درخواست‌ها
+        if (services.length === 0) {
+            services = await fetchServices();
         }
+        
+        const servicesMap = {};
+        services.forEach(service => {
+            servicesMap[service.$id] = service.name;
+        });
+        
+        const waiting = response.documents.map(doc => ({
+            ...doc,
+            service_name: servicesMap[doc.service_id] || 'خدمت ناشناخته'
+        }));
+        
+        return waiting;
+    } catch (error) {
+        console.error('Error fetching waiting list:', error);
+        return [];
     }
+}
+
+// 🔥 کش کردن سرویس‌ها
+let servicesCache = [];
+let lastServicesFetch = 0;
 
     async function fetchPhotographyList() {
         try {
@@ -700,99 +770,120 @@ async playAudioFile(filePath) {
         }
     }
 
-    async function fetchServices() {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                SERVICES_COLLECTION_ID
-            );
-            
-            return response.documents;
-        } catch (error) {
-            console.error('Error fetching services:', error);
-            return [];
-        }
+async function fetchServices() {
+    // استفاده از کش برای جلوگیری از درخواست‌های تکراری
+    const now = Date.now();
+    if (servicesCache.length > 0 && (now - lastServicesFetch) < 30000) { // 30 ثانیه کش
+        return servicesCache;
     }
-
-    // --- Real-time Updates ---
-    function setupRealTimeUpdates() {
-        console.log('🔔 Setting up real-time updates...');
+    
+    try {
+        const response = await databases.listDocuments(
+            DATABASE_ID,
+            SERVICES_COLLECTION_ID
+        );
         
-        try {
-            // Subscribe to tickets collection
-            client.subscribe(
-                `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`,
-                response => {
-                    console.log('📡 Real-time update for tickets:', response);
-                    handleTicketsUpdate(response);
-                }
-            );
-
-            // Subscribe to photography collection
-            client.subscribe(
-                `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`,
-                response => {
-                    console.log('📡 Real-time update for photography:', response);
-                    handlePhotographyUpdate(response);
-                }
-            );
-            
-            console.log('✅ Real-time updates setup completed');
-        } catch (error) {
-            console.error('❌ Error setting up real-time updates:', error);
-        }
+        servicesCache = response.documents;
+        lastServicesFetch = now;
+        
+        return servicesCache;
+    } catch (error) {
+        console.error('Error fetching services:', error);
+        return servicesCache; // بازگشت داده‌های کش شده در صورت خطا
     }
+}
 
-    async function handleTicketsUpdate(response) {
-        try {
-            console.log('🔄 Processing tickets update:', response);
-            
-            if (!response || !response.events) {
-                console.log('⚠️ Invalid response format, skipping');
-                return;
+// --- Real-time Updates ---
+function setupRealTimeUpdates() {
+    console.log('🔔 Setting up real-time updates for ALL collections...');
+    
+    try {
+        // Subscribe to tickets collection - ALL changes
+        client.subscribe(
+            `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`,
+            response => {
+                console.log('📡 Real-time update for tickets:', response);
+                handleTicketsUpdate(response);
             }
+        );
+
+        // Subscribe to services collection
+        client.subscribe(
+            `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`,
+            response => {
+                console.log('📡 Real-time update for services:', response);
+                setTimeout(() => {
+                    refreshAllData();
+                }, 100);
+            }
+        );
+
+        // Subscribe to photography collection
+        client.subscribe(
+            `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`,
+            response => {
+                console.log('📡 Real-time update for photography:', response);
+                handlePhotographyUpdate(response);
+            }
+        );
+        
+        console.log('✅ Real-time updates setup completed');
+    } catch (error) {
+        console.error('❌ Error setting up real-time updates:', error);
+    }
+}
+
+// تابع بهبود یافته برای مدیریت به‌روزرسانی‌ها
+async function handleTicketsUpdate(response) {
+    try {
+        console.log('🔄 Processing tickets update:', response);
+        
+        if (!response || !response.events) {
+            console.log('⚠️ Invalid response format, skipping');
+            return;
+        }
+        
+        const events = response.events;
+        const payload = response.payload;
+        
+        console.log('📋 Events:', events);
+        console.log('📦 Payload:', payload);
+        
+        // 🔥 مهم: برای هر تغییری در نوبت‌ها، داده‌ها را refresh کنیم
+        if (events.some(event => 
+            event.includes('.create') || 
+            event.includes('.update') || 
+            event.includes('.delete')
+        )) {
+            console.log('🔄 Ticket change detected, refreshing ALL data immediately...');
             
-            const events = response.events;
-            const payload = response.payload;
+            // 🔥 به‌روزرسانی فوری بدون تأخیر
+            await refreshAllData();
             
-            console.log('📋 Events:', events);
-            console.log('📦 Payload:', payload);
-            
-            // بررسی ایجاد یا به‌روزرسانی نوبت
-            if (events.some(event => 
-                event.includes('.create') || 
-                event.includes('.update') || 
-                event.includes('.delete')
-            )) {
-                console.log('🔄 Ticket change detected, refreshing data...');
+            // اگر نوبت جدید فراخوانده شده
+            if (payload && payload.status === 'در حال سرویس') {
+                console.log('🎯 New called ticket detected:', payload);
                 
-                // اگر نوبت جدید فراخوانده شده
-                if (payload && payload.status === 'در حال سرویس') {
-                    console.log('🎯 New called ticket detected:', payload);
-                    
-                    if (payload.$id === lastProcessedTicketId) {
-                        console.log('🔇 Skipping duplicate ticket processing');
-                        return;
-                    }
-                    
-                    lastProcessedTicketId = payload.$id;
-                    
-                    // پخش اعلان صوتی
-                    await soundManager.playCallAnnouncement(
-                        payload.specific_ticket || 'پاس',
-                        extractCounterNumber(payload.called_by_counter_name) || 1,
-                        payload
-                    );
+                if (payload.$id === lastProcessedTicketId) {
+                    console.log('🔇 Skipping duplicate ticket processing');
+                    return;
                 }
                 
-                // به‌روزرسانی تمام داده‌ها
-                await refreshAllData();
+                lastProcessedTicketId = payload.$id;
+                
+                // پخش اعلان صوتی
+                await soundManager.playCallAnnouncement(
+                    payload.specific_ticket || 'پاس',
+                    extractCounterNumber(payload.called_by_counter_name) || 1,
+                    payload
+                );
             }
-            
-        } catch (error) {
-            console.error('❌ Error handling tickets update:', error);
         }
+        
+    } catch (error) {
+        console.error('❌ Error handling tickets update:', error);
     }
+}
 
     async function handlePhotographyUpdate(response) {
         try {
@@ -887,20 +978,34 @@ async playAudioFile(filePath) {
         return '1';
     }
 
-    // --- Data Refresh Functions ---
-    async function refreshAllData() {
-        try {
-            console.log('🔄 Refreshing all data...');
-            await Promise.all([
-                refreshLastCalledTickets(),
-                refreshWaitingList(),
-                refreshPhotographyList()
-            ]);
-            console.log('✅ All data refreshed successfully');
-        } catch (error) {
-            console.error('❌ Error refreshing all data:', error);
-        }
+// 🔥 تابع بهبود یافته برای refreshAllData
+async function refreshAllData() {
+    try {
+        console.log('🔄 Refreshing ALL data immediately...');
+        
+        // اجرای همزمان همه درخواست‌ها
+        const [calledTickets, waiting, photography] = await Promise.all([
+            fetchLastCalledTickets(),
+            fetchWaitingList(),
+            fetchPhotographyList()
+        ]);
+        
+        lastCalledTickets = calledTickets;
+        waitingList = waiting;
+        photographyList = photography;
+        
+        // به‌روزرسانی همزمان UI
+        updateTicketsDisplay(lastCalledTickets);
+        updateWaitingListDisplay();
+        updatePhotographyDisplay();
+        
+        console.log('✅ ALL data refreshed successfully');
+        console.log(`📊 Stats - Called: ${lastCalledTickets.length}, Waiting: ${waitingList.length}, Photography: ${photographyList.length}`);
+        
+    } catch (error) {
+        console.error('❌ Error refreshing all data:', error);
     }
+}
 
     async function refreshLastCalledTickets() {
         lastCalledTickets = await fetchLastCalledTickets();
@@ -918,22 +1023,31 @@ async playAudioFile(filePath) {
     }
 
     // --- Initialization ---
-    async function initialize() {
-        try {
-            console.log('🚀 Initializing display system...');
-            
-            // بارگذاری اولیه داده‌ها
-            await refreshAllData();
-            
-            // راه‌اندازی به‌روزرسانی‌های لحظه‌ای
-            setupRealTimeUpdates();
-            
-            console.log('✅ Display system initialized successfully');
-            
-        } catch (error) {
-            console.error('❌ Error initializing display system:', error);
-        }
+async function initialize() {
+    try {
+        console.log('🚀 Initializing display system...');
+        
+        // بارگذاری اولیه داده‌ها
+        await refreshAllData();
+
+          // اضافه کردن نشانگر وضعیت
+        addOnlineStatusIndicator();
+        
+        // 🔥 اولویت: راه‌اندازی real-time updates
+        setupRealTimeUpdates();
+        
+        // کاهش interval به‌روزرسانی دوره‌ای به 60 ثانیه
+        setInterval(() => {
+            console.log('⏰ Periodic refresh...');
+            refreshAllData();
+        }, 60000); // 60 ثانیه
+        
+        console.log('✅ Display system initialized successfully');
+        
+    } catch (error) {
+        console.error('❌ Error initializing display system:', error);
     }
+}
 
     // شروع برنامه
     initialize();
