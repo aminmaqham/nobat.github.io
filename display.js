@@ -516,27 +516,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const photographyList = document.querySelector('.photography-list');
     const photographyWaiting = document.querySelector('.photography-waiting');
 
-    // --- UI Update Functions ---
-    async function updateDisplay() {
-        try {
-            const ticketsResponse = await databases.listDocuments(
-                DATABASE_ID,
-                TICKETS_COLLECTION_ID,
-                [
-                    Query.equal('status', 'در حال سرویس'),
-                    Query.orderDesc('call_time'),
-                    Query.limit(3)
-                ]
-            );
+// --- به‌روزرسانی تابع updateDisplay ---
+async function updateDisplay() {
+    try {
+        const ticketsResponse = await databases.listDocuments(
+            DATABASE_ID,
+            TICKETS_COLLECTION_ID,
+            [
+                Query.equal('status', 'در حال سرویس'),
+                Query.orderDesc('call_time'),
+                Query.limit(3)
+            ]
+        );
 
-            const calledTickets = ticketsResponse.documents;
-            updateTicketsDisplay(calledTickets);
-            await updatePhotographyDisplay();
+        const calledTickets = ticketsResponse.documents;
+        updateTicketsDisplay(calledTickets);
+        await updateWaitingList(); // اضافه کردن این خط
+        await updatePhotographyDisplay();
 
-        } catch (error) {
-            console.error("Error fetching data:", error);
-        }
+    } catch (error) {
+        console.error("Error fetching data:", error);
     }
+}
 
     async function updatePhotographyDisplay() {
         try {
@@ -557,6 +558,76 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error fetching photography history:", error);
         }
     }
+
+    // --- تابع جدید برای به‌روزرسانی لیست منتظران ---
+async function updateWaitingList() {
+    try {
+        // دریافت تمام سرویس‌ها
+        const servicesResponse = await databases.listDocuments(
+            DATABASE_ID,
+            SERVICES_COLLECTION_ID,
+            [Query.orderAsc('name')]
+        );
+        
+        const activeServices = servicesResponse.documents.filter(service => 
+            service.disabled !== true
+        );
+        
+        // دریافت تعداد منتظران برای هر سرویس فعال
+        const waitingPromises = activeServices.map(async (service) => {
+            const waitingResponse = await databases.listDocuments(
+                DATABASE_ID,
+                TICKETS_COLLECTION_ID,
+                [
+                    Query.equal('service_id', service.$id),
+                    Query.equal('status', 'در حال انتظار'),
+                    Query.limit(1000)
+                ]
+            );
+            
+            return {
+                name: service.name,
+                waitingCount: waitingResponse.documents.length
+            };
+        });
+        
+        const waitingData = await Promise.all(waitingPromises);
+        
+        // رندر لیست منتظران
+        renderWaitingList(waitingData);
+        
+    } catch (error) {
+        console.error("Error fetching waiting list:", error);
+    }
+}
+
+// --- تابع رندر لیست منتظران ---
+function renderWaitingList(waitingData) {
+    const waitingList = document.getElementById('waiting-list');
+    
+    if (!waitingList) return;
+    
+    if (waitingData.length === 0) {
+        waitingList.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
+        return;
+    }
+    
+    // فیلتر کردن سرویس‌هایی که حداقل یک منتظر دارند
+    const servicesWithWaiting = waitingData.filter(item => item.waitingCount > 0);
+    
+    if (servicesWithWaiting.length === 0) {
+        waitingList.innerHTML = '<div class="waiting-empty">هیچ نوبتی در انتظار نیست</div>';
+        return;
+    }
+    
+    waitingList.innerHTML = servicesWithWaiting.map((item, index) => `
+        <div class="waiting-item">
+            <div class="service-name">${index + 1}-${item.name}</div>
+            <div class="waiting-count">منتظران: ${item.waitingCount}</div>
+        </div>
+    `).join('');
+}
+
 
     function updateTicketsDisplay(tickets) {
         ticketsContainer.innerHTML = '';
@@ -677,21 +748,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // تابع setupRealtime
-    function setupRealtime() {
-        const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
-        const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
-        
-        client.subscribe(ticketChannel, response => {
-            console.log('Display: Realtime update received (UI ONLY):', response);
-            updateDisplay(); // فقط UI آپدیت شود
-        });
-        
-        client.subscribe(photographyChannel, response => {
-            console.log('Display: Photography history updated via real-time');
-            updatePhotographyDisplay(); // فقط UI آپدیت شود
-        });
-    }
+// --- به‌روزرسانی تابع setupRealtime ---
+function setupRealtime() {
+    const ticketChannel = `databases.${DATABASE_ID}.collections.${TICKETS_COLLECTION_ID}.documents`;
+    const photographyChannel = `databases.${DATABASE_ID}.collections.${PHOTOGRAPHY_COLLECTION_ID}.documents`;
+    const servicesChannel = `databases.${DATABASE_ID}.collections.${SERVICES_COLLECTION_ID}.documents`;
+    
+    client.subscribe(ticketChannel, response => {
+        console.log('Display: Realtime update received (UI ONLY):', response);
+        updateDisplay(); // فقط UI آپدیت شود
+    });
+    
+    client.subscribe(photographyChannel, response => {
+        console.log('Display: Photography history updated via real-time');
+        updatePhotographyDisplay(); // فقط UI آپدیت شود
+    });
+    
+    client.subscribe(servicesChannel, response => {
+        console.log('Display: Services updated via real-time');
+        updateWaitingList(); // به‌روزرسانی لیست منتظران
+    });
+}
 
     // تابع initializeDisplay
     function initializeDisplay() {
