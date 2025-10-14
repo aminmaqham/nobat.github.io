@@ -419,7 +419,16 @@ function createTicketCard(ticket, index) {
     const ticketNumber = ticket.specific_ticket || 'پاس';
     const counterName = ticket.called_by_counter_name || 'باجه';
     const callTime = ticket.call_time || ticket.$createdAt;
-    const customerName = `${ticket.first_name || ''} ${ticket.last_name || ''}`.trim() || 'نامشخص';
+    
+    // استخراج نام کاربر از called_by_name
+    let customerName = 'نامشخص';
+    if (ticket.called_by_name) {
+        // حذف "کاربر: " و اطلاعات باجه از رشته
+        const nameParts = ticket.called_by_name.split('(')[0].replace('کاربر:', '').trim();
+        customerName = nameParts || 'نامشخص';
+    } else if (ticket.first_name && ticket.last_name) {
+        customerName = `${ticket.first_name} ${ticket.last_name}`;
+    }
     
     card.innerHTML = `
         <div class="ticket-number-large">${ticketNumber}</div>
