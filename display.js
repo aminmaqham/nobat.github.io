@@ -230,121 +230,186 @@ document.addEventListener('DOMContentLoaded', () => {
             this.audioCache.clear();
         }
 
-        async playSingleAnnouncement(ticketNumber, counterNumber) {
-            try {
-                console.log('🎵 Starting announcement...');
-                console.log('📊 Input - Ticket:', ticketNumber, 'Counter:', counterNumber);
-                
-                await this.playNumberSound(ticketNumber);
-                await this.playCounterSound(counterNumber);
-                
-                console.log('✅ Announcement completed');
-                
-            } catch (error) {
-                console.error('❌ Error in announcement:', error);
-                throw error;
-            }
-        }
+async playSingleAnnouncement(ticketNumber, counterNumber) {
+    try {
+        console.log('🎵 Starting announcement...');
+        console.log('📊 Input - Ticket:', ticketNumber, 'Counter:', counterNumber);
+        
+        // 1. اول صدا از پوشه sounds پخش شود
+        await this.playNumberSound(ticketNumber);
+        
+        // 2. سپس صدا از پوشه sounds2 پخش شود
+        await this.playCounterSound(counterNumber);
+        
+        console.log('✅ Announcement completed');
+        
+    } catch (error) {
+        console.error('❌ Error in announcement:', error);
+        throw error;
+    }
+}
 
-        async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
-            try {
-                console.log(`🔢 Display: Playing photography ticket number: ${ticketNumber}`);
-                await this.playNumberSound(ticketNumber);
-                console.log(`🔢 Display: Playing photography counter number: ${counterNumber}`);
-                await this.playCounterSound(counterNumber);
-                
-            } catch (error) {
-                console.error('Display: Error in photography announcement:', error);
-                throw error;
-            }
-        }
+async playPhotographySingleAnnouncement(ticketNumber, counterNumber) {
+    try {
+        // 1. اول صدا از پوشه sounds پخش شود
+        console.log(`🔢 Display: Playing photography ticket number: ${ticketNumber}`);
+        await this.playNumberSound(ticketNumber);
+        
+        // 2. سپس صدا از پوشه sounds2 پخش شود
+        console.log(`🔢 Display: Playing photography counter number: ${counterNumber}`);
+        await this.playCounterSound(counterNumber);
+        
+    } catch (error) {
+        console.error('Display: Error in photography announcement:', error);
+        throw error;
+    }
+}
 
-        async playCounterSound(counterNumber) {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                throw new Error('Audio disabled or user not interacted');
-            }
-            
-            console.log('🔊 playCounterSound called with:', counterNumber);
-            
-            const counterNum = parseInt(counterNumber) || 1;
-            const safeCounterNum = Math.max(1, Math.min(10, counterNum));
-            
-            const numberToEnglish = {
-                1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
-                6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'
-            };
-            
-            const englishName = numberToEnglish[safeCounterNum] || 'one';
-            const counterFile = `${englishName}.mp3`;
-            
-            console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${safeCounterNum})`);
-            
-            try {
-                await this.playAudioFile(`sounds2/${counterFile}`);
-                console.log('✅ Counter sound played successfully');
-            } catch (error) {
-                console.error(`❌ Error playing counter sound ${counterFile}:`, error);
-                await this.playAudioFile('sounds2/one.mp3');
-            }
-        }
+async playCounterSound(counterNumber) {
+    if (!this.isAudioEnabled || !this.userInteracted) {
+        throw new Error('Audio disabled or user not interacted');
+    }
+    
+    console.log('🔊 playCounterSound called with:', counterNumber);
+    
+    const counterNum = parseInt(counterNumber) || 1;
+    const safeCounterNum = Math.max(1, Math.min(10, counterNum));
+    
+    const numberToEnglish = {
+        1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
+        6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'
+    };
+    
+    const englishName = numberToEnglish[safeCounterNum] || 'one';
+    const counterFile = `${englishName}.mp3`;
+    
+    console.log(`🔊 Playing counter sound: sounds2/${counterFile} (number: ${safeCounterNum})`);
+    
+    try {
+        // استفاده از await برای انتظار پخش کامل صدا
+        await this.playAudioFile(`sounds2/${counterFile}`);
+        console.log('✅ Counter sound played successfully');
+    } catch (error) {
+        console.error(`❌ Error playing counter sound ${counterFile}:`, error);
+        // فال‌بک به شماره 1
+        await this.playAudioFile('sounds2/one.mp3');
+    }
+}
 
-        async playNumberSound(number) {
-            if (!this.isAudioEnabled || !this.userInteracted) {
-                throw new Error('Audio disabled or user not interacted');
-            }
-            
-            let formattedNumber;
-            if (number === 'پاس' || !number) {
-                formattedNumber = '0001';
-            } else {
-                const num = parseInt(number.toString().replace(/^0+/, '') || '1');
-                formattedNumber = String(num).padStart(4, '0');
-            }
-            
-            const audioPath = `sounds/${formattedNumber}.mp3`;
-            console.log(`🔊 Playing number sound: ${audioPath} (original: ${number})`);
-            
-            try {
-                await this.playAudioFile(audioPath);
-            } catch (error) {
-                console.error(`❌ Error playing number sound ${audioPath}:`, error);
-                throw error;
-            }
-        }
 
-        async playAudioFile(filePath) {
-            return new Promise((resolve, reject) => {
-                if (!this.userInteracted) {
-                    reject(new Error('User has not interacted with document yet'));
-                    return;
-                }
-                
-                if (this.audioCache.has(filePath)) {
-                    const audio = this.audioCache.get(filePath);
-                    audio.currentTime = 0;
-                    audio.play().then(resolve).catch(reject);
-                    return;
-                }
-                
-                const audio = new Audio(filePath);
-                audio.volume = this.volume;
-                
-                audio.onended = () => {
-                    console.log(`✅ Audio finished: ${filePath}`);
-                    resolve();
-                };
-                
-                audio.onerror = (error) => {
-                    console.error(`❌ Audio error: ${filePath}`, error);
-                    this.audioCache.delete(filePath);
-                    reject(error);
-                };
-                
-                this.audioCache.set(filePath, audio);
-                audio.play().then(resolve).catch(reject);
-            });
-        }
+async playNumberSound(number) {
+    if (!this.isAudioEnabled || !this.userInteracted) {
+        throw new Error('Audio disabled or user not interacted');
+    }
+    
+    let formattedNumber;
+    if (number === 'پاس' || !number) {
+        formattedNumber = '0001';
+    } else {
+        const num = parseInt(number.toString().replace(/^0+/, '') || '1');
+        formattedNumber = String(num).padStart(4, '0');
+    }
+    
+    const audioPath = `sounds/${formattedNumber}.mp3`;
+    console.log(`🔊 Playing number sound: ${audioPath} (original: ${number})`);
+    
+    try {
+        // استفاده از await برای انتظار پخش کامل صدا
+        await this.playAudioFile(audioPath);
+    } catch (error) {
+        console.error(`❌ Error playing number sound ${audioPath}:`, error);
+        throw error;
+    }
+}
 
+
+async playAudioFile(filePath) {
+    return new Promise((resolve, reject) => {
+        if (!this.userInteracted) {
+            reject(new Error('User has not interacted with document yet'));
+            return;
+        }
+        
+        if (this.audioCache.has(filePath)) {
+            const audio = this.audioCache.get(filePath);
+            audio.currentTime = 0;
+            
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        audio.onended = () => {
+                            console.log(`✅ Audio finished: ${filePath}`);
+                            resolve();
+                        };
+                        audio.onerror = (error) => {
+                            console.error(`❌ Audio error: ${filePath}`, error);
+                            reject(error);
+                        };
+                    })
+                    .catch(reject);
+            }
+            return;
+        }
+        
+        const audio = new Audio(filePath);
+        audio.volume = this.volume;
+        
+        let hasResolved = false;
+        
+        const resolveOnce = () => {
+            if (!hasResolved) {
+                hasResolved = true;
+                console.log(`✅ Audio completed: ${filePath}`);
+                resolve();
+            }
+        };
+        
+        const rejectOnce = (error) => {
+            if (!hasResolved) {
+                hasResolved = true;
+                console.error(`❌ Audio error for ${filePath}:`, error);
+                this.audioCache.delete(filePath);
+                reject(error);
+            }
+        };
+        
+        audio.addEventListener('canplaythrough', () => {
+            console.log(`✅ Audio ready: ${filePath}`);
+            
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log(`🎵 Audio playing: ${filePath}`);
+                        audio.addEventListener('ended', resolveOnce, { once: true });
+                        audio.addEventListener('error', rejectOnce, { once: true });
+                        
+                        // ذخیره در کش
+                        if (!this.audioCache.has(filePath)) {
+                            const audioClone = new Audio();
+                            audioClone.src = audio.src;
+                            audioClone.preload = 'auto';
+                            this.audioCache.set(filePath, audioClone);
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`❌ Play error for ${filePath}:`, error);
+                        rejectOnce(error);
+                    });
+            }
+        }, { once: true });
+        
+        audio.addEventListener('error', (e) => {
+            console.error(`❌ Audio load error: ${filePath}`, e);
+            rejectOnce(new Error(`File not found or cannot load: ${filePath}`));
+        }, { once: true });
+        
+        // تنظیم src و شروع بارگذاری
+        audio.src = filePath;
+    });
+}
         preloadImportantSounds() {
             if (!this.userInteracted) return;
             
