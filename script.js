@@ -144,40 +144,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const soundManager = new SoundManager();
 
-    // ارسال درخواست صدا از طریق Appwrite
-    async function playCallSound(ticket) {
-        if (!ticket) return Promise.resolve();
-        
-        const ticketNumber = ticket.specific_ticket || '0001';
-        const counterNumber = getCounterNumber() || '5';
-        const counterName = getCounterName() || 'باجه';
-        
-        console.log(`🎵 Main: Sending sound request via Appwrite: Ticket ${ticketNumber}, Counter ${counterNumber}`);
-        
-        try {
-            // ایجاد سند جدید در collection صداها
-            const audioRequest = await databases.createDocument(
-                DATABASE_ID,
-                AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
-                ID.unique(),
-                {
-                    ticket_number: ticketNumber,
-                    counter_number: counterNumber,
-                    counter_name: counterName,
-                    type: 'normal',
-                    timestamp: new Date().toISOString()
-                },
-                [Permission.read(Role.any())] // ✅ اصلاح: استفاده از Role.any()
-            );
-            
-            console.log('✅ Sound request sent to Appwrite');
-            return Promise.resolve();
-            
-        } catch (error) {
-            console.error('❌ Error sending sound request:', error);
-            return Promise.resolve();
+// --- تابع بهبود یافته برای پخش صوت ---
+async function playCallSound(ticket) {
+    if (!ticket) return Promise.resolve();
+    
+    const ticketNumber = ticket.specific_ticket || '0001';
+    const counterNumber = getCounterNumber() || '5';
+    const counterName = getCounterName() || 'باجه';
+    
+    console.log(`🎵 Main: Requesting sound repetition - Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    
+    try {
+        // روش 1: استفاده از displaySoundManager اگر در دسترس باشد
+        if (window.displaySoundManager) {
+            console.log('✅ Using display sound manager for repetition');
+            return await window.displaySoundManager.playCallAnnouncement(ticketNumber, counterNumber, ticket);
         }
+        
+        // روش 2: ارسال درخواست از طریق Appwrite
+        console.log('🔄 Display not available, using Appwrite for sound request');
+        const audioRequest = await databases.createDocument(
+            DATABASE_ID,
+            AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
+            ID.unique(),
+            {
+                ticket_number: ticketNumber,
+                counter_number: counterNumber,
+                counter_name: counterName,
+                type: 'repeat',
+                timestamp: new Date().toISOString()
+            },
+            [Permission.read(Role.any())]
+        );
+        
+        console.log('✅ Sound repetition request sent to Appwrite');
+        return Promise.resolve();
+        
+    } catch (error) {
+        console.error('❌ Error in sound repetition:', error);
+        return Promise.resolve();
     }
+}
+
+// --- تابع برای بررسی وضعیت ارتباط با display ---
+function checkDisplayConnection() {
+    console.log('🔄 Checking display connection...');
+    
+    if (window.displaySoundManager) {
+        console.log('✅ Display connection: ACTIVE');
+        return true;
+    } else {
+        console.log('❌ Display connection: INACTIVE');
+        console.log('💡 Please make sure display.html is open in another tab');
+        return false;
+    }
+}
+
 
     // برای عکاسی
     async function playPhotographyCallSound(photographyItem) {
@@ -818,16 +840,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const buttonsDiv = document.createElement('div');
             buttonsDiv.className = 'popup-buttons';
             
+            // در تابع showAdvancedPopupNotification، بخش buttonsDiv:
             const repeatSoundBtn = document.createElement('button');
             repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
             repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
-            repeatSoundBtn.onclick = () => {
-                console.log('🔁 User requested sound repetition');
-                playCallSound(ticket);
+            repeatSoundBtn.onclick = async () => {
+                console.log('🔁 User requested sound repetition from popup');
                 repeatSoundBtn.style.transform = 'scale(0.95)';
                 setTimeout(() => {
                     repeatSoundBtn.style.transform = 'scale(1)';
                 }, 150);
+                    // استفاده از تابع اصلی تکرار صوت
+                     await repeatLastSound();
             };
             
             const photographyBtn = document.createElement('button');
@@ -2483,15 +2507,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const repeatSoundBtn = document.createElement('button');
             repeatSoundBtn.className = 'popup-btn popup-repeat-btn';
             repeatSoundBtn.innerHTML = '🔊 تکرار صوت';
-            repeatSoundBtn.onclick = () => {
-                console.log('🔁 User requested photography sound repetition');
-                playPhotographyCallSound(photographyItem);
+            repeatSoundBtn.onclick = async () => {
+                console.log('🔁 User requested sound repetition from popup');
                 repeatSoundBtn.style.transform = 'scale(0.95)';
                 setTimeout(() => {
                     repeatSoundBtn.style.transform = 'scale(1)';
                 }, 150);
+                
+                // استفاده از تابع اصلی تکرار صوت
+                await repeatLastSound();
             };
-            
+                        
             const photoTakenBtn = document.createElement('button');
             photoTakenBtn.className = 'popup-btn popup-photography-btn';
             photoTakenBtn.textContent = 'عکس گرفته شد';
@@ -2706,6 +2732,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- تابع تکرار صوت در صفحه اصلی ---
+function setupRepeatSoundButton() {
+    // اضافه کردن دکمه تکرار صوت به UI
+    const repeatButton = document.createElement('button');
+    repeatButton.id = 'repeat-sound-btn';
+    repeatButton.className = 'big-button repeat-btn';
+    repeatButton.innerHTML = '🔊 تکرار صوت';
+    repeatButton.style.margin = '10px';
+    repeatButton.style.padding = '12px 24px';
+    repeatButton.style.fontSize = '16px';
+    repeatButton.style.backgroundColor = '#4CAF50';
+    repeatButton.style.color = 'white';
+    repeatButton.style.border = 'none';
+    repeatButton.style.borderRadius = '8px';
+    repeatButton.style.cursor = 'pointer';
+    
+    repeatButton.addEventListener('click', async () => {
+        console.log('🔁 User requested sound repetition from main page');
+        await repeatLastSound();
+    });
+    
+    // اضافه کردن دکمه به بخش ticket-actions
+    const ticketActions = document.querySelector('.ticket-actions');
+    if (ticketActions) {
+        ticketActions.appendChild(repeatButton);
+    }
+}
+
+// --- تابع تکرار صوت آخرین نوبت ---
+async function repeatLastSound() {
+    try {
+        console.log('🔁 Repeating last sound announcement...');
+        
+        // پیدا کردن آخرین نوبت فراخوانی شده توسط کاربر جاری
+        const lastCalledTicketId = lastCalledTicket[currentUser.$id];
+        if (!lastCalledTicketId) {
+            showPopupNotification('<p>هیچ نوبتی برای تکرار صوت وجود ندارد.</p>');
+            return;
+        }
+        
+        // پیدا کردن نوبت در لیست
+        const lastTicket = tickets.find(t => t.$id === lastCalledTicketId);
+        if (!lastTicket) {
+            showPopupNotification('<p>اطلاعات نوبت پیدا نشد.</p>');
+            return;
+        }
+        
+        console.log('🔁 Repeating sound for ticket:', lastTicket.specific_ticket);
+        
+        // پخش صوت از طریق display
+        await playCallSound(lastTicket);
+        
+        showPopupNotification(`<p>صوت نوبت ${lastTicket.specific_ticket} تکرار شد.</p>`);
+        
+    } catch (error) {
+        console.error('❌ Error repeating sound:', error);
+        showPopupNotification('<p>خطا در تکرار صوت!</p>');
+    }
+}
+
+
+
     async function updateUserPhotographyRole() {
         try {
             const userPrefs = getUserPrefs();
@@ -2732,33 +2820,53 @@ document.addEventListener('DOMContentLoaded', () => {
         // ❌ حذف کنترل‌های صدا از script.js
     }
 
-    // --- Initialize App ---
-    async function initializeApp() {
-        try {
-            currentUser = await account.get();
-            
-            const userPrefs = getUserPrefs();
-            isPhotographyUser = userPrefs.is_photography_user || false;
-            photographyRoleCheckbox.checked = isPhotographyUser;
-            
-            showLoggedInUI();
-            await fetchData();
-            await loadPhotographyHistory();      
-            await checkAndSetCounterName();
-            setupRealtimeSubscriptions();
-            checkAutoReset();
-            updatePhotographyUI();
-            updateUIForUserRole();
-            setupPhotographyEventListeners();
-            setupDisplaySoundManager();
-            
-            console.log('App initialized successfully');
-            
-        } catch (error) {
-            console.log('User not logged in, showing login form');
-            showLoggedOutUI();
-        }
+    // --- تابع برای تست دکمه تکرار صوت ---
+function testRepeatSound() {
+    if (lastCalledTicket[currentUser.$id]) {
+        repeatLastSound();
+    } else {
+        // تست با یک نوبت نمونه
+        const testTicket = {
+            specific_ticket: '1234',
+            called_by_counter_name: getCounterName(),
+            service_id: services[0]?.$id
+        };
+        playCallSound(testTicket);
+        showPopupNotification('<p>تست صوت انجام شد. نوبت نمونه: ۱۲۳۴</p>');
     }
+}
+
+
+// --- اضافه کردن دکمه تکرار صوت هنگام راه‌اندازی برنامه ---
+async function initializeApp() {
+    try {
+        currentUser = await account.get();
+        
+        const userPrefs = getUserPrefs();
+        isPhotographyUser = userPrefs.is_photography_user || false;
+        photographyRoleCheckbox.checked = isPhotographyUser;
+        
+        showLoggedInUI();
+        await fetchData();
+        await loadPhotographyHistory();      
+        await checkAndSetCounterName();
+        setupRealtimeSubscriptions();
+        checkAutoReset();
+        updatePhotographyUI();
+        updateUIForUserRole();
+        setupPhotographyEventListeners();
+        setupDisplaySoundManager();
+        
+        // اضافه کردن دکمه تکرار صوت
+        setupRepeatSoundButton();
+        
+        console.log('App initialized successfully');
+        
+    } catch (error) {
+        console.log('User not logged in, showing login form');
+        showLoggedOutUI();
+    }
+}
 
     // --- EVENT LISTENERS ---
     loginBtn.addEventListener('click', login);
