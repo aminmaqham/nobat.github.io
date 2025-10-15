@@ -189,30 +189,32 @@ async function playCallSound(ticket) {
     }
 }
 
-
-// 🔥 **اصلاح تابع playPhotographyCallSound برای رعایت محدودیت طول**
 async function playPhotographyCallSound(photographyItem) {
-    if (!photographyItem) return;
+    if (!photographyItem) {
+        console.log('❌ playPhotographyCallSound: No photography item');
+        return;
+    }
     
-    // 🔥 محدود کردن طول رشته‌ها
-    const ticketNumber = String(photographyItem.ticketNumber || '0001').substring(0, 255);
-    const counterName = String(photographyItem.originalCounterName || 'عکاسی').substring(0, 255);
+    const ticketNumber = photographyItem.ticketNumber || '0001';
+    const counterName = photographyItem.originalCounterName || 'عکاسی';
     const counterNumber = extractCounterNumber(counterName);
     
-    console.log(`🎵 Main: Sending photography sound request: Ticket ${ticketNumber}, Counter ${counterNumber}`);
+    console.log(`🎵 MAIN: playPhotographyCallSound called - Ticket: ${ticketNumber}, Counter: ${counterNumber}`);
+    console.log('📊 Photography item:', photographyItem);
     
     // بررسی اتصال display
     const displayActive = checkDisplayConnection();
     
     try {
+        // ایجاد سند در collection صداها برای display
         const audioRequest = await databases.createDocument(
             DATABASE_ID,
             AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
             ID.unique(),
             {
-                ticket_number: ticketNumber,
+                ticket_number: String(ticketNumber).substring(0, 255),
                 counter_number: String(counterNumber).substring(0, 255),
-                counter_name: counterName,
+                counter_name: String(counterName).substring(0, 255),
                 type: 'photography',
                 timestamp: new Date().toISOString(),
                 photography_item_id: String(photographyItem.$id || '').substring(0, 255),
@@ -223,35 +225,46 @@ async function playPhotographyCallSound(photographyItem) {
             [Permission.read(Role.any())]
         );
         
-        console.log('✅ Photography sound request sent to Appwrite:', audioRequest.$id);
+        console.log('✅ MAIN: Photography sound request sent to Appwrite:', audioRequest.$id);
         
         // اگر display فعال است، مستقیماً هم صدا بزن
         if (displayActive) {
-            console.log('🎵 Also calling display sound manager directly');
+            console.log('🎵 MAIN: Also calling display sound manager directly');
             try {
                 await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
-                console.log('✅ Direct display call successful');
+                console.log('✅ MAIN: Direct display call successful');
                 
             } catch (directError) {
-                console.error('❌ Direct display call failed:', directError);
+                console.error('❌ MAIN: Direct display call failed:', directError);
             }
+        } else {
+            console.log('🔇 MAIN: Display not active, only Appwrite request sent');
         }
         
     } catch (error) {
-        console.error('❌ Error sending photography sound request:', error);
+        console.error('❌ MAIN: Error sending photography sound request:', error);
         
-        // Fallback
+        // Fallback: اگر Appwrite خطا داد، مستقیماً از display استفاده کن
         if (displayActive) {
-            console.log('🔄 Using fallback: direct call to display');
+            console.log('🔄 MAIN: Using fallback: direct call to display');
             try {
                 await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
-                console.log('✅ Fallback display call successful');
+                console.log('✅ MAIN: Fallback display call successful');
             } catch (fallbackError) {
-                console.error('❌ Fallback display call failed:', fallbackError);
+                console.error('❌ MAIN: Fallback display call failed:', fallbackError);
+                
+                // نشان دادن خطا به کاربر
+                showPopupNotification(`
+                    <p style="color: #d32f2f;">❌ خطا در پخش صدا!</p>
+                    <p>لطفاً صفحه نمایش را بررسی کنید.</p>
+                `);
             }
+        } else {
+            console.log('🔇 MAIN: No fallback available - display not active');
         }
     }
 }
+
 
 
     // پاک کردن درخواست‌های قدیمی
@@ -339,73 +352,75 @@ async function playPhotographyCallSound(photographyItem) {
             !item.photoTaken
         );
     }
+// 🔥 **اصلاح تابع addToPhotographyList - حذف پخش صدا**
+async function addToPhotographyList(ticket, nationalId, source = 'photography_modal') {
+    console.log('Adding to photography history:', { ticket, nationalId, source });
 
-    // --- تابع اصلاح شده برای افزودن به تاریخچه عکاسی ---
-    async function addToPhotographyList(ticket, nationalId, source = 'photography_modal') {
-        console.log('Adding to photography history:', { ticket, nationalId, source });
-
-        if (!nationalId || nationalId.trim() === '') {
-            showNationalIdError('لطفا کد ملی را وارد کنید.');
-            return false;
-        }
-
-        nationalId = nationalId.toString().replace(/\s/g, '').replace(/\D/g, '');
-        
-        if (nationalId.length !== 10) {
-            showNationalIdError('کد ملی باید 10 رقم باشد.');
-            return false;
-        }
-
-        if (!checkCodeMeli(nationalId)) {
-            showNationalIdError('کد ملی وارد شده معتبر نیست.');
-            return false;
-        }
-
-        if (isNationalIdInWaitingList(nationalId)) {
-            alert(`کد ملی ${nationalId} قبلاً در لیست انتظار عکاسی ثبت شده است.`);
-            return false;
-        }
-
-        try {
-            const service = services.find(s => s.$id === ticket.service_id);
-            
-            let ticketNumber = ticket.specific_ticket;
-            if (!ticketNumber || ticketNumber === 'undefined' || ticketNumber === 'null') {
-                ticketNumber = 'پاس';
-            }
-
-            const originalCounterName = ticket.called_by_counter_name || getCounterName();
-
-            const newItem = {
-                ticketNumber: String(ticketNumber),
-                nationalId: String(nationalId),
-                firstName: ticket.first_name || '---',
-                lastName: ticket.last_name || '---',
-                source: source,
-                serviceId: ticket.service_id,
-                serviceName: service?.name || '---',
-                originalTicketId: parseInt(ticket.$id) || 0,
-                ticketType: ticket.ticket_type || 'regular',
-                originalCounterName: originalCounterName
-            };
-
-            console.log('Prepared photography item with Appwrite-compatible types:', newItem);
-
-            const success = await addToPhotographyHistory(newItem, 'added');
-            
-            if (success) {
-                showPopupNotification(`<p>نوبت ${newItem.ticketNumber} با کد ملی ${nationalId} به لیست عکاسی اضافه شد.</p>`);
-                return true;
-            }
-            
-            return false;
-
-        } catch (error) {
-            console.error('Error adding to photography list:', error);
-            showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
-            return false;
-        }
+    if (!nationalId || nationalId.trim() === '') {
+        showNationalIdError('لطفا کد ملی را وارد کنید.');
+        return false;
     }
+
+    nationalId = nationalId.toString().replace(/\s/g, '').replace(/\D/g, '');
+    
+    if (nationalId.length !== 10) {
+        showNationalIdError('کد ملی باید 10 رقم باشد.');
+        return false;
+    }
+
+    if (!checkCodeMeli(nationalId)) {
+        showNationalIdError('کد ملی وارد شده معتبر نیست.');
+        return false;
+    }
+
+    if (isNationalIdInWaitingList(nationalId)) {
+        alert(`کد ملی ${nationalId} قبلاً در لیست انتظار عکاسی ثبت شده است.`);
+        return false;
+    }
+
+    try {
+        const service = services.find(s => s.$id === ticket.service_id);
+        
+        let ticketNumber = ticket.specific_ticket;
+        if (!ticketNumber || ticketNumber === 'undefined' || ticketNumber === 'null') {
+            ticketNumber = 'پاس';
+        }
+
+        const originalCounterName = ticket.called_by_counter_name || getCounterName();
+
+        const newItem = {
+            ticketNumber: String(ticketNumber),
+            nationalId: String(nationalId),
+            firstName: ticket.first_name || '---',
+            lastName: ticket.last_name || '---',
+            source: source,
+            serviceId: ticket.service_id,
+            serviceName: service?.name || '---',
+            originalTicketId: parseInt(ticket.$id) || 0,
+            ticketType: ticket.ticket_type || 'regular',
+            originalCounterName: originalCounterName
+        };
+
+        console.log('Prepared photography item with Appwrite-compatible types:', newItem);
+
+        const success = await addToPhotographyHistory(newItem, 'added');
+        
+        if (success) {
+            showPopupNotification(`<p>نوبت ${newItem.ticketNumber} با کد ملی ${nationalId} به لیست عکاسی اضافه شد.</p>`);
+            
+            // 🔥 **حذف پخش صدا از اینجا - فقط وقتی فراخوانی می‌شود صدا پخش شود**
+            console.log('✅ Added to photography list without playing sound');
+            return true;
+        }
+        
+        return false;
+
+    } catch (error) {
+        console.error('Error adding to photography list:', error);
+        showPopupNotification('<p>خطا در اضافه کردن به لیست عکاسی!</p>');
+        return false;
+    }
+}
 
     async function addToPhotographyHistoryWithFallback(item, action = 'added') {
         try {
@@ -1159,63 +1174,63 @@ async function playPhotographyCallSound(photographyItem) {
         }
     }
 
-// 🔥 **بهبود تابع callNextTicketWithOptions**
-async function callNextTicketWithOptions() {
-    if (isCallingInProgress) {
-        showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
-        return;
-    }
+        // 🔥 **اصلاح نهایی تابع callNextTicketWithOptions**
+        async function callNextTicketWithOptions() {
+            if (isCallingInProgress) {
+                showPopupNotification('<p>لطفاً منتظر بمانید... فراخوانی در حال انجام است.</p>');
+                return;
+            }
 
-    const selections = getServiceSelections();
-    const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
+            const selections = getServiceSelections();
+            const selectedServiceIds = Object.keys(selections).filter(id => selections[id]);
 
-    if (selectedServiceIds.length === 0) {
-        showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
-        return;
-    }
+            if (selectedServiceIds.length === 0) {
+                showPopupNotification('<p>لطفا حداقل یک خدمت را برای فراخوانی انتخاب کنید.</p>');
+                return;
+            }
 
-    // اولویت ۱: نوبت‌های بازگشته از عکاسی با اولویت بالا
-    const highPriorityReturnedTickets = tickets.filter(t => 
-        t.status === 'در حال انتظار' && 
-        t.returned_from_photography === true &&
-        t.priority === 'high' &&
-        selectedServiceIds.includes(t.service_id)
-    ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            // اولویت ۱: نوبت‌های بازگشته از عکاسی با اولویت بالا
+            const highPriorityReturnedTickets = tickets.filter(t => 
+                t.status === 'در حال انتظار' && 
+                t.returned_from_photography === true &&
+                t.priority === 'high' &&
+                selectedServiceIds.includes(t.service_id)
+            ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-    if (highPriorityReturnedTickets.length > 0) {
-        console.log('🚨 Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
-        await callSpecificTicket(highPriorityReturnedTickets[0]);
-        return;
-    }
+            if (highPriorityReturnedTickets.length > 0) {
+                console.log('🚨 Calling high priority returned ticket:', highPriorityReturnedTickets[0]);
+                await callSpecificTicket(highPriorityReturnedTickets[0]);
+                return;
+            }
 
-    // اولویت ۲: نوبت‌های بازگشته از عکاسی معمولی
-    const returnedTickets = tickets.filter(t => 
-        t.status === 'در حال انتظار' && 
-        t.returned_from_photography === true &&
-        selectedServiceIds.includes(t.service_id)
-    ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            // اولویت ۲: نوبت‌های بازگشته از عکاسی معمولی
+            const returnedTickets = tickets.filter(t => 
+                t.status === 'در حال انتظار' && 
+                t.returned_from_photography === true &&
+                selectedServiceIds.includes(t.service_id)
+            ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-    if (returnedTickets.length > 0) {
-        console.log('📸 Calling returned ticket:', returnedTickets[0]);
-        await callSpecificTicket(returnedTickets[0]);
-        return;
-    }
+            if (returnedTickets.length > 0) {
+                console.log('📸 Calling returned ticket:', returnedTickets[0]);
+                await callSpecificTicket(returnedTickets[0]);
+                return;
+            }
 
-    // 🔥 **اولویت ۳: نوبت‌های عکاسی - اگر کاربر عکاسی است**
-    const waitingPhotographyItems = photographyHistory.filter(item => 
-        item.status === 'در انتظار' && !item.photoTaken
-    );
+            // 🔥 **اولویت ۳: نوبت‌های عکاسی - اگر کاربر عکاسی است**
+            const waitingPhotographyItems = photographyHistory.filter(item => 
+                item.status === 'در انتظار' && !item.photoTaken
+            );
 
-    if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
-        console.log('🎯 Processing photography ticket as photography user');
-        await processPhotographyTicket();
-        return;
-    }
+            if (waitingPhotographyItems.length > 0 && isPhotographyUser) {
+                console.log('🎯 MAIN: Processing photography ticket - should play sound');
+                await processPhotographyTicket(); // این تابع باید صدا را پخش کند
+                return;
+            }
 
-    // اولویت ۴: نوبت‌های معمولی
-    console.log('📋 Calling regular ticket');
-    await callNextRegularTicket();
-}
+            // اولویت ۴: نوبت‌های معمولی
+            console.log('📋 Calling regular ticket');
+            await callNextRegularTicket();
+        }   
 
 
     // تابع جدید برای بررسی و تنظیم شماره باجه
@@ -2572,61 +2587,61 @@ async function saveCounterSettings() {
         this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
         validateNationalIdInput(this);
     }
-// 🔥 **اصلاح تابع processPhotographyTicket برای اطمینان از پخش صدا**
-async function processPhotographyTicket() {
-    const waitingItems = photographyHistory.filter(item => 
-        item.status === 'در انتظار' && !item.photoTaken
-    );
-    
-    if (waitingItems.length === 0) {
-        showPopupNotification('<p>هیچ نوبتی در لیست انتظار عکاسی وجود ندارد.</p>');
-        return;
-    }
-    
-    const sortedItems = [...waitingItems].sort((a, b) => 
-        new Date(a.timestamp) - new Date(b.timestamp)
-    );
-    
-    const nextItem = sortedItems[0];
-    
-    // 🔥 **پخش صدا برای نوبت عکاسی - با تأخیر برای اطمینان**
-    console.log(`🎵 Main: Starting photography sound process for ticket ${nextItem.ticketNumber}`);
-    
-    try {
-        // اول صدا را پخش کن
-        await playPhotographyCallSound(nextItem);
-        console.log('✅ Photography sound process completed');
-        
-        // سپس popup را نشان بده
-        const popupMessage = `
-            <span class="ticket-number">نوبت عکاسی: ${nextItem.ticketNumber}</span>
-            <p><strong>نام:</strong> ${nextItem.firstName} ${nextItem.lastName}</p>
-            <p><strong>کد ملی:</strong> ${nextItem.nationalId}</p>
-            <p><strong>خدمت:</strong> ${nextItem.serviceName || '---'}</p>
-            <p><strong>منبع:</strong> ${nextItem.source === 'manual_input' ? 'ثبت دستی' : 'ارسال به عکاسی'}</p>
-            ${nextItem.originalCounterName ? `<p><strong>باجه مبدا:</strong> ${nextItem.originalCounterName}</p>` : ''}
-        `;
-        
-        const userChoice = await showAdvancedPhotographyPopup(nextItem, popupMessage);
-        
-        if (userChoice === 'photo_taken') {
-            await markPhotoAsTaken(nextItem.$id);
+        // 🔥 **اصلاح اساسی تابع processPhotographyTicket**
+         async function processPhotographyTicket() {
+            const waitingItems = photographyHistory.filter(item => 
+                item.status === 'در انتظار' && !item.photoTaken
+            );
             
-        } else if (userChoice === 'skip') {
-            showPopupNotification(`<p>نوبت ${nextItem.ticketNumber} رد شد.</p>`);
+            if (waitingItems.length === 0) {
+                showPopupNotification('<p>هیچ نوبتی در لیست انتظار عکاسی وجود ندارد.</p>');
+                return;
+            }
             
-            setTimeout(() => {
-                processPhotographyTicket();
-            }, 2000);
-        }
-        
-    } catch (error) {
-        console.error('❌ Error in photography ticket process:', error);
-        showPopupNotification('<p>خطا در فراخوانی نوبت عکاسی!</p>');
-    }
-    
-    updatePhotographyUI();
-}
+            const sortedItems = [...waitingItems].sort((a, b) => 
+                new Date(a.timestamp) - new Date(b.timestamp)
+            );
+            
+            const nextItem = sortedItems[0];
+            
+            // 🔥 **پخش صدا قبل از نمایش popup - این مهم است**
+            console.log(`🎵 MAIN: Playing photography sound for ticket ${nextItem.ticketNumber}`);
+            
+            try {
+                // 1. اول صدا را حتماً پخش کن
+                await playPhotographyCallSound(nextItem);
+                console.log('✅ MAIN: Photography sound played successfully');
+                
+                // 2. سپس popup را نشان بده
+                const popupMessage = `
+                    <span class="ticket-number">نوبت عکاسی: ${nextItem.ticketNumber}</span>
+                    <p><strong>نام:</strong> ${nextItem.firstName} ${nextItem.lastName}</p>
+                    <p><strong>کد ملی:</strong> ${nextItem.nationalId}</p>
+                    <p><strong>خدمت:</strong> ${nextItem.serviceName || '---'}</p>
+                    <p><strong>منبع:</strong> ${nextItem.source === 'manual_input' ? 'ثبت دستی' : 'ارسال به عکاسی'}</p>
+                    ${nextItem.originalCounterName ? `<p><strong>باجه مبدا:</strong> ${nextItem.originalCounterName}</p>` : ''}
+                `;
+                
+                const userChoice = await showAdvancedPhotographyPopup(nextItem, popupMessage);
+                
+                if (userChoice === 'photo_taken') {
+                    await markPhotoAsTaken(nextItem.$id);
+                    
+                } else if (userChoice === 'skip') {
+                    showPopupNotification(`<p>نوبت ${nextItem.ticketNumber} رد شد.</p>`);
+                    
+                    setTimeout(() => {
+                        processPhotographyTicket();
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('❌ MAIN: Error in photography ticket process:', error);
+                showPopupNotification('<p>خطا در فراخوانی نوبت عکاسی!</p>');
+            }
+            
+            updatePhotographyUI();
+        } 
 
 
 
