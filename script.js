@@ -189,80 +189,10 @@ async function playCallSound(ticket) {
     }
 }
 
+// 🔥 **جایگزینی تابع اصلی با نسخه جدید**
 async function playPhotographyCallSound(photographyItem) {
-    if (!photographyItem) {
-        console.log('❌ playPhotographyCallSound: No photography item');
-        return;
-    }
-    
-    const ticketNumber = photographyItem.ticketNumber || '0001';
-    const counterName = photographyItem.originalCounterName || 'عکاسی';
-    const counterNumber = extractCounterNumber(counterName);
-    
-    console.log(`🎵 MAIN: playPhotographyCallSound called - Ticket: ${ticketNumber}, Counter: ${counterNumber}`);
-    console.log('📊 Photography item:', photographyItem);
-    
-    // بررسی اتصال display
-    const displayActive = checkDisplayConnection();
-    
-    try {
-        // ایجاد سند در collection صداها برای display
-        const audioRequest = await databases.createDocument(
-            DATABASE_ID,
-            AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
-            ID.unique(),
-            {
-                ticket_number: String(ticketNumber).substring(0, 255),
-                counter_number: String(counterNumber).substring(0, 255),
-                counter_name: String(counterName).substring(0, 255),
-                type: 'photography',
-                timestamp: new Date().toISOString(),
-                photography_item_id: String(photographyItem.$id || '').substring(0, 255),
-                first_name: String(photographyItem.firstName || 'ثبت دستی').substring(0, 255),
-                last_name: String(photographyItem.lastName || '').substring(0, 255),
-                service_name: String(photographyItem.serviceName || 'عکاسی').substring(0, 255)
-            },
-            [Permission.read(Role.any())]
-        );
-        
-        console.log('✅ MAIN: Photography sound request sent to Appwrite:', audioRequest.$id);
-        
-        // اگر display فعال است، مستقیماً هم صدا بزن
-        if (displayActive) {
-            console.log('🎵 MAIN: Also calling display sound manager directly');
-            try {
-                await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
-                console.log('✅ MAIN: Direct display call successful');
-                
-            } catch (directError) {
-                console.error('❌ MAIN: Direct display call failed:', directError);
-            }
-        } else {
-            console.log('🔇 MAIN: Display not active, only Appwrite request sent');
-        }
-        
-    } catch (error) {
-        console.error('❌ MAIN: Error sending photography sound request:', error);
-        
-        // Fallback: اگر Appwrite خطا داد، مستقیماً از display استفاده کن
-        if (displayActive) {
-            console.log('🔄 MAIN: Using fallback: direct call to display');
-            try {
-                await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
-                console.log('✅ MAIN: Fallback display call successful');
-            } catch (fallbackError) {
-                console.error('❌ MAIN: Fallback display call failed:', fallbackError);
-                
-                // نشان دادن خطا به کاربر
-                showPopupNotification(`
-                    <p style="color: #d32f2f;">❌ خطا در پخش صدا!</p>
-                    <p>لطفاً صفحه نمایش را بررسی کنید.</p>
-                `);
-            }
-        } else {
-            console.log('🔇 MAIN: No fallback available - display not active');
-        }
-    }
+    // استفاده از روش مستقیم
+    await playPhotographyCallSoundDirect(photographyItem);
 }
 
 
@@ -1343,7 +1273,58 @@ async function addToPhotographyList(ticket, nationalId, source = 'photography_mo
         totalWaitingContainer.style.display = 'none';
     }
 
-// 🔥 **بهبود real-time subscription برای صداهای عکاسی**
+
+    // 🔥 **تابع جدید برای پخش مستقیم صدا - بدون نیاز به WebSocket**
+async function playPhotographyCallSoundDirect(photographyItem) {
+    if (!photographyItem) return;
+    
+    const ticketNumber = photographyItem.ticketNumber || '0001';
+    const counterName = photographyItem.originalCounterName || 'عکاسی';
+    const counterNumber = extractCounterNumber(counterName);
+    
+    console.log(`🎵 MAIN: Playing photography sound DIRECTLY - Ticket: ${ticketNumber}, Counter: ${counterNumber}`);
+    
+    // 1. اول مستقیماً از display صدا بزن
+    if (window.displaySoundManager) {
+        try {
+            console.log('🎵 MAIN: Calling display sound manager directly...');
+            await window.displaySoundManager.playPhotographyAnnouncement(ticketNumber, counterNumber, photographyItem);
+            console.log('✅ MAIN: Direct photography sound successful');
+            return; // اگر موفق شدیم، برگردیم
+        } catch (directError) {
+            console.error('❌ MAIN: Direct photography sound failed:', directError);
+        }
+    }
+    
+    // 2. اگر display در دسترس نبود، از Appwrite استفاده کن
+    console.log('🔄 MAIN: Falling back to Appwrite method');
+    try {
+        const audioRequest = await databases.createDocument(
+            DATABASE_ID,
+            AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
+            ID.unique(),
+            {
+                ticket_number: String(ticketNumber).substring(0, 255),
+                counter_number: String(counterNumber).substring(0, 255),
+                counter_name: String(counterName).substring(0, 255),
+                type: 'photography',
+                timestamp: new Date().toISOString(),
+                photography_item_id: String(photographyItem.$id || '').substring(0, 255),
+                first_name: String(photographyItem.firstName || 'ثبت دستی').substring(0, 255),
+                last_name: String(photographyItem.lastName || '').substring(0, 255),
+                service_name: String(photographyItem.serviceName || 'عکاسی').substring(0, 255)
+            },
+            [Permission.read(Role.any())]
+        );
+        
+        console.log('✅ MAIN: Photography sound request sent to Appwrite');
+        
+    } catch (error) {
+        console.error('❌ MAIN: Both methods failed:', error);
+    }
+}
+
+// 🔥 **اصلاح تابع setupRealtimeSubscriptions برای مدیریت خطای WebSocket**
 function setupRealtimeSubscriptions() {
     console.log('🔔 Setting up real-time subscriptions for all collections...');
     
@@ -1389,107 +1370,136 @@ function setupRealtimeSubscriptions() {
             }, 500);
         });
         
-        // 🔥 **اشتراک بهبود یافته برای صداهای عکاسی و معمولی**
+        // 🔥 **اشتراک بهبود یافته برای صداها - با مدیریت خطا**
         const audioChannel = `databases.${DATABASE_ID}.collections.${AUDIO_ANNOUNCEMENTS_COLLECTION_ID}.documents`;
-        client.subscribe(audioChannel, (response) => {
+        
+        const audioSubscription = client.subscribe(audioChannel, (response) => {
             console.log('📡 Real-time audio announcement update:', response);
             
             if (response.events.includes('databases.*.collections.*.documents.*.create')) {
                 const audioData = response.payload;
                 console.log('🎵 New audio request received:', audioData);
                 
-                // بررسی نوع صدا
-                if (audioData.type === 'photography') {
-                    console.log('🎵 Photography audio request detected via real-time');
-                    console.log('📊 Photography audio details:', {
-                        ticket: audioData.ticket_number,
-                        counter: audioData.counter_number,
-                        name: audioData.counter_name,
-                        photography_id: audioData.photography_item_id
-                    });
+                // پخش صدا از طریق display sound manager
+                if (window.displaySoundManager) {
+                    console.log('🎵 Forwarding audio to display');
                     
-                    // پخش صدا از طریق display sound manager
-                    if (window.displaySoundManager) {
-                        console.log('🎵 Forwarding photography audio to display');
+                    if (audioData.type === 'photography') {
                         window.displaySoundManager.playPhotographyAnnouncement(
                             audioData.ticket_number,
                             audioData.counter_number,
                             audioData
                         ).catch(error => {
-                            console.error('❌ Error playing photography audio via real-time:', error);
+                            console.error('❌ Error playing photography audio:', error);
                         });
                     } else {
-                        console.log('⚠️ Display sound manager not available for real-time photography audio');
-                    }
-                    
-                } else if (audioData.type === 'normal') {
-                    console.log('🎵 Normal audio request detected via real-time');
-                    console.log('📊 Normal audio details:', {
-                        ticket: audioData.ticket_number,
-                        counter: audioData.counter_number,
-                        name: audioData.counter_name
-                    });
-                    
-                    // پخش صدا برای نوبت معمولی
-                    if (window.displaySoundManager) {
-                        console.log('🎵 Forwarding normal audio to display');
                         window.displaySoundManager.playCallAnnouncement(
                             audioData.ticket_number,
                             audioData.counter_number,
                             audioData
                         ).catch(error => {
-                            console.error('❌ Error playing normal audio via real-time:', error);
+                            console.error('❌ Error playing normal audio:', error);
                         });
-                    } else {
-                        console.log('⚠️ Display sound manager not available for real-time normal audio');
                     }
+                } else {
+                    console.log('⚠️ Display sound manager not available');
                 }
-                
-                // 🔥 **پاک کردن خودکار درخواست صدا بعد از 10 ثانیه**
-                setTimeout(async () => {
-                    try {
-                        await databases.deleteDocument(
-                            DATABASE_ID,
-                            AUDIO_ANNOUNCEMENTS_COLLECTION_ID,
-                            audioData.$id
-                        );
-                        console.log('✅ Auto-cleaned audio request:', audioData.$id);
-                    } catch (deleteError) {
-                        console.error('❌ Error cleaning audio request:', deleteError);
-                    }
-                }, 10000);
             }
+        });
+        
+        // 🔥 **مدیریت خطاهای WebSocket**
+        audioSubscription.catch(error => {
+            console.error('❌ WebSocket subscription error:', error);
+            console.log('🔄 Attempting to reconnect in 10 seconds...');
+            
+            setTimeout(() => {
+                console.log('🔄 Reconnecting WebSocket...');
+                setupRealtimeSubscriptions();
+            }, 10000);
         });
         
         console.log('✅ All real-time subscriptions setup completed');
         
     } catch (error) {
         console.error('❌ Error setting up real-time subscriptions:', error);
+        
+        // تلاش مجدد بعد از 10 ثانیه
+        setTimeout(() => {
+            console.log('🔄 Retrying real-time setup...');
+            setupRealtimeSubscriptions();
+        }, 10000);
     }
 }
 
 // 🔥 **تابع بهبود یافته برای بررسی وضعیت display**
 function checkDisplayConnection() {
     if (window.displaySoundManager) {
-        const status = window.getDisplayStatus ? window.getDisplayStatus() : { soundManager: true };
-        console.log('✅ Display connection: ACTIVE', status);
-        return true;
+        // تست کردن اتصال
+        try {
+            // بررسی اینکه display واقعاً کار می‌کند
+            const status = window.getDisplayStatus ? window.getDisplayStatus() : { 
+                soundManager: true, 
+                userInteracted: window.displaySoundManager.userInteracted 
+            };
+            
+            console.log('✅ Display connection: ACTIVE', status);
+            
+            if (!window.displaySoundManager.userInteracted) {
+                console.log('⚠️ Display: User has not interacted yet');
+                return false;
+            }
+            
+            return true;
+        } catch (error) {
+            console.log('❌ Display connection test failed:', error);
+            return false;
+        }
     } else {
         console.log('❌ Display connection: INACTIVE - Please open display.html');
         
-        // نشان دادن پیام به کاربر
-        setTimeout(() => {
-            if (!window.displaySoundManager) {
+        // نشان دادن پیام به کاربر فقط یک بار
+        if (!window.displayWarningShown) {
+            window.displayWarningShown = true;
+            setTimeout(() => {
                 showPopupNotification(`
-                    <p style="color: #d32f2f; font-weight: bold;">⚠️ سیستم صدا فعال نیست!</p>
-                    <p>لطفاً صفحه نمایش (display.html) را در تب دیگری باز کنید.</p>
+                    <div style="text-align: center;">
+                        <p style="color: #d32f2f; font-weight: bold; font-size: 18px;">⚠️ سیستم صدا فعال نیست!</p>
+                        <p>لطفاً صفحه نمایش (display.html) را در تب دیگری باز کنید و روی دکمه "فعال کردن صدا" کلیک کنید.</p>
+                        <p style="font-size: 14px; color: #666; margin-top: 10px;">
+                            اگر صفحه نمایش باز است، لطفاً آن را refresh کنید.
+                        </p>
+                    </div>
                 `);
-            }
-        }, 2000);
+            }, 1000);
+        }
         
         return false;
     }
 }
+
+// 🔥 **اضافه کردن تابع برای تست سریع**
+function testDisplayConnection() {
+    console.log('🔍 Testing display connection...');
+    
+    if (window.displaySoundManager) {
+        console.log('✅ Display is available');
+        console.log('📊 Display status:', window.getDisplayStatus ? window.getDisplayStatus() : 'No debug info');
+        
+        // تست پخش صدا
+        window.displaySoundManager.playPhotographyAnnouncement('9999', '5')
+            .then(() => console.log('✅ Test sound played successfully'))
+            .catch(err => console.error('❌ Test sound failed:', err));
+    } else {
+        console.log('❌ Display not available');
+        console.log('💡 Please make sure:');
+        console.log('1. display.html is open in another tab');
+        console.log('2. The page is fully loaded');
+        console.log('3. You clicked "فعال کردن صدا" button');
+        console.log('4. There are no console errors in display.html');
+    }
+}
+
+window.testDisplayConnection = testDisplayConnection;
 
     function renderServiceButtons() {
         serviceButtonsContainer.innerHTML = '';
